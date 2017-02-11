@@ -1,0 +1,36 @@
+{
+    "name":                 "destructible",
+    "version":              "9.9.9",
+    "description":
+
+      "Controlled demolition of complex objects.",
+
+    "keywords":
+    [
+                            "cadence", "evented"
+    ],
+    "author":               "Alan Gutierrez <alan@prettyrobots.com>",
+    "homepage":             "http://bigeasy.github.com/nascent",
+    "bugs":                 "http://bigeasy.github.com/nascent/issues",
+    "license":              "MIT",
+    "repository":
+    {
+                            "url": "git://github.com/bigeasy/nascent.git",
+                            "type": "git"
+    },
+    "dependencies":
+    {
+                            "interrupt":                    "5.0.x",
+                            "nascent.coalesce":             "0.0.0",
+                            "operation":                    "1.2.x"
+    },
+    "devDependencies":
+    {
+                            "proof":                        "1.2.x"
+    },
+    "main":                 "destructor",
+    "scripts":
+    {
+                            "test": "proof test */*.t.js"
+    }
+}
