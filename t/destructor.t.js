@@ -23,8 +23,8 @@ function prove (async, assert) {
     destructor.check()
 
     async([function () {
-        destructor.destructable(function (callback) {
-            destructor.destructable(function (callback) {
+        destructor.destructible(function (callback) {
+            destructor.destructible(function (callback) {
                 callback(new Error('cause'))
             }, callback)
         }, async())
@@ -46,7 +46,7 @@ function prove (async, assert) {
             assert(true, 'run after destroyed')
         })
 
-        destructor.destructable(function () {
+        destructor.destructible(function () {
             assert(false, 'should not be called')
         }, async())
     }])

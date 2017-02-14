@@ -61,7 +61,7 @@ Destructor.prototype.check = function () {
     }
 }
 
-Destructor.prototype.destructable = cadence(function (async, f) {
+Destructor.prototype.destructible = cadence(function (async, f) {
     if (!this.destroyed) {
         async([function () {
             this.destroy()
