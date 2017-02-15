@@ -37,8 +37,7 @@ Destructor.prototype.destroy = function (error) {
             body: {
                 destructor: this._name,
                 waiting: this._waiting.slice(),
-                cause: this.cause,
-                interrupt: this._interrupt
+                cause: this.cause
             }
         })
         this.destroyed = true
@@ -107,7 +106,6 @@ Destructor.prototype.destructible = cadence(function (async) {
                     destructor: this._name,
                     destructible: name,
                     waiting: this._waiting.slice(),
-                    interrupt: this._interrupt,
                     cause: this.cause
                 }
             })
@@ -142,7 +140,6 @@ Destructor.prototype.async = function (async, name) {
                     destructor: destructor._name,
                     destructible: name,
                     waiting: destructor._waiting.slice(),
-                    interrupt: destructor._interrupt,
                     cause: destructor.cause
                 }
             })

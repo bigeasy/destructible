@@ -1,5 +1,6 @@
 var Scheduler = require('happenstance').Scheduler
 var Timer = require('happenstance').Timer
+var interrupt = require('interrupt').createInterrupter('destructible')
 
 function Terminator (timeout) {
     this._timeout = timeout
@@ -11,7 +12,6 @@ function Terminator (timeout) {
         }
         setImmediate(function () {
             body = envelope.body.body.body
-            interrupt = body.interrupt
             throw interrupt('hung', {
                 destructor: body.destructor,
                 destructible: body.destructible,
