@@ -23,8 +23,8 @@ function prove (async, assert) {
     destructor.check()
 
     async([function () {
-        destructor.destructible(function (callback) {
-            destructor.destructible(function (callback) {
+        destructor.destructible('a', function (callback) {
+            destructor.destructible('b', function (callback) {
                 callback(new Error('cause'))
             }, callback)
         }, async())
@@ -37,7 +37,7 @@ function prove (async, assert) {
             destructor.check()
         } catch (error) {
             console.log(error.stack)
-            assert(/^nascent.destructor#destroyed$/m.test(error.message), 'destroyed')
+            assert(/^destructible#destroyed$/m.test(error.message), 'destroyed')
         }
 
         destructor.destroy()
