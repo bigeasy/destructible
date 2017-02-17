@@ -123,7 +123,7 @@ Destructor.prototype.destructible = cadence(function (async) {
 Destructor.prototype.async = function (async, name) {
     var destructor = this
     if (destructor.destroyed) {
-        return
+        return function () {}
     }
     return function () {
         var vargs = slice.call(arguments)
