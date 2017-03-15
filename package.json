@@ -20,9 +20,9 @@
     },
     "dependencies":
     {
+                            "extant":                       "0.0.x",
                             "happenstance":                 "3.0.x",
                             "interrupt":                    "5.0.x",
-                            "nascent.coalesce":             "0.0.0",
                             "operation":                    "1.2.x",
                             "procession":                   "0.2.1",
                             "monotonic":                    "2.0.x"

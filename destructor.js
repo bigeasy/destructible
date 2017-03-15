@@ -1,5 +1,5 @@
 var cadence = require('cadence')
-var coalesce = require('nascent.coalesce')
+var coalesce = require('extant')
 var DEFAULT = {
     interrupt: require('interrupt').createInterrupter('destructible')
 }
