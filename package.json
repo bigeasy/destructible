@@ -24,7 +24,7 @@
                             "happenstance":                 "3.0.x",
                             "interrupt":                    "5.0.x",
                             "operation":                    "1.2.x",
-                            "procession":                   "0.2.1",
+                            "procession":                   "0.2.x",
                             "monotonic":                    "2.0.x"
     },
     "devDependencies":
