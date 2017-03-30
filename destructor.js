@@ -30,6 +30,7 @@ Destructor.prototype.destroy = function (error) {
         this.cause = error
     }
     if (!this.destroyed) {
+        this._stack = new Error().stack
         this.events.push({
             module: 'destructible',
             method: 'destroyed',
@@ -71,6 +72,14 @@ Destructor.prototype.addDestructor = function (name) {
 }
 
 Destructor.prototype.invokeDestructor = function (name) {
+    if (this._destructors == null) {
+        console.log({
+            cause: this.cause && this.cause.stack,
+            stack: this._stack,
+            when: this.when,
+            destroyed: this.destroyed
+        })
+    }
     this._destructors[name].apply([])
     delete this._destructors[name]
 }
