@@ -1,4 +1,4 @@
-require('proof/redux')(8, require('cadence')(prove))
+require('proof')(8, require('cadence')(prove))
 
 function prove (async, assert) {
     var Destructor = require('..')
