@@ -5,8 +5,8 @@ var interrupt = require('interrupt').createInterrupter('destructible')
 var Operation = require('operation/variadic')
 var slice = [].slice
 var Procession = require('procession')
-var COOKIE = '0'
 var Monotonic = require('monotonic').asString
+var COOKIE = '0'
 
 function Destructor (name) {
     this.destroyed = false
