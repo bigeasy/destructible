@@ -8,7 +8,7 @@ var Procession = require('procession')
 var Monotonic = require('monotonic').asString
 var INSTANCE = '0'
 
-function Destructor (name) {
+function Destructible (name) {
     this.destroyed = false
     this.cause = null
     this.events = new Procession
@@ -22,7 +22,7 @@ function Destructor (name) {
     this._instance = INSTANCE = Monotonic.increment(INSTANCE, 0)
 }
 
-Destructor.prototype.destroy = function (error) {
+Destructible.prototype.destroy = function (error) {
     if (error) {
         this.check()
         this.cause = error
@@ -49,11 +49,11 @@ Destructor.prototype.destroy = function (error) {
     }
 }
 
-Destructor.prototype.markDestroyed = function (object, property) {
+Destructible.prototype.markDestroyed = function (object, property) {
     this._markers.push(function () { object[property] = true })
 }
 
-Destructor.prototype.addDestructor = function (key) {
+Destructible.prototype.addDestructor = function (key) {
     key = Keyify.stringify(key)
     var operation = Operation(slice.call(arguments, 1))
     if (this.destroyed) {
@@ -63,7 +63,7 @@ Destructor.prototype.addDestructor = function (key) {
     }
 }
 
-Destructor.prototype.invokeDestructor = function (key) {
+Destructible.prototype.invokeDestructor = function (key) {
     key = Keyify.stringify(key)
     if (this._destructors == null) {
         console.log({
@@ -78,24 +78,24 @@ Destructor.prototype.invokeDestructor = function (key) {
     delete this._destructors[key]
 }
 
-Destructor.prototype.removeDestructor = function (key) {
+Destructible.prototype.removeDestructor = function (key) {
     key = Keyify.stringify(key)
     delete this._destructors[key]
 }
 
-Destructor.prototype.getDestructors = function () {
+Destructible.prototype.getDestructors = function () {
     return Object.keys(this._destructors).map(function (key) {
         return Keyify.parse(key)
     })
 }
 
-Destructor.prototype.check = function () {
+Destructible.prototype.check = function () {
     if (this.destroyed) {
         throw interrupt('destroyed', {}, { cause: coalesce(this.cause) })
     }
 }
 
-Destructor.prototype.destructible = cadence(function (async) {
+Destructible.prototype.destructible = cadence(function (async) {
     if (!this.destroyed) {
         var vargs = slice.call(arguments, 1)
         var name = typeof vargs[0] == 'string' ? vargs.shift() : null
@@ -126,7 +126,7 @@ Destructor.prototype.destructible = cadence(function (async) {
     }
 })
 
-Destructor.prototype.async = function (async, name) {
+Destructible.prototype.async = function (async, name) {
     var destructor = this
     if (destructor.destroyed) {
         return function () {}
@@ -160,4 +160,4 @@ Destructor.prototype.async = function (async, name) {
     }
 }
 
-module.exports = Destructor
+module.exports = Destructible
