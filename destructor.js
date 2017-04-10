@@ -1,16 +1,14 @@
 var cadence = require('cadence')
 var coalesce = require('extant')
 var Keyify = require('keyify')
-var DEFAULT = {
-    interrupt: require('interrupt').createInterrupter('destructible')
-}
+var interrupt = require('interrupt').createInterrupter('destructible')
 var Operation = require('operation/variadic')
 var slice = [].slice
 var Procession = require('procession')
 var COOKIE = '0'
 var Monotonic = require('monotonic').asString
 
-function Destructor (name, interrupt) {
+function Destructor (name) {
     this.destroyed = false
     this.cause = null
     this.events = new Procession
@@ -18,7 +16,6 @@ function Destructor (name, interrupt) {
     var vargs = slice.call(arguments)
 
     this._name = typeof vargs[0] == 'string' ? vargs.shift() : null
-    this._interrupt = coalesce(vargs[0], DEFAULT.interrupt)
     this._destructors = {}
     this._markers = []
     this._waiting = []
@@ -94,7 +91,7 @@ Destructor.prototype.getDestructors = function () {
 
 Destructor.prototype.check = function () {
     if (this.destroyed) {
-        throw this._interrupt('destroyed', {}, { cause: coalesce(this.cause) })
+        throw interrupt('destroyed', {}, { cause: coalesce(this.cause) })
     }
 }
 
