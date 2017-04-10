@@ -2,10 +2,10 @@ require('proof')(15, require('cadence')(prove))
 
 function prove (async, assert) {
     var Destructible = require('..')
-    var destructible = new Destructible('named')
-    assert(destructible.name, 'named', 'named')
+    var destructible = new Destructible('keyed')
+    assert(destructible.key, 'keyed', 'keyed')
     var destructible = new Destructible
-    assert(destructible.name, null, 'no name')
+    assert(destructible.key, null, 'unkeyed')
 
     var object = { destroyed: false }
 

@@ -8,14 +8,14 @@ var Procession = require('procession')
 var Monotonic = require('monotonic').asString
 var INSTANCE = '0'
 
-function Destructible (name) {
+function Destructible (key) {
     this.destroyed = false
     this.cause = null
     this.events = new Procession
 
     var vargs = slice.call(arguments)
 
-    this.name = typeof vargs[0] == 'string' ? vargs.shift() : null
+    this.key = coalesce(key)
     this._destructors = {}
     this._markers = []
     this._waiting = []
@@ -34,7 +34,7 @@ Destructible.prototype.destroy = function (error) {
             method: 'destroyed',
             from: this._instance,
             body: {
-                destructor: this.name,
+                destructor: this.key,
                 waiting: this._waiting.slice(),
                 cause: this.cause
             }
@@ -109,7 +109,7 @@ Destructible.prototype.destructible = cadence(function (async) {
                 method: 'popped',
                 from: this._instance,
                 body: {
-                    destructor: this.name,
+                    destructor: this.key,
                     destructible: name,
                     waiting: this._waiting.slice(),
                     cause: this.cause
@@ -143,7 +143,7 @@ Destructible.prototype.async = function (async, name) {
                 method: 'popped',
                 from: destructor._instance,
                 body: {
-                    destructor: destructor.name,
+                    destructor: destructor.key,
                     destructible: name,
                     waiting: destructor._waiting.slice(),
                     cause: destructor.cause
@@ -158,6 +158,10 @@ Destructible.prototype.async = function (async, name) {
             throw error
         }])
     }
+}
+
+Destructible.prototype.rescue = function () {
+    return function (error) { if (error) this.destroy(error) }.bind(this)
 }
 
 module.exports = Destructible
