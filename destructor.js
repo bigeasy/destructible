@@ -6,7 +6,7 @@ var Operation = require('operation/variadic')
 var slice = [].slice
 var Procession = require('procession')
 var Monotonic = require('monotonic').asString
-var COOKIE = '0'
+var INSTANCE = '0'
 
 function Destructor (name) {
     this.destroyed = false
@@ -19,7 +19,7 @@ function Destructor (name) {
     this._destructors = {}
     this._markers = []
     this._waiting = []
-    this._instance = COOKIE = Monotonic.increment(COOKIE, 0)
+    this._instance = INSTANCE = Monotonic.increment(INSTANCE, 0)
 }
 
 Destructor.prototype.destroy = function (error) {
