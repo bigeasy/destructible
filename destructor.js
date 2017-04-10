@@ -1,9 +1,10 @@
 var cadence = require('cadence')
 var coalesce = require('extant')
+var Keyify = require('keyify')
 var DEFAULT = {
     interrupt: require('interrupt').createInterrupter('destructible')
 }
-var Operation = require('operation')
+var Operation = require('operation/variadic')
 var slice = [].slice
 var Procession = require('procession')
 var COOKIE = '0'
@@ -55,23 +56,18 @@ Destructor.prototype.markDestroyed = function (object, property) {
     this._markers.push(function () { object[property] = true })
 }
 
-Destructor.prototype._makeOperation = function (vargs) {
-    var operation = vargs.length == 1
-                  ? vargs[0]
-                  : { object: vargs[1], method: vargs[0] }
-    return new Operation(operation)
-}
-
-Destructor.prototype.addDestructor = function (name) {
-     var operation = this._makeOperation(slice.call(arguments, 1))
+Destructor.prototype.addDestructor = function (key) {
+    key = Keyify.stringify(key)
+    var operation = Operation(slice.call(arguments, 1))
     if (this.destroyed) {
-        operation.apply([])
+        operation()
     } else {
-        this._destructors[name] = operation
+        this._destructors[key] = operation
     }
 }
 
-Destructor.prototype.invokeDestructor = function (name) {
+Destructor.prototype.invokeDestructor = function (key) {
+    key = Keyify.stringify(key)
     if (this._destructors == null) {
         console.log({
             cause: this.cause && this.cause.stack,
@@ -80,16 +76,20 @@ Destructor.prototype.invokeDestructor = function (name) {
             destroyed: this.destroyed
         })
     }
-    this._destructors[name].apply([])
-    delete this._destructors[name]
+    var destructor = this._destructors[key]
+    destructor()
+    delete this._destructors[key]
 }
 
-Destructor.prototype.removeDestructor = function (name) {
-    delete this._destructors[name]
+Destructor.prototype.removeDestructor = function (key) {
+    key = Keyify.stringify(key)
+    delete this._destructors[key]
 }
 
 Destructor.prototype.getDestructors = function () {
-    return Object.keys(this._destructors)
+    return Object.keys(this._destructors).map(function (key) {
+        return Keyify.parse(key)
+    })
 }
 
 Destructor.prototype.check = function () {
@@ -119,7 +119,7 @@ Destructor.prototype.destructible = cadence(function (async) {
                 }
             })
         }], [function () {
-            this._makeOperation(vargs).apply([async()])
+            Operation(vargs)(async())
         }, function (error) {
             if (!this.destroyed) {
                 this.destroy(error)
