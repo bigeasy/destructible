@@ -1,8 +1,11 @@
-require('proof')(8, require('cadence')(prove))
+require('proof')(10, require('cadence')(prove))
 
 function prove (async, assert) {
     var Destructor = require('..')
+    var destructor = new Destructor('named')
+    assert(destructor.name, 'named', 'named')
     var destructor = new Destructor
+    assert(destructor.name, null, 'no name')
 
     var object = { destroyed: false }
 

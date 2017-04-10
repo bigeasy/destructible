@@ -15,7 +15,7 @@ function Destructor (name) {
 
     var vargs = slice.call(arguments)
 
-    this._name = typeof vargs[0] == 'string' ? vargs.shift() : null
+    this.name = typeof vargs[0] == 'string' ? vargs.shift() : null
     this._destructors = {}
     this._markers = []
     this._waiting = []
@@ -34,7 +34,7 @@ Destructor.prototype.destroy = function (error) {
             method: 'destroyed',
             from: this._instance,
             body: {
-                destructor: this._name,
+                destructor: this.name,
                 waiting: this._waiting.slice(),
                 cause: this.cause
             }
@@ -109,7 +109,7 @@ Destructor.prototype.destructible = cadence(function (async) {
                 method: 'popped',
                 from: this._instance,
                 body: {
-                    destructor: this._name,
+                    destructor: this.name,
                     destructible: name,
                     waiting: this._waiting.slice(),
                     cause: this.cause
@@ -143,7 +143,7 @@ Destructor.prototype.async = function (async, name) {
                 method: 'popped',
                 from: destructor._instance,
                 body: {
-                    destructor: destructor._name,
+                    destructor: destructor.name,
                     destructible: name,
                     waiting: destructor._waiting.slice(),
                     cause: destructor.cause
