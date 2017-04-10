@@ -4,7 +4,6 @@ var coalesce = require('extant')
 var Keyify = require('keyify')
 var interrupt = require('interrupt').createInterrupter('destructible')
 var Operation = require('operation/variadic')
-var slice = [].slice
 var Procession = require('procession')
 var Monotonic = require('monotonic').asString
 var INSTANCE = '0'
@@ -14,7 +13,7 @@ function Destructible (key) {
     this.cause = null
     this.events = new Procession
 
-    var vargs = slice.call(arguments)
+    var vargs = Array.prototype.slice.call(arguments)
 
     this.key = coalesce(key)
     this._destructors = {}
@@ -56,7 +55,7 @@ Destructible.prototype.markDestroyed = function (object, property) {
 
 Destructible.prototype.addDestructor = function (key) {
     key = Keyify.stringify(key)
-    var operation = Operation(slice.call(arguments, 1))
+    var operation = Operation(Array.prototype.slice.call(arguments, 1))
     if (this.destroyed) {
         operation()
     } else {
@@ -98,7 +97,7 @@ Destructible.prototype.check = function () {
 
 Destructible.prototype.destructible = cadence(function (async) {
     if (!this.destroyed) {
-        var vargs = slice.call(arguments, 1)
+        var vargs = Array.prototype.slice.call(arguments, 1)
         var name = typeof vargs[0] == 'string' ? vargs.shift() : null
         var waiting = { destructible: name }
         this._waiting.push(waiting)
@@ -135,7 +134,7 @@ Destructible.prototype.async = function (async, name) {
     }
     var unlatch = vargs.length ? Operation(vargs) : nop
     return function () {
-        var vargs = slice.call(arguments)
+        var vargs = Array.prototype.slice.call(arguments)
         var waiting = { destructible: name }
         destructor._waiting.push(waiting)
         async([function () {
