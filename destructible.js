@@ -1,4 +1,5 @@
 var cadence = require('cadence')
+var nop = require('nop')
 var coalesce = require('extant')
 var Keyify = require('keyify')
 var interrupt = require('interrupt').createInterrupter('destructible')
@@ -127,10 +128,12 @@ Destructible.prototype.destructible = cadence(function (async) {
 })
 
 Destructible.prototype.async = function (async, name) {
+    var vargs = Array.prototype.slice.call(arguments, 2)
     var destructor = this
     if (destructor.destroyed) {
         return function () {}
     }
+    var unlatch = vargs.length ? Operation(vargs) : nop
     return function () {
         var vargs = slice.call(arguments)
         var waiting = { destructible: name }
@@ -152,6 +155,7 @@ Destructible.prototype.async = function (async, name) {
         }], [function () {
             async.apply(null, vargs)
         }, function (error) {
+            unlatch(error)
             if (!destructor.destroyed) {
                 destructor.destroy(error)
             }
