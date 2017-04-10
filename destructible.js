@@ -50,7 +50,7 @@ Destructible.prototype.destroy = function (error) {
 }
 
 Destructible.prototype.markDestroyed = function (object, property) {
-    this._markers.push(function () { object[property] = true })
+    this._markers.push(function () { object[coalesce(property, 'destroyed')] = true })
 }
 
 Destructible.prototype.addDestructor = function (key) {
