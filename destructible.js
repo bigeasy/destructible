@@ -21,9 +21,9 @@ function Destructible (key) {
     this._markers = []
     this._waiting = []
     this._instance = INSTANCE = Monotonic.increment(INSTANCE, 0)
-    this._ready = new Signal
-    this._ready.unlatch()
-    this._ready.instance = ++instance
+    this.ready = new Signal
+    this.ready.unlatch()
+    this.ready.instance = ++instance
 }
 
 Destructible.prototype.destroy = function (error) {
@@ -112,9 +112,9 @@ function _async (destructible, async, name) {
     if (destructible.destroyed) {
         return function () {}
     }
-    var previous = destructible._ready
-    var ready = destructible._ready = new Signal
-    destructible._ready.instance = ++instance
+    var previous = destructible.ready
+    var ready = destructible.ready = new Signal
+    destructible.ready.instance = ++instance
     return function () {
         var vargs = Array.prototype.slice.call(arguments)
         var waiting = { destructible: name }
