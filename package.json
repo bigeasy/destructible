@@ -29,7 +29,7 @@
                             "nop":                          "1.0.0",
                             "operation":                    "1.2.x",
                             "procession":                   "0.2.x",
-                            "signal":                       "1.8.x"
+                            "signal":                       "1.10.x"
     },
     "devDependencies":
     {
