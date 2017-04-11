@@ -2,12 +2,13 @@ var cadence = require('cadence')
 var nop = require('nop')
 var coalesce = require('extant')
 var Keyify = require('keyify')
-var interrupt = require('interrupt').createInterrupter('destructible')
 var Operation = require('operation/variadic')
 var Procession = require('procession')
 var Monotonic = require('monotonic').asString
 var INSTANCE = '0'
+var Signal = require('signal')
 
+var instance = 0
 function Destructible (key) {
     this.destroyed = false
     this.cause = null
@@ -20,6 +21,9 @@ function Destructible (key) {
     this._markers = []
     this._waiting = []
     this._instance = INSTANCE = Monotonic.increment(INSTANCE, 0)
+    this._ready = new Signal
+    this._ready.unlatch()
+    this._ready.instance = ++instance
 }
 
 Destructible.prototype.destroy = function (error) {
@@ -89,78 +93,66 @@ Destructible.prototype.getDestructors = function () {
     })
 }
 
-Destructible.prototype.check = function () {
+Destructible.prototype.check = function (interrupt) {
     if (this.destroyed) {
+        interrupt || (interrupt = require('interrupt').createInterrupter('destructible'))
         throw interrupt('destroyed', {}, { cause: coalesce(this.cause) })
     }
 }
 
 Destructible.prototype.destructible = cadence(function (async) {
-    if (!this.destroyed) {
-        var vargs = Array.prototype.slice.call(arguments, 1)
-        var name = typeof vargs[0] == 'string' ? vargs.shift() : null
-        var waiting = { destructible: name }
-        this._waiting.push(waiting)
-        async([function () {
-            this.destroy()
-            this._waiting.splice(this._waiting.indexOf(waiting), 1)
-            this.events.push({
-                module: 'destructible',
-                method: 'popped',
-                from: this._instance,
-                body: {
-                    destructor: this.key,
-                    destructible: name,
-                    waiting: this._waiting.slice(),
-                    cause: this.cause
-                }
-            })
-        }], [function () {
-            Operation(vargs)(async())
-        }, function (error) {
-            if (!this.destroyed) {
-                this.destroy(error)
-            }
-            throw error
-        }])
-    }
+    var vargs = Array.prototype.slice.call(arguments, 1)
+    var name = typeof vargs[0] == 'string' ? vargs.shift() : null
+    this.async(async, name)(function (ready) {
+        Operation(vargs)(ready, async())
+    })
 })
 
-Destructible.prototype.async = function (async, name) {
-    var vargs = Array.prototype.slice.call(arguments, 2)
-    var destructor = this
-    if (destructor.destroyed) {
+function _async (destructible, async, name) {
+    if (destructible.destroyed) {
         return function () {}
     }
-    var unlatch = vargs.length ? Operation(vargs) : nop
+    var previous = destructible._ready
+    var ready = destructible._ready = new Signal
+    destructible._ready.instance = ++instance
     return function () {
         var vargs = Array.prototype.slice.call(arguments)
         var waiting = { destructible: name }
-        destructor._waiting.push(waiting)
+        destructible._waiting.push(waiting)
         async([function () {
-            destructor.destroy()
-            destructor._waiting.splice(destructor._waiting.indexOf(waiting), 1)
-            destructor.events.push({
+            destructible.destroy()
+            destructible._waiting.splice(destructible._waiting.indexOf(waiting), 1)
+            destructible.events.push({
                 module: 'destructible',
                 method: 'popped',
-                from: destructor._instance,
+                from: destructible._instance,
                 body: {
-                    destructor: destructor.key,
+                    destructor: destructible.key,
                     destructible: name,
-                    waiting: destructor._waiting.slice(),
-                    cause: destructor.cause
+                    waiting: destructible._waiting.slice(),
+                    cause: destructible.cause
                 }
             })
         }], [function () {
-            async.apply(null, vargs)
+            async(function () {
+                previous.wait(async())
+            }, function () {
+                async.apply(null, [
+                    function () { return [ ready ] }
+                ].concat(vargs))
+            })
         }, function (error) {
-            unlatch(error)
-            if (!destructor.destroyed) {
-                destructor.destroy(error)
+            if (!destructible.destroyed) {
+                destructible.destroy(error)
             }
+            ready.unlatch(this.cause)
             throw error
         }])
     }
+}
+
+Destructible.prototype.async = function (async, name) {
+    return _async(this, async, name)
 }
 
 Destructible.prototype.rescue = function () {

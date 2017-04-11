@@ -26,10 +26,12 @@ function prove (async, assert) {
     destructible.check()
 
     async([function () {
-        destructible.destructible('a', function (callback) {
-            destructible.destructible(function (callback) {
-                callback(new Error('cause'))
-            }, callback)
+        destructible.destructible('a', function (ready, callback) {
+            destructible.addDestructor('a', function () { callback () })
+            ready.unlatch()
+        }, async())
+        destructible.destructible(function (ready, callback) {
+            callback(new Error('cause'))
         }, async())
     }, function (error) {
         assert(error.message, 'cause', 'error thrown')
@@ -54,12 +56,33 @@ function prove (async, assert) {
         }, async())
     }], [function () {
         destructible = new Destructible
-        destructible.async(async, 'a')(function () {
-            destructible.async(async, 'b')(function () {
+        // First to exit will trigger destroy.
+        destructible.async(async, 'a')(function (signal) {
+            var callback = async()
+            destructible.addDestructor('a', function () { callback() })
+            signal.unlatch()
+        })
+        // When exiting, already destroyed.
+        destructible.async(async, 'b')(function (signal) {
+            var callback = async()
+            destructible.addDestructor('b', function () { callback() })
+            signal.unlatch()
+        })
+        destructible.async(async, 'c')(function (signal) {
+            async(function () {
+                setImmediate(async())
+            }, function () {
                 throw new Error('cause')
             })
         })
+        // When starting, waiting on previous.
+        destructible.async(async, 'd')(function (signal) {
+            var callback = async()
+            destructible.addDestructor('d', function () { callback() })
+            signal.unlatch()
+        })
     }, function (error) {
+        console.log('>', error.stack)
         assert(error.message, 'cause', 'async error thrown')
         assert(destructible.destroyed, true, 'async destroyed')
         assert(object.destroyed, true, 'async marked destroyed')
