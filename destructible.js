@@ -45,7 +45,7 @@ Destructible.prototype.destroy = function (error) {
         })
         this.destroyed = true
         for (var name in this._destructors) {
-            this._destructors[name].apply([])
+            this._destructors[name].call()
         }
         this._destructors = null
         this._markers.forEach(function (f) { f() })
