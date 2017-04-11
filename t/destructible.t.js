@@ -27,7 +27,7 @@ function prove (async, assert) {
 
     async([function () {
         destructible.destructible('a', function (ready, callback) {
-            destructible.addDestructor('a', function () { callback () })
+            destructible.addDestructor('a', callback)
             ready.unlatch()
         }, async())
         destructible.destructible(function (ready, callback) {
@@ -59,13 +59,13 @@ function prove (async, assert) {
         // First to exit will trigger destroy.
         destructible.async(async, 'a')(function (signal) {
             var callback = async()
-            destructible.addDestructor('a', function () { callback() })
+            destructible.addDestructor('a', callback)
             signal.unlatch()
         })
         // When exiting, already destroyed.
         destructible.async(async, 'b')(function (signal) {
             var callback = async()
-            destructible.addDestructor('b', function () { callback() })
+            destructible.addDestructor('b', callback)
             signal.unlatch()
         })
         destructible.async(async, 'c')(function (signal) {
@@ -78,7 +78,7 @@ function prove (async, assert) {
         // When starting, waiting on previous.
         destructible.async(async, 'd')(function (signal) {
             var callback = async()
-            destructible.addDestructor('d', function () { callback() })
+            destructible.addDestructor('d', callback)
             signal.unlatch()
         })
     }, function (error) {
