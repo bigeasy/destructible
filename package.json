@@ -22,13 +22,13 @@
     {
                             "cadence":                      "1.0.x",
                             "extant":                       "1.0.x",
-                            "happenstance":                 "3.0.x",
+                            "happenstance":                 "3.2.x",
                             "interrupt":                    "5.0.x",
                             "keyify":                       "0.0.x",
                             "monotonic":                    "3.0.x",
                             "nop":                          "1.0.0",
                             "operation":                    "1.4.x",
-                            "procession":                   "0.3.x",
+                            "procession":                   "0.4.x",
                             "signal":                       "1.10.x"
     },
     "devDependencies":

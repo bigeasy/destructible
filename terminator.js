@@ -8,7 +8,7 @@ function Terminator (timeout, options) {
     var _setImmediate = coalesce(options.setImmediate, setImmediate)
     this._timeout = timeout
     this.scheduler = coalesce(new Scheduler)
-    this.scheduler.events.pump(new Timer(this.scheduler))
+    this.scheduler.events.pump(new Timer(this.scheduler), 'push')
     this.scheduler.events.pump(function (envelope) {
         if (envelope.method != 'event') {
             return
