@@ -26,11 +26,11 @@ function prove (async, assert) {
     destructible.check()
 
     async([function () {
-        destructible.destructible('a', function (ready, callback) {
+        destructible.stack('a', function (ready, callback) {
             destructible.addDestructor('a', callback)
             ready.unlatch()
         }, async())
-        destructible.destructible(function (ready, callback) {
+        destructible.stack('b', function (ready, callback) {
             callback(new Error('cause'))
         }, async())
     }, function (error) {
@@ -51,32 +51,37 @@ function prove (async, assert) {
             assert(true, 'run after destroyed')
         })
 
-        destructible.destructible(function () {
+        destructible.stack('c', function () {
             assert(false, 'should not be called')
         }, async())
     }], [function () {
         destructible = new Destructible
+        console.log('a')
         // First to exit will trigger destroy.
-        destructible.async(async, 'a')(function (signal) {
+        destructible.stack(async, 'a')(function (signal) {
             var callback = async()
             destructible.addDestructor('a', callback)
             signal.unlatch()
         })
+        console.log('b')
         // When exiting, already destroyed.
-        destructible.async(async, 'b')(function (signal) {
+        destructible.stack(async, 'b')(function (signal) {
             var callback = async()
             destructible.addDestructor('b', callback)
             signal.unlatch()
         })
-        destructible.async(async, 'c')(function (signal) {
+        console.log('c')
+        destructible.stack(async, 'c')(function (signal) {
             async(function () {
-                setImmediate(async())
+                setTimeout(async(), 1)
             }, function () {
                 throw new Error('cause')
             })
         })
+        console.log('d')
         // When starting, waiting on previous.
-        destructible.async(async, 'd')(function (signal) {
+        destructible.stack(async, 'd')(function (signal) {
+            console.log('--------')
             var callback = async()
             destructible.addDestructor('d', callback)
             signal.unlatch()
@@ -100,7 +105,7 @@ function prove (async, assert) {
             assert(true, 'async run after destroyed')
         })
 
-        destructible.async(async, 'x')(function () {
+        destructible.stack(async, 'x')(function () {
             assert(false, 'should not be called')
         })
     }])
