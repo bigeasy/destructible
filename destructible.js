@@ -159,10 +159,6 @@ Destructible.prototype.stack = function () {
     }
 }
 
-Destructible.prototype.async = function (async, name) {
-    return _async(this, async, name)
-}
-
 function _rescue (destructible, async) {
     return function () {
         var vargs = Array.prototype.slice.call(arguments)
@@ -181,6 +177,12 @@ function _rescue (destructible, async) {
         }])
     }
 }
+
+Destructible.prototype._rescue = cadence(function (async, vargs) {
+    _rescue(this, async)(function () {
+        Operation(vargs)(async())
+    })
+})
 
 Destructible.prototype.rescue = function () {
     var vargs = Array.prototype.slice.call(arguments)
