@@ -1,4 +1,4 @@
-require('proof')(23, require('cadence')(prove))
+require('proof')(21, require('cadence')(prove))
 
 function prove (async, assert) {
     var Destructible = require('..')
@@ -23,8 +23,6 @@ function prove (async, assert) {
     destructible.removeDestructor('removed')
     assert(destructible.getDestructors(), [ 'destructor' ], 'removed')
 
-    destructible.check()
-
     async([function () {
         destructible.stack('a', function (ready, callback) {
             destructible.addDestructor('a', callback)
@@ -37,13 +35,6 @@ function prove (async, assert) {
         assert(error.message, 'cause', 'error thrown')
         assert(destructible.destroyed, true, 'destroyed')
         assert(object.destroyed, true, 'marked destroyed')
-
-        try {
-            destructible.check()
-        } catch (error) {
-            console.log(error.stack)
-            assert(/^destructible#destroyed$/m.test(error.message), 'destroyed')
-        }
 
         destructible.destroy()
 
@@ -86,13 +77,6 @@ function prove (async, assert) {
         assert(destructible.destroyed, true, 'async destroyed')
         assert(object.destroyed, true, 'async marked destroyed')
 
-        try {
-            destructible.check()
-        } catch (error) {
-            console.log(error.stack)
-            assert(/^destructible#destroyed$/m.test(error.message), 'async check')
-        }
-
         destructible.destroy()
 
         destructible.addDestructor('destroyed', function () {
@@ -102,17 +86,20 @@ function prove (async, assert) {
         destructible.stack(async, 'x')(function () {
             assert(false, 'should not be called')
         })
+        destructible.rescue(async, 'x')(function () {
+            assert(false, 'should not be called')
+        })
     }], function () {
         destructible = new Destructible
-        destructible.rescue(function (callback) {
+        destructible.rescue('rescue', function (callback) {
             assert(true, 'rescue called')
             callback()
         }, async())
-        destructible.rescue(async)(function () {
+        destructible.rescue(async, 'rescue')(function () {
             assert(true, 'async rescue called')
         })
     }, [function () {
-        destructible.rescue(function () {
+        destructible.rescue('rescue', function () {
             throw new Error('cause')
         }, async())
     }, function (error) {
@@ -120,11 +107,11 @@ function prove (async, assert) {
         assert(destructible.destroyed, 'rescue destroyed')
     }], function () {
         destructible = new Destructible
-        destructible.rescue()()
+        destructible.rescue('rescue')()
         assert(!destructible.destroyed, 'rescue notify')
-        destructible.rescue()(new Error('cause'))
+        destructible.rescue('rescue')(new Error('cause'))
         assert(destructible.destroyed, 'rescue notifyed of error')
-        assert(destructible.cause.message, 'cause', 'rescue notify error')
+        assert(destructible.errors[0].message, 'cause', 'rescue notify error')
     }, [function () {
         destructible = new Destructible
         destructible.stack(async, 'x')(function (ready) {
@@ -134,13 +121,19 @@ function prove (async, assert) {
                 ready.unlatch()
             })
         })
-        destructible.rescue(async)(function () {
+        destructible.rescue(async, 'first')(function () {
             throw new Error('first')
         })
-        destructible.rescue(async)(function () {
+        destructible.rescue(async, 'second')(function () {
             throw new Error('second')
         })
     }, function (error) {
-        assert(destructible.cause.message, 'first', 'error race')
-    }])
+        assert(destructible.errors[0].message, 'first', 'error race')
+    }], function () {
+        destructible.destroy()
+        console.log('here')
+        destructible.rescue(async, 'x')(function () {
+            assert(false, 'should not be called')
+        })
+    })
 }
