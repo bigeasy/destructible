@@ -130,8 +130,8 @@ function prove (async, assert) {
     }, function (error) {
         assert(destructible.errors[0].message, 'first', 'error race')
     }], function () {
+        destructible = new Destructible('x')
         destructible.destroy()
-        console.log('here')
         destructible.rescue(async, 'x')(function () {
             assert(false, 'should not be called')
         })

@@ -7,7 +7,7 @@ var Procession = require('procession')
 var Monotonic = require('monotonic').asString
 var INSTANCE = '0'
 var Signal = require('signal')
-var interrupt = require('interrupt').createInterrupter()
+var interrupt = require('interrupt').createInterrupter('destructible')
 
 function Destructible (key) {
     this.destroyed = false
@@ -23,12 +23,13 @@ function Destructible (key) {
     this.ready = new Signal
     this.ready.unlatch()
     this.ready.instance = ++this._readyInstance
+    this.done = new Signal
 }
 
 Destructible.prototype._destroy = function (key, error) {
     if (error != null) {
         this.errors.push(error)
-        this.interrupts.push(interrupt({ key: key }, error))
+        this.interrupts.push(interrupt('destroyed', error, { key: key }))
     }
     if (!this.destroyed) {
         this._error = new Error()
@@ -38,8 +39,8 @@ Destructible.prototype._destroy = function (key, error) {
             from: this._instance,
             body: {
                 destructible: this.key,
-                waiting: this._waiting.slice(),
-                cause: this.cause
+                waiting: this._waiting.slice().map(function (waiting) { return waiting[0] }),
+                cause: coalesce(error)
             }
         })
         this.destroyed = true
@@ -49,6 +50,13 @@ Destructible.prototype._destroy = function (key, error) {
         this._destructors = null
         this._markers.forEach(function (f) { f() })
         this._markers = null
+    }
+    if (this._waiting.length == 0) {
+        if (this.interrupts.length == 0) {
+            this.done.unlatch()
+        } else {
+            this.done.unlatch(this.interrupts[0])
+        }
     }
 }
 
@@ -114,12 +122,11 @@ function _async (destructible, async, key) {
     var ready = destructible.ready = new Signal
     destructible.ready.instance = ++destructible._readyInstance
     return function () {
-        var vargs = Array.prototype.slice.call(arguments)
-        var waiting = { destructor: key }
+        var vargs = Array.prototype.slice.call(arguments), waiting = [ key ], cause = [ null ]
         destructible._waiting.push(waiting)
         async([function () {
-            destructible._destroy(key)
             destructible._waiting.splice(destructible._waiting.indexOf(waiting), 1)
+            destructible._destroy(key)
             destructible.events.push({
                 module: 'destructible',
                 method: 'popped',
@@ -127,13 +134,14 @@ function _async (destructible, async, key) {
                 body: {
                     destructible: destructible.key,
                     destructor: key,
-                    waiting: destructible._waiting.slice(),
-                    cause: destructible.cause
+                    waiting: destructible._waiting.slice().map(function (waiting) { return waiting[0] }),
+                    cause: cause[0]
                 }
             })
         }], [function () {
             _asyncIf(async, destructible, previous, [ function () { return [ ready ] } ].concat(vargs))
         }, function (error) {
+            cause[0] = error
             destructible._destroy(key, error)
             ready.unlatch()
             throw error
