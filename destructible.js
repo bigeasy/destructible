@@ -8,7 +8,6 @@ var Monotonic = require('monotonic').asString
 var INSTANCE = '0'
 var Signal = require('signal')
 
-var instance = 0
 function Destructible (key) {
     this.destroyed = false
     this.errors = []
@@ -18,9 +17,10 @@ function Destructible (key) {
     this._markers = []
     this._waiting = []
     this._instance = INSTANCE = Monotonic.increment(INSTANCE, 0)
+    this._readyInstance = 0
     this.ready = new Signal
     this.ready.unlatch()
-    this.ready.instance = ++instance
+    this.ready.instance = ++this._readyInstance
 }
 
 Destructible.prototype.destroy = function (error) {
@@ -103,7 +103,7 @@ function _async (destructible, async, key) {
     }
     var previous = destructible.ready
     var ready = destructible.ready = new Signal
-    destructible.ready.instance = ++instance
+    destructible.ready.instance = ++destructible._readyInstance
     return function () {
         var vargs = Array.prototype.slice.call(arguments)
         var waiting = { destructor: key }
