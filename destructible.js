@@ -11,7 +11,7 @@ var Signal = require('signal')
 var instance = 0
 function Destructible (key) {
     this.destroyed = false
-    this.cause = null
+    this.errors = []
     this.events = new Procession
 
     var vargs = Array.prototype.slice.call(arguments)
@@ -38,7 +38,7 @@ Destructible.prototype.destroy = function (error) {
             method: 'destroyed',
             from: this._instance,
             body: {
-                destructor: this.key,
+                destructible: this.key,
                 waiting: this._waiting.slice(),
                 cause: this.cause
             }
@@ -109,7 +109,7 @@ function _async (destructible, async, name) {
     destructible.ready.instance = ++instance
     return function () {
         var vargs = Array.prototype.slice.call(arguments)
-        var waiting = { destructible: name }
+        var waiting = { destructor: name }
         destructible._waiting.push(waiting)
         async([function () {
             destructible.destroy()
@@ -119,8 +119,8 @@ function _async (destructible, async, name) {
                 method: 'popped',
                 from: destructible._instance,
                 body: {
-                    destructor: destructible.key,
-                    destructible: name,
+                    destructible: destructible.key,
+                    destructor: name,
                     waiting: destructible._waiting.slice(),
                     cause: destructible.cause
                 }
@@ -163,6 +163,7 @@ function _rescue (destructible, async) {
     return function () {
         var vargs = Array.prototype.slice.call(arguments)
         var ready = destructible.ready
+        console.log(ready.instance)
         async([function () {
             async(function () {
                 ready.wait(async())
