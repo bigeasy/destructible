@@ -13,9 +13,6 @@ function Destructible (key) {
     this.destroyed = false
     this.errors = []
     this.events = new Procession
-
-    var vargs = Array.prototype.slice.call(arguments)
-
     this.key = coalesce(key)
     this._destructors = {}
     this._markers = []
