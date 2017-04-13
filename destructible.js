@@ -44,8 +44,8 @@ Destructible.prototype.destroy = function (error) {
             }
         })
         this.destroyed = true
-        for (var name in this._destructors) {
-            this._destructors[name].call()
+        for (var key in this._destructors) {
+            this._destructors[key].call()
         }
         this._destructors = null
         this._markers.forEach(function (f) { f() })
@@ -100,7 +100,7 @@ Destructible.prototype.check = function (interrupt) {
     }
 }
 
-function _async (destructible, async, name) {
+function _async (destructible, async, key) {
     if (destructible.destroyed) {
         return function () {}
     }
@@ -109,7 +109,7 @@ function _async (destructible, async, name) {
     destructible.ready.instance = ++instance
     return function () {
         var vargs = Array.prototype.slice.call(arguments)
-        var waiting = { destructor: name }
+        var waiting = { destructor: key }
         destructible._waiting.push(waiting)
         async([function () {
             destructible.destroy()
@@ -120,7 +120,7 @@ function _async (destructible, async, name) {
                 from: destructible._instance,
                 body: {
                     destructible: destructible.key,
-                    destructor: name,
+                    destructor: key,
                     waiting: destructible._waiting.slice(),
                     cause: destructible.cause
                 }
