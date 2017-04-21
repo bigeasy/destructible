@@ -115,6 +115,7 @@ function _async (destructible, async, key) {
         var waiting = { destructor: key }
         destructible._waiting.push(waiting)
         async([function () {
+            ready.unlatch()
             destructible._destroy(key)
             destructible._waiting.splice(destructible._waiting.indexOf(waiting), 1)
             destructible.events.push({
@@ -132,7 +133,6 @@ function _async (destructible, async, key) {
             _asyncIf(async, destructible, previous, [ function () { return [ ready ] } ].concat(vargs))
         }, function (error) {
             destructible._destroy(key, error)
-            ready.unlatch()
             throw error
         }])
     }
