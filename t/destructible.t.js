@@ -21,7 +21,7 @@ function prove (async, assert) {
     })
     destructible.invokeDestructor('invoked')
     destructible.removeDestructor('removed')
-    assert(destructible.getDestructors(), [ 'destructor' ], 'removed')
+    assert(destructible.getDestructors(), [ 'markDestroyed', 'destructor' ], 'removed')
 
     async([function () {
         destructible.stack('a', function (ready, callback) {
