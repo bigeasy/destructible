@@ -30,7 +30,7 @@ Destructible.prototype._destroy = function (key, error) {
         this.interrupts.push(interrupt({ key: key }, error))
     }
     if (!this.destroyed) {
-        this._error = new Error()
+        this._stackWhenDestroyed = new Error().stack
         this.events.push({
             module: 'destructible',
             method: 'destroyed',
@@ -72,14 +72,11 @@ Destructible.prototype.addDestructor = function (key) {
 
 Destructible.prototype.invokeDestructor = function (key) {
     key = Keyify.stringify(key)
-    if (this._destructors == null) {
-        console.log({
-            cause: this.cause && this.cause.stack,
-            stack: this._error.stack,
-            when: this.when,
-            destroyed: this.destroyed
-        })
-    }
+    interrupt.assert(this._destructors != null, 'invokeDestroyed', this.cause, {
+        stack: this._stackWhenDestroyed,
+        when: this.when,
+        destroyed: this.destroyed
+    })
     var destructor = this._destructors[key]
     destructor()
     delete this._destructors[key]
