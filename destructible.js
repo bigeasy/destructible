@@ -43,7 +43,6 @@ Destructible.prototype._destroy = function (key, error) {
         })
         this.destroyed = true
         for (var key in this._destructors) {
-            console.log(key)
             this._destructors[key].call()
         }
         this._destructors = null
