@@ -38,7 +38,7 @@ Destructible.prototype._destroy = function (key, error) {
             body: {
                 destructible: this.key,
                 waiting: this._waiting.slice(),
-                cause: this.cause
+                errors: this.errors.slice()
             }
         })
         this.destroyed = true
@@ -71,7 +71,7 @@ Destructible.prototype.addDestructor = function (key) {
 
 Destructible.prototype.invokeDestructor = function (key) {
     key = Keyify.stringify(key)
-    interrupt.assert(this._destructors != null, 'invokeDestroyed', this.cause, {
+    interrupt.assert(this._destructors != null, 'invokeDestroyed', this.errors[0], {
         stack: this._stackWhenDestroyed,
         when: this.when,
         destroyed: this.destroyed
@@ -114,7 +114,9 @@ function _async (destructible, async, key) {
         var waiting = { destructor: key }
         destructible._waiting.push(waiting)
         async([function () {
-            ready.unlatch()
+            if (ready.open == null) {
+                ready.unlatch()
+            }
             destructible._destroy(key)
             destructible._waiting.splice(destructible._waiting.indexOf(waiting), 1)
             destructible.events.push({
@@ -125,7 +127,7 @@ function _async (destructible, async, key) {
                     destructible: destructible.key,
                     destructor: key,
                     waiting: destructible._waiting.slice(),
-                    cause: destructible.cause
+                    errors: destructible.errors.slice()
                 }
             })
         }], [function () {

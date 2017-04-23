@@ -20,7 +20,7 @@ function Terminator (timeout, options) {
                 destructible: body.destructible,
                 waiting: body.waiting
             }, {
-                cause: body.cause
+                cause: body.errors[0]
             })
         })
     })
