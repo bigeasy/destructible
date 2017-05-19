@@ -119,6 +119,7 @@ Destructible.prototype._unwait = function (wait, ready, method, key) {
         from: this.instance,
         body: {
             destructible: this.key,
+            destroyed: this.destroyed,
             method: method,
             key: key,
             waiting: this.waiting.slice(),
@@ -150,7 +151,10 @@ function _stack (destructible, async, method, key) {
         async([function () {
             destructible._unwait(wait, ready, method, key)
         }], [function () {
-            _applyIf(async, destructible, previous, [ function () { return [ ready ] } ].concat(vargs))
+            if (method == 'stack') {
+                vargs.unshift(function () { return [ ready ] })
+            }
+            _applyIf(async, destructible, previous, vargs)
         }, function (error) {
             destructible._destroy({ mdoule: 'destructible', method: method, key: key }, error)
             throw error
@@ -159,7 +163,9 @@ function _stack (destructible, async, method, key) {
 }
 
 Destructible.prototype._stack = cadence(function (async, method, key, vargs) {
-    _stack(this, async, method, key)(function (ready) { Operation(vargs)(ready, async()) })
+    _stack(this, async, method, key)(function (ready) {
+        Operation(vargs).apply(this, Array.prototype.slice.call(arguments).concat(async()))
+    })
 
 })
 
