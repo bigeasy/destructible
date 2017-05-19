@@ -18,11 +18,11 @@ function prove (assert, callback) {
     terminator.push({
         from: 'x',
         method: 'destroyed',
-        body: { waiting: [], errors: [] }
+        body: { destroyed: true, waiting: [], errors: [] }
     })
     terminator.push({
         from: 'x',
         method: 'destroyed',
-        body: { waiting: [ 'c' ], errors: [] }
+        body: { destroyed: true, waiting: [ 'c' ], errors: [] }
     })
 }

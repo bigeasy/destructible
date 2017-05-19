@@ -29,6 +29,9 @@ function Terminator (timeout, options) {
 Terminator.prototype.push = function (envelope) {
     switch (envelope.method) {
     case 'destroyed':
+        if (!envelope.body.destroyed) {
+            break
+        }
     case 'popped':
         if (envelope.body.waiting.length == 0) {
             this.scheduler.unschedule(envelope.from)

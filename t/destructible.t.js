@@ -91,7 +91,7 @@ function prove (async, assert) {
         })
     }], function () {
         destructible = new Destructible
-        destructible.rescue('rescue', function (callback) {
+        destructible.rescue('rescue', function (ready, callback) {
             assert(true, 'rescue called')
             callback()
         }, async())
