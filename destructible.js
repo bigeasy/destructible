@@ -18,7 +18,6 @@ function Destructible (key) {
     this._destructors = {}
     this._waiting = []
     this._instance = INSTANCE = Monotonic.increment(INSTANCE, 0)
-    this._readyInstance = 0
     this.ready = new Signal
     this.ready.unlatch()
 }
