@@ -26,7 +26,7 @@ function Destructible (key) {
 Destructible.prototype._destroy = function (key, error) {
     if (error != null) {
         this.errors.push(error)
-        this.interrupts.push(interrupt({ key: key }, error))
+        this.interrupts.push(interrupt('error', { key: key }, error))
     }
     if (!this.destroyed) {
         this._stackWhenDestroyed = new Error().stack
