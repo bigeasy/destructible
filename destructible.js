@@ -21,7 +21,6 @@ function Destructible (key) {
     this._readyInstance = 0
     this.ready = new Signal
     this.ready.unlatch()
-    this.ready.instance = ++this._readyInstance
 }
 
 Destructible.prototype._destroy = function (key, error) {
@@ -108,7 +107,6 @@ function _async (destructible, async, key) {
     }
     var previous = destructible.ready
     var ready = destructible.ready = new Signal
-    destructible.ready.instance = ++destructible._readyInstance
     return function () {
         var vargs = Array.prototype.slice.call(arguments)
         var waiting = { destructor: key }
