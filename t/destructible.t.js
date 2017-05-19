@@ -112,6 +112,7 @@ function prove (async, assert) {
         destructible.rescue('rescue')(new Error('cause'))
         assert(destructible.destroyed, 'rescue notifyed of error')
         assert(destructible.errors[0].message, 'cause', 'rescue notify error')
+        console.log(destructible.interrupts[0].message)
     }, [function () {
         destructible = new Destructible
         destructible.stack(async, 'x')(function (ready) {

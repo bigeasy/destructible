@@ -7,7 +7,7 @@ var Procession = require('procession')
 var Monotonic = require('monotonic').asString
 var INSTANCE = '0'
 var Signal = require('signal')
-var interrupt = require('interrupt').createInterrupter()
+var interrupt = require('interrupt').createInterrupter('destructable')
 
 function Destructible (key) {
     this.destroyed = false
@@ -49,7 +49,7 @@ Destructible.prototype._destroy = function (key, error) {
 }
 
 Destructible.prototype.destroy = function () {
-    this._destroy()
+    this._destroy({ module: 'destructible', method: 'destroy' })
 }
 
 Destructible.prototype.markDestroyed = function (object, property) {
@@ -115,7 +115,7 @@ function _async (destructible, async, key) {
             if (ready.open == null) {
                 ready.unlatch()
             }
-            destructible._destroy(key)
+            destructible._destroy({ module: 'destructible', method: 'stack', key: key })
             destructible._waiting.splice(destructible._waiting.indexOf(waiting), 1)
             destructible.events.push({
                 module: 'destructible',
@@ -131,7 +131,7 @@ function _async (destructible, async, key) {
         }], [function () {
             _asyncIf(async, destructible, previous, [ function () { return [ ready ] } ].concat(vargs))
         }, function (error) {
-            destructible._destroy(key, error)
+            destructible._destroy({ mdoule: 'destructible', method: 'stack', key: key }, error)
             throw error
         }])
     }
@@ -164,7 +164,7 @@ function _rescue (destructible, async, key) {
         async([function () {
             _asyncIf(async, destructible, ready, vargs)
         }, function (error) {
-            destructible._destroy(key, error)
+            destructible._destroy({ module: 'destructible', method: 'rescue', key: key }, error)
             throw error
         }])
     }
@@ -180,7 +180,11 @@ Destructible.prototype.rescue = function () {
         return _rescue(this, vargs[0], vargs[1])
     }
     if (vargs.length == 1) {
-        return function (error) { if (error) this._destroy(vargs[0], error) }.bind(this)
+        return Operation([ this, function (error) {
+            if (error) {
+                this._destroy({ module: 'destructible', method: 'rescue', key: vargs[0] } , error)
+            }
+        } ])
     }
     this._rescue(vargs.shift(), vargs, vargs.pop())
 }
