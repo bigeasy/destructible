@@ -20,6 +20,7 @@ function Destructible (key) {
     this._instance = INSTANCE = Monotonic.increment(INSTANCE, 0)
     this.ready = new Signal
     this.ready.unlatch()
+    this.completed = new Signal
 }
 
 Destructible.prototype._destroy = function (key, error) {
@@ -108,7 +109,7 @@ function _async (destructible, async, key) {
     var ready = destructible.ready = new Signal
     return function () {
         var vargs = Array.prototype.slice.call(arguments)
-        var waiting = { destructor: key }
+        var waiting = { stack: key }
         destructible._waiting.push(waiting)
         async([function () {
             if (ready.open == null) {
@@ -122,7 +123,7 @@ function _async (destructible, async, key) {
                 from: destructible._instance,
                 body: {
                     destructible: destructible.key,
-                    destructor: key,
+                    stack: key,
                     waiting: destructible._waiting.slice(),
                     errors: destructible.errors.slice()
                 }
