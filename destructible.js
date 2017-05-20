@@ -110,7 +110,7 @@ Destructible.prototype._unwait = function (wait, ready, method, key) {
     if (ready.open == null) {
         ready.unlatch()
     }
-    if (method == 'stack' || this.destroyed) {
+    if (method == 'monitor' || this.destroyed) {
         this._destroy({ module: 'destructible', method: method, key: key })
     }
     this.events.push({
@@ -139,7 +139,7 @@ function _applyIf (async, destructible, ready, vargs) {
     })
 }
 
-function _stack (destructible, async, method, key) {
+function stack (destructible, async, method, key) {
     if (destructible.destroyed) {
         return function () {}
     }
@@ -151,7 +151,7 @@ function _stack (destructible, async, method, key) {
         async([function () {
             destructible._unwait(wait, ready, method, key)
         }], [function () {
-            if (method == 'stack') {
+            if (method == 'monitor') {
                 vargs.unshift(function () { return [ ready ] })
             }
             _applyIf(async, destructible, previous, vargs)
@@ -162,37 +162,38 @@ function _stack (destructible, async, method, key) {
     }
 }
 
-Destructible.prototype._stack = cadence(function (async, method, key, vargs) {
-    _stack(this, async, method, key)(function (ready) {
-        Operation(vargs).apply(this, Array.prototype.slice.call(arguments).concat(async()))
+Destructible.prototype._cadenced = cadence(function (async, method, key, operation, vargs, callback) {
+    stack(this, async, method, key)(function () {
+        operation.apply(this, Array.prototype.slice.call(arguments).concat(vargs).concat(async()))
     })
 
 })
 
-Destructible.prototype.stack = function () {
-    var vargs = Array.prototype.slice.call(arguments)
+Destructible.prototype._stack = function (method, vargs) {
     if (typeof vargs[0] == 'function') {
-        return _stack(this, vargs[0], 'stack', vargs[1])
-    } else {
-        this._stack('stack', vargs.shift(), vargs, vargs.pop())
-    }
-}
-
-Destructible.prototype.rescue = function () {
-    var vargs = Array.prototype.slice.call(arguments)
-    if (typeof vargs[0] == 'function') {
-        return _stack(this, vargs[0], 'rescue', vargs[1])
+        return stack(this, vargs[0], method, vargs[1])
     }
     if (vargs.length == 1) {
         var key = vargs[0], wait = this._wait('rescue', key)
         return Operation([ this, function (error) {
-            if (error) {
-                this._destroy({ module: 'destructible', method: 'rescue', key: key } , error)
+            if (method == 'monitor' || error != null) {
+                this._destroy({ module: 'destructible', method: method, key: key }, error)
             }
             this._unwait(wait, new Signal(), 'rescue', key)
         } ])
     }
-    this._stack('rescue', vargs.shift(), vargs, vargs.pop())
+    var key = vargs.shift()
+    var operation = Operation(vargs)
+    var callback = typeof vargs[vargs.length - 1] == 'function' ? vargs.pop() : nop
+    this._cadenced(method, key, operation, vargs, callback)
+}
+
+Destructible.prototype.monitor = function () {
+    return this._stack('monitor', Array.prototype.slice.call(arguments))
+}
+
+Destructible.prototype.rescue = function () {
+    return this._stack('rescue', Array.prototype.slice.call(arguments))
 }
 
 module.exports = Destructible
