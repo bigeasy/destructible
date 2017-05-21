@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+  <title>terminator.js</title>
+  <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+  <meta name="viewport" content="width=device-width, target-densitydpi=160dpi, initial-scale=1.0; maximum-scale=1.0; user-scalable=0;">
+  <link rel="stylesheet" media="all" href="docco.css" />
+</head>
+<body>
+  <div id="container">
+    <div id="background"></div>
+
+      <ul id="jump_to">
+        <li>
+          <a class="large" href="javascript:void(0);">Jump To &hellip;</a>
+          <a class="small" href="javascript:void(0);">+</a>
+          <div id="jump_wrapper">
+          <div id="jump_page_wrapper">
+            <div id="jump_page">
+
+
+                <a class="source" href="destructible.js.html">
+                  destructible.js
+                </a>
+
+
+                <a class="source" href="docco.js.html">
+                  docco.js
+                </a>
+
+
+                <a class="source" href="terminator.js.html">
+                  terminator.js
+                </a>
+
+            </div>
+          </div>
+        </li>
+      </ul>
+
+    <ul class="sections">
+
+          <li id="title">
+              <div class="annotation">
+                  <h1>terminator.js</h1>
+              </div>
+          </li>
+
+
+
+        <li id="section-1">
+            <div class="annotation">
+
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-1">&#182;</a>
+              </div>
+
+            </div>
+
+            <div class="content"><div class='highlight'><pre><span class="hljs-keyword">var</span> Scheduler = <span class="hljs-built_in">require</span>(<span class="hljs-string">'happenstance'</span>).Scheduler
+<span class="hljs-keyword">var</span> Timer = <span class="hljs-built_in">require</span>(<span class="hljs-string">'happenstance'</span>).Timer
+<span class="hljs-keyword">var</span> coalesce = <span class="hljs-built_in">require</span>(<span class="hljs-string">'extant'</span>)
+<span class="hljs-keyword">var</span> interrupt = <span class="hljs-built_in">require</span>(<span class="hljs-string">'interrupt'</span>).createInterrupter(<span class="hljs-string">'destructible'</span>)
+
+<span class="hljs-function"><span class="hljs-keyword">function</span> <span class="hljs-title">Terminator</span> (<span class="hljs-params">timeout, options</span>) </span>{
+    options = coalesce(options, {})
+    <span class="hljs-keyword">var</span> _setImmediate = coalesce(options.setImmediate, setImmediate)
+    <span class="hljs-keyword">this</span>._timeout = timeout
+    <span class="hljs-keyword">this</span>.scheduler = coalesce(<span class="hljs-keyword">new</span> Scheduler)
+    <span class="hljs-keyword">this</span>.scheduler.events.pump(<span class="hljs-keyword">new</span> Timer(<span class="hljs-keyword">this</span>.scheduler), <span class="hljs-string">'push'</span>)
+    <span class="hljs-keyword">this</span>.scheduler.events.pump(<span class="hljs-function"><span class="hljs-keyword">function</span> (<span class="hljs-params">envelope</span>) </span>{
+        <span class="hljs-keyword">if</span> (envelope.method != <span class="hljs-string">'event'</span>) {
+            <span class="hljs-keyword">return</span>
+        }
+        _setImmediate(<span class="hljs-function"><span class="hljs-keyword">function</span> (<span class="hljs-params"></span>) </span>{
+            <span class="hljs-keyword">var</span> body = envelope.body.body.body
+            <span class="hljs-keyword">throw</span> interrupt(<span class="hljs-string">'hung'</span>, {
+                <span class="hljs-attr">destructor</span>: body.destructor,
+                <span class="hljs-attr">destructible</span>: body.destructible,
+                <span class="hljs-attr">waiting</span>: body.waiting
+            }, {
+                <span class="hljs-attr">cause</span>: body.errors[<span class="hljs-number">0</span>]
+            })
+        })
+    })
+}
+
+Terminator.prototype.push = <span class="hljs-function"><span class="hljs-keyword">function</span> (<span class="hljs-params">envelope</span>) </span>{
+    <span class="hljs-keyword">switch</span> (envelope.method) {
+    <span class="hljs-keyword">case</span> <span class="hljs-string">'destroyed'</span>:
+    <span class="hljs-keyword">case</span> <span class="hljs-string">'popped'</span>:
+        <span class="hljs-keyword">if</span> (!envelope.body.destroyed) {
+            <span class="hljs-keyword">break</span>
+        }
+        <span class="hljs-keyword">if</span> (envelope.body.waiting.length == <span class="hljs-number">0</span>) {
+            <span class="hljs-keyword">this</span>.scheduler.unschedule(envelope.from)
+        } <span class="hljs-keyword">else</span> {
+            <span class="hljs-keyword">this</span>.scheduler.schedule(<span class="hljs-built_in">Date</span>.now() + <span class="hljs-keyword">this</span>._timeout, envelope.from, {
+                <span class="hljs-attr">module</span>: <span class="hljs-string">'destructible'</span>,
+                <span class="hljs-attr">method</span>: <span class="hljs-string">'timeout'</span>,
+                <span class="hljs-attr">body</span>: envelope
+            })
+        }
+        <span class="hljs-keyword">break</span>
+    }
+}
+
+<span class="hljs-built_in">module</span>.exports = Terminator
+
+</pre></div></div>
+
+        </li>
+
+    </ul>
+  </div>
+</body>
+</html>
