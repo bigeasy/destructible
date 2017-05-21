@@ -1,13 +1,30 @@
-var cadence = require('cadence')
-var nop = require('nop')
+// Return the first not null-like value.
 var coalesce = require('extant')
+
+// Generate a unique, canonical string key from a JSON object.
 var Keyify = require('keyify')
+
+// Contextualized callbacks and event handlers.
 var Operation = require('operation/variadic')
+
+// Event message queue.
 var Procession = require('procession')
+
+// Ever increasing serial integer with no maximum value.
 var Monotonic = require('monotonic').asString
-var INSTANCE = '0'
+
+// Control-flow utilities.
 var Signal = require('signal')
+var cadence = require('cadence')
+
+// Exceptions that you can catch by type.
 var interrupt = require('interrupt').createInterrupter('destructable')
+
+// Do nothing.
+var nop = require('nop')
+
+// Unique id for each instance of destructible.
+var INSTANCE = '0'
 
 function Destructible (key) {
     this.destroyed = false
