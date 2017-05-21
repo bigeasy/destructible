@@ -1,6 +1,11 @@
+// Timer driven event queue.
 var Scheduler = require('happenstance').Scheduler
 var Timer = require('happenstance').Timer
+
+// Return the first not null-like value.
 var coalesce = require('extant')
+
+// Exceptions that you can catch by type.
 var interrupt = require('interrupt').createInterrupter('destructible')
 
 function Terminator (timeout, options) {
