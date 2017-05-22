@@ -216,6 +216,13 @@ Destructible.prototype.rescue = function () {
     return this._stack('rescue', Array.prototype.slice.call(arguments))
 }
 
+// Note that `ready` is an exposed signal while `completed` is a method that
+// kind of looks like a signal. They are different because completed is not a
+// signal. It is a double wait. It waits for the the start of destruction and
+// then it sets a timer and waits for destruction to complete. Don't try to
+// unify the interfaces, don't move to make them both signals or both methods.
+
+//
 Destructible.prototype.completed = cadence(function (async, timeout) {
     async(function () {
         this._destructing.wait(async())
