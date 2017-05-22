@@ -35,8 +35,8 @@ function Destructible (key) {
     this._destructors = {}
     this.waiting = []
     this.instance = INSTANCE = Monotonic.increment(INSTANCE, 0)
-    this._ready = new Signal
-    this._ready.unlatch()
+    this.ready = new Signal
+    this.ready.unlatch()
     this._destructing = new Signal
     this._completed = new Signal
 }
@@ -163,8 +163,8 @@ function stack (destructible, async, method, key) {
     if (destructible.destroyed) {
         return function () {}
     }
-    var previous = destructible._ready
-    var ready = destructible._ready = new Signal
+    var previous = destructible.ready
+    var ready = destructible.ready = new Signal
     return function () {
         var vargs = Array.prototype.slice.call(arguments)
         var wait = destructible._wait(method, key)
@@ -215,10 +215,6 @@ Destructible.prototype.monitor = function () {
 Destructible.prototype.rescue = function () {
     return this._stack('rescue', Array.prototype.slice.call(arguments))
 }
-
-Destructible.prototype.ready = cadence(function (async, timeout) {
-    this._ready.wait(coalesce(timeout), async())
-})
 
 Destructible.prototype.completed = cadence(function (async, timeout) {
     async(function () {

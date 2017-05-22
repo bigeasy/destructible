@@ -34,7 +34,7 @@ function prove (async, assert) {
         destructible.monitor('c', function (ready, callback) {
             throw new Error('do not call')
         }, async())
-        destructible.ready(async())
+        destructible.ready.wait(async())
     }, function (error) {
         assert(error.message, 'cause', 'error thrown')
         assert(destructible.destroyed, true, 'destroyed')
