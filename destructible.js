@@ -18,7 +18,7 @@ var Signal = require('signal')
 var cadence = require('cadence')
 
 // Exceptions that you can catch by type.
-var interrupt = require('interrupt').createInterrupter('destructable')
+var interrupt = require('interrupt').createInterrupter('destructible')
 
 // Do nothing.
 var nop = require('nop')
@@ -35,9 +35,10 @@ function Destructible (key) {
     this._destructors = {}
     this.waiting = []
     this.instance = INSTANCE = Monotonic.increment(INSTANCE, 0)
-    this.ready = new Signal
-    this.ready.unlatch()
-    this.completed = new Signal
+    this._ready = new Signal
+    this._ready.unlatch()
+    this._destructing = new Signal
+    this._completed = new Signal
 }
 
 Destructible.prototype._destroy = function (key, error) {
@@ -46,6 +47,8 @@ Destructible.prototype._destroy = function (key, error) {
         this.interrupts.push(interrupt('error', { key: key }, error))
     }
     if (!this.destroyed) {
+        this._destroyedAt = Date.now()
+        this._destructing.unlatch()
         this._stackWhenDestroyed = new Error().stack
         this.events.push({
             module: 'destructible',
@@ -66,9 +69,9 @@ Destructible.prototype._destroy = function (key, error) {
     }
     if (this.waiting.length == 0) {
         if (this.errors.length) {
-            this.completed.unlatch(this.errors[0])
+            this._completed.unlatch(this.errors[0])
         } else {
-            this.completed.unlatch()
+            this._completed.unlatch()
         }
     }
 }
@@ -160,8 +163,8 @@ function stack (destructible, async, method, key) {
     if (destructible.destroyed) {
         return function () {}
     }
-    var previous = destructible.ready
-    var ready = destructible.ready = new Signal
+    var previous = destructible._ready
+    var ready = destructible._ready = new Signal
     return function () {
         var vargs = Array.prototype.slice.call(arguments)
         var wait = destructible._wait(method, key)
@@ -212,5 +215,25 @@ Destructible.prototype.monitor = function () {
 Destructible.prototype.rescue = function () {
     return this._stack('rescue', Array.prototype.slice.call(arguments))
 }
+
+Destructible.prototype.ready = cadence(function (async, timeout) {
+    this._ready.wait(coalesce(timeout), async())
+})
+
+Destructible.prototype.completed = cadence(function (async, timeout) {
+    async(function () {
+        this._destructing.wait(async())
+    }, function () {
+        timeout = coalesce(timeout, 30000)
+        this._completed.wait(Math.max(coalesce(timeout, 30000) - (this._destroyedAt - Date.now()), 0), async())
+    }, function () {
+        if (this._completed.open == null) {
+            throw interrupt('hung', {
+                destructible: this.key,
+                waiting: this.waiting.slice(),
+            }, { cause: coalesce(this.errors[0]) })
+        }
+    })
+})
 
 module.exports = Destructible

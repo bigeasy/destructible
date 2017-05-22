@@ -1,4 +1,4 @@
-require('proof')(22, require('cadence')(prove))
+require('proof')(24, require('cadence')(prove))
 
 function prove (async, assert) {
     var Destructible = require('..')
@@ -31,6 +31,10 @@ function prove (async, assert) {
         destructible.monitor('b', function (ready, callback) {
             callback(new Error('cause'))
         }, async())
+        destructible.monitor('c', function (ready, callback) {
+            throw new Error('do not call')
+        }, async())
+        destructible.ready(async())
     }, function (error) {
         assert(error.message, 'cause', 'error thrown')
         assert(destructible.destroyed, true, 'destroyed')
@@ -145,12 +149,31 @@ function prove (async, assert) {
             ready.unlatch()
         })
         async([function () {
-            destructible.completed.wait(async())
+            destructible.completed(async())
         }, function (error) {
-            assert(error.message, 'caught', 'complted')
+            assert(error.message, 'caught', 'completed')
         }])
         async(function () {
             wait(new Error('caught'))
         })
+    }, function () {
+        destructible = new Destructible('x')
+        destructible.monitor('x', function (ready, callback) { // never calls callback
+            ready.unlatch()
+        })
+        destructible.monitor('x')(new Error('thrown'))
+        async([function () {
+            destructible.completed(250, async())
+        }, function (error) {
+            assert(/^destructible#hung$/m.test(error.message), 'hung')
+            assert(error.cause.message, 'thrown', 'hung nested')
+        }])
+    }, function () {
+        destructible = new Destructible('x')
+        destructible.monitor('x', function (ready, callback) {
+            callback()
+            ready.unlatch()
+        })
+        destructible.completed(async())
     })
 }
