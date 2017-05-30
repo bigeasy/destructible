@@ -152,16 +152,6 @@ Destructible.prototype._unwait = function (wait, ready, method, key) {
     })
 }
 
-function _applyIf (async, destructible, ready, vargs) {
-    async(function () {
-        ready.wait(async())
-    }, function () {
-        if (!destructible.destroyed) {
-            async.apply(null, vargs)
-        }
-    })
-}
-
 function stack (destructible, async, method, key) {
     if (destructible.destroyed) {
         return function () {}
@@ -177,7 +167,13 @@ function stack (destructible, async, method, key) {
             if (method == 'monitor') {
                 vargs.unshift(function () { return [ ready ] })
             }
-            _applyIf(async, destructible, previous, vargs)
+            async(function () {
+                previous.wait(async())
+            }, function () {
+                if (!destructible.destroyed) {
+                    async.apply(null, vargs)
+                }
+            })
         }, function (error) {
             destructible._destroy({ mdoule: 'destructible', method: method, key: key }, error)
             throw error
