@@ -1,0 +1,45 @@
+
+<html>
+  <meta charset="utf-8">
+  <title>Destructible</title>
+  <link href="https://fonts.googleapis.com/css?family=Cutive+Mono|Sorts+Mill+Goudy|Mate|Oxygen+Mono|Offside|Raleway:400,700" rel="stylesheet" type="text/css">
+  <link href="https://fonts.googleapis.com/css?family=Sorts+Mill+Goudy">
+  <link rel="stylesheet" type="text/css" href="css/ascetic.css">
+  <link rel="stylesheet" type="text/css" href="css/style.css">
+</html>
+<body>
+  <div class="container">
+    <div class="unit description">
+      <div class="entry">
+        <h2>Mon Apr 10 2017 16:07:41 GMT-0500 (CDT)</h2>
+        <div class="markdown"><p>Unlike <code>EventEmitter</code>, there seems to be only two uses for <code>Signal</code> such that
+<code>Signal</code> has not come to duplicate <code>EventEmitter</code>.</p>
+<p>You are either waiting for something to become ready or you are waiting for
+something to exit.</p>
+<p>With Arguable you frist experienced this. Does the body of Arguable run to
+completion or does it return after having processed arguments and started
+threads. Untimately we decided on the latter. It&apos;s what I&apos;d come to expect. It
+fits the expectations of that area of a Node.js program. For small scripts, it
+would be nice to have the body run to completion (using Cadence for logic) and
+return a value, but many applications are starting servers, starting
+asynchrnous stacks, work queues, message queues, etc.</p>
+<p>With Arguable we decided to return immediately, then use events. There is no
+real way to get a notion that the program has exited if you&apos;re not actually
+running the program, no notion in testing. This might not be the best way to go,
+but it is where we are.</p>
+<p>So there is no exit signal from Arguable.</p>
+<p>And then when used in other contexts, as an argument parser alone, Arguable will
+return a structure or whatever is needed.</p>
+<p>Destructible however, does define how you run to completion. Maybe if I feel
+really good about Destructible, I&apos;ll change the behavior of Arugable.</p>
+<p>Essentially a queue of things to start. And <code>ready</code> is going to be ready when
+the last thing to start starts.</p>
+<p>This was not a very useful diary entry. Or at least, it doesn&apos;t seem very
+profound. If you find this useful at some point make a note of that.</p>
+<p>Also, my words no good now.</p>
+</div>
+      </div>
+    </div>
+  </div>
+</body>
+<!-- vim: set ts=2 sw=2 nowrap:-->

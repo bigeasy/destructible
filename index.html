@@ -14,7 +14,201 @@
       <!-- todo: code font is too small for body text font-->
     </div>
     <div class="unit description markdown include" data-file="index.md"><p>Look at the <a href="./docco/">Docco</a> for now.</p>
-</div>
+<h2 id="on-breaking-things">On Breaking Things</h2>
+<p>I&apos;ve chased a problem to a crossroads. The problem is how to propagate errors
+from parallel asynchronous stacks. You may have two separate streams that you
+need to monitor for events, for example. You might spawn a child process and
+listen to it&apos;s standard out. Waiting for messages on standard out is separate
+from waiting for exit.</p>
+<p>Cadence doesn&apos;t have a timeout. When you create parallel sub-cadences, the
+function will not return until both Cadences complete.</p>
+<pre><code>cadence(function (async) {
+    async(function () {
+        var loop = async(function () {
+            input.get(async())
+        }, function (value) {
+            if (value == null) {
+                return [ loop.break ]
+            }
+            consumer.consume(value, async())
+        })()
+    })
+    async(function () {
+        input.closed(async())
+    })
+})(abend)
+</code></pre><p>In our program, we want to wait for input close because it may report an error
+to us. We also want to get things from input, which may also error, our little
+pump loop may error.</p>
+<p>If input gives us a closed event we would expect get to error. If get errors we
+would expect to have input close. This is what we gleaned from reading the
+documenation for the <code>input</code> class.</p>
+<p>We need a mechanism that will timeout the function with an error if the loop
+exits but closed is never called or if closed is called but the loop never
+exits.</p>
+<p>There is no good way for cadence to know how long something is supposed to run.
+There is no good assumption as to how long something is supposed to run relative
+to something else. There are no assumptions</p>
+<pre><code>cadence(function (async) {
+    var deststuctiable = new Destructible(&apos;pump&apos;)
+    deststuctiable.monitor(&apos;loop&apos;, this, cadence(function (async) {
+        var loop = async(function () {
+            input.get(async())
+        }, function (value) {
+            if (value == null) {
+                return [ loop.break ]
+            }
+            consumer.consume(value, async())
+        })()
+    }))
+    deststuctiable.monitor(&apos;loop&apos;, this, cadence(function (async) {
+        input.closed(async())
+    }))
+    deststuctiable.completed(10000, async())
+})(function (error, closed) {
+    if (error) throw error
+    console.log(&apos;closed with status: &apos; + closed)
+})
+</code></pre><p>I don&apos;t like that I&apos;m about to repeat an implementation of the ordered results
+in Cadence in Destructible, but it does make Destructible not so Cadence
+specific. The alternative is Cadence-aware.</p>
+<pre><code>cadence(function (async) {
+    var deststuctiable = new Destructible(&apos;pump&apos;)
+    deststuctiable.completed(10000, async())
+    deststuctiable.monitor(async, &apos;loop&apos;)(function () {
+        var loop = async(function () {
+            input.get(async())
+        }, function (value) {
+            if (value == null) {
+                return [ loop.break ]
+            }
+            consumer.consume(value, async())
+        })()
+    })
+    deststuctiable.monitor(async, &apos;loop&apos;)(function () {
+        input.closed(async())
+    })
+})(function (error, closed) {
+    if (error) throw error
+    console.log(&apos;closed with status: &apos; + closed)
+})
+</code></pre><p>The above requires a modification to Cadence where Cadence does not return the
+first error it catches but instead returns the errors in the order in which they
+are declared so that if there is a hang up, the wrapped exception gets reported.</p>
+<p>The problem with this one is that if there is a hangup, there is still now way
+to stop the nested Cadences. It won&apos;t return. This could be expressed as such.</p>
+<pre><code>cadence(function (async) {
+    var deststuctiable = new Destructible(&apos;pump&apos;)
+    deststuctiable.monitor(async, &apos;loop&apos;)(function () {
+        var loop = async(function () {
+            input.get(async())
+        }, function (value) {
+            if (value == null) {
+                return [ loop.break ]
+            }
+            consumer.consume(value, async())
+        })()
+    })
+    deststuctiable.monitor(async, &apos;loop&apos;)(function () {
+        input.closed(async())
+    })
+    deststuctiable.timeout(10000)
+})(function (error, closed) {
+    if (error) throw error
+    console.log(&apos;closed with status: &apos; + closed)
+})
+</code></pre><p>Here the timeout is catastrophic. It would cause an exception to be raised that
+cannot be caught. It ends up being similar to our terminator class, but built
+in. With this we surrender the notion of funneling exceptions upward and maybe
+we should because...</p>
+<p>A stuck stack is catastrophic. You can wait for it to finish, but maybe it is
+going to be a while, like maybe forever.</p>
+<p>You&apos;ve given a callack to ??? and it is not getting called back. You either wait
+or if you timeout you now have to deal with a leak.</p>
+<p>A leak!</p>
+<p>OR</p>
+<p>You&apos;re dealing with a callback that will be called eventually. When that happens
+what do you do with the result? You&apos;ve timed out, moved on. You reported an
+error to your callee. No one is listening. No one to return to.</p>
+<p>And what if you&apos;re callback receives an error? At that point you abend.</p>
+<p>Thus, the only reasonable result is to abend.</p>
+<pre><code>cadence(function (async) {
+    var deststuctiable = new Destructible(&apos;pump&apos;)
+    deststuctiable.monitor(&apos;loop&apos;, this, cadence(function (async) {
+        var loop = async(function () {
+            input.get(async())
+        }, function (value) {
+            if (value == null) {
+                return [ loop.break ]
+            }
+            consumer.consume(value, async())
+        })()
+    }))
+    deststuctiable.monitor(async, &apos;loop&apos;)(function () {
+        input.closed(async())
+    })
+    deststuctiable.timeout(10000)
+})(function (error, closed) {
+    if (error) throw error
+    console.log(&apos;closed with status: &apos; + closed)
+})
+</code></pre><p>That is the easy-for-me Cadence way.</p>
+<pre><code>cadence(function (async) {
+    var deststuctiable = new Destructible(&apos;pump&apos;)
+    deststuctiable.monitor(&apos;loop&apos;, this, cadence(function (async) {
+        var loop = async(function () {
+            input.get(async())
+        }, function (value) {
+            if (value == null) {
+                return [ loop.break ]
+            }
+            consumer.consume(value, async())
+        })()
+    }))
+    deststuctiable.monitor(&apos;loop&apos;, function (callback) {
+        input.closed(callback)
+    })
+    deststuctiable.timeout(10000, async())
+})(function (error, closed) {
+    if (error) throw error
+    console.log(&apos;closed with status: &apos; + closed)
+})
+</code></pre><p>Could we just build this into Cadence?</p>
+<pre><code>cadence(function (async) {
+    async.shutdown(1000)
+    async(function () {
+        var loop = async(function () {
+            input.get(async())
+        }, function (value) {
+            if (value == null) {
+                return [ loop.break ]
+            }
+            consumer.consume(value, async())
+        })()
+    })
+    async(function () {
+        input.closed(async())
+    })
+})(abend)
+</code></pre><p>Because it is such a sticking point. It is the bit left out. Destructible still
+has the destructors, though.</p>
+<pre><code>cadence(function (async) {
+    async.shutdown(1000)
+    async(function () {
+        async.loop(function () {
+            input.get(async())
+        }, function (value) {
+            if (value == null) {
+                return [ async.break ]
+            }
+            consumer.consume(value, async())
+        })
+    })
+    async(function () {
+        input.closed(async())
+    })
+})(abend)
+</code></pre></div>
   </div>
   <!-- todo: move into an edify plugin-->
   <script>

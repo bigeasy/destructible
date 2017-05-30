@@ -25,8 +25,8 @@
                 </a>
 
 
-                <a class="source" href="docco.js.html">
-                  docco.js
+                <a class="source" href="panic.js.html">
+                  panic.js
                 </a>
 
 
@@ -162,7 +162,7 @@
 
             </div>
 
-            <div class="content"><div class='highlight'><pre><span class="hljs-keyword">var</span> interrupt = <span class="hljs-built_in">require</span>(<span class="hljs-string">'interrupt'</span>).createInterrupter(<span class="hljs-string">'destructable'</span>)
+            <div class="content"><div class='highlight'><pre><span class="hljs-keyword">var</span> interrupt = <span class="hljs-built_in">require</span>(<span class="hljs-string">'interrupt'</span>).createInterrupter(<span class="hljs-string">'destructible'</span>)
 
 </pre></div></div>
 
@@ -198,6 +198,23 @@
 
             <div class="content"><div class='highlight'><pre><span class="hljs-keyword">var</span> INSTANCE = <span class="hljs-string">'0'</span>
 
+</pre></div></div>
+
+        </li>
+
+
+        <li id="section-10">
+            <div class="annotation">
+
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-10">&#182;</a>
+              </div>
+              <p>Uncatchable exception.</p>
+
+            </div>
+
+            <div class="content"><div class='highlight'><pre><span class="hljs-keyword">var</span> panicIf = <span class="hljs-built_in">require</span>(<span class="hljs-string">'./panic'</span>).panicIf
+
 <span class="hljs-function"><span class="hljs-keyword">function</span> <span class="hljs-title">Destructible</span> (<span class="hljs-params">key</span>) </span>{
     <span class="hljs-keyword">this</span>.destroyed = <span class="hljs-literal">false</span>
     <span class="hljs-keyword">this</span>.errors = []
@@ -209,7 +226,8 @@
     <span class="hljs-keyword">this</span>.instance = INSTANCE = Monotonic.increment(INSTANCE, <span class="hljs-number">0</span>)
     <span class="hljs-keyword">this</span>.ready = <span class="hljs-keyword">new</span> Signal
     <span class="hljs-keyword">this</span>.ready.unlatch()
-    <span class="hljs-keyword">this</span>.completed = <span class="hljs-keyword">new</span> Signal
+    <span class="hljs-keyword">this</span>._destructing = <span class="hljs-keyword">new</span> Signal
+    <span class="hljs-keyword">this</span>._completed = <span class="hljs-keyword">new</span> Signal
 }
 
 Destructible.prototype._destroy = <span class="hljs-function"><span class="hljs-keyword">function</span> (<span class="hljs-params">key, error</span>) </span>{
@@ -218,6 +236,8 @@ Destructible.prototype._destroy = <span class="hljs-function"><span class="hljs-
         <span class="hljs-keyword">this</span>.interrupts.push(interrupt(<span class="hljs-string">'error'</span>, { <span class="hljs-attr">key</span>: key }, error))
     }
     <span class="hljs-keyword">if</span> (!<span class="hljs-keyword">this</span>.destroyed) {
+        <span class="hljs-keyword">this</span>._destroyedAt = <span class="hljs-built_in">Date</span>.now()
+        <span class="hljs-keyword">this</span>._destructing.unlatch()
         <span class="hljs-keyword">this</span>._stackWhenDestroyed = <span class="hljs-keyword">new</span> <span class="hljs-built_in">Error</span>().stack
         <span class="hljs-keyword">this</span>.events.push({
             <span class="hljs-attr">module</span>: <span class="hljs-string">'destructible'</span>,
@@ -236,11 +256,11 @@ Destructible.prototype._destroy = <span class="hljs-function"><span class="hljs-
         }
         <span class="hljs-keyword">this</span>._destructors = <span class="hljs-literal">null</span>
     }
-    <span class="hljs-keyword">if</span> (<span class="hljs-keyword">this</span>.waiting.length == <span class="hljs-number">0</span>) {
+    <span class="hljs-keyword">if</span> (<span class="hljs-keyword">this</span>.waiting.length == <span class="hljs-number">0</span> &amp;&amp; <span class="hljs-keyword">this</span>._completed.open == <span class="hljs-literal">null</span>) {
         <span class="hljs-keyword">if</span> (<span class="hljs-keyword">this</span>.errors.length) {
-            <span class="hljs-keyword">this</span>.completed.unlatch(<span class="hljs-keyword">this</span>.errors[<span class="hljs-number">0</span>])
+            <span class="hljs-keyword">this</span>._completed.unlatch(<span class="hljs-keyword">this</span>.errors[<span class="hljs-number">0</span>])
         } <span class="hljs-keyword">else</span> {
-            <span class="hljs-keyword">this</span>.completed.unlatch()
+            <span class="hljs-keyword">this</span>._completed.unlatch()
         }
     }
 }
@@ -383,6 +403,58 @@ Destructible.prototype.monitor = <span class="hljs-function"><span class="hljs-k
 
 Destructible.prototype.rescue = <span class="hljs-function"><span class="hljs-keyword">function</span> (<span class="hljs-params"></span>) </span>{
     <span class="hljs-keyword">return</span> <span class="hljs-keyword">this</span>._stack(<span class="hljs-string">'rescue'</span>, <span class="hljs-built_in">Array</span>.prototype.slice.call(<span class="hljs-built_in">arguments</span>))
+}
+
+</pre></div></div>
+
+        </li>
+
+
+        <li id="section-11">
+            <div class="annotation">
+
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-11">&#182;</a>
+              </div>
+              <p>Note that <code>ready</code> is an exposed signal while <code>completed</code> is a method that
+kind of looks like a signal. They are different because completed is not a
+signal. It is a double wait. It waits for the the start of destruction and
+then it sets a timer and waits for destruction to complete. Don’t try to
+unify the interfaces, don’t move to make them both signals or both methods.</p>
+
+            </div>
+
+        </li>
+
+
+        <li id="section-12">
+            <div class="annotation">
+
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-12">&#182;</a>
+              </div>
+
+            </div>
+
+            <div class="content"><div class='highlight'><pre>Destructible.prototype._timeout = cadence(<span class="hljs-function"><span class="hljs-keyword">function</span> (<span class="hljs-params">async, timeout</span>) </span>{
+    <span class="hljs-keyword">async</span>(<span class="hljs-function"><span class="hljs-keyword">function</span> (<span class="hljs-params"></span>) </span>{
+        <span class="hljs-keyword">this</span>._destructing.wait(<span class="hljs-keyword">async</span>())
+    }, <span class="hljs-function"><span class="hljs-keyword">function</span> (<span class="hljs-params"></span>) </span>{
+        timeout -= (<span class="hljs-keyword">this</span>._destroyedAt - <span class="hljs-built_in">Date</span>.now())
+        <span class="hljs-keyword">this</span>._completed.wait(<span class="hljs-built_in">Math</span>.max(timeout, <span class="hljs-number">0</span>), <span class="hljs-keyword">async</span>())
+    }, <span class="hljs-function"><span class="hljs-keyword">function</span> (<span class="hljs-params"></span>) </span>{
+        panicIf(<span class="hljs-keyword">this</span>._completed.open == <span class="hljs-literal">null</span>, <span class="hljs-string">'hung'</span>, {
+            <span class="hljs-attr">destructible</span>: <span class="hljs-keyword">this</span>.key,
+            <span class="hljs-attr">waiting</span>: <span class="hljs-keyword">this</span>.waiting.slice(),
+        }, { <span class="hljs-attr">cause</span>: coalesce(<span class="hljs-keyword">this</span>.errors[<span class="hljs-number">0</span>]) })
+    })
+})
+
+Destructible.prototype.timeout = <span class="hljs-function"><span class="hljs-keyword">function</span> (<span class="hljs-params">timeout, callback</span>) </span>{
+    <span class="hljs-keyword">var</span> vargs = <span class="hljs-built_in">Array</span>.prototype.slice.call(<span class="hljs-built_in">arguments</span>)
+    timeout = <span class="hljs-keyword">typeof</span> vargs[<span class="hljs-number">0</span>] == <span class="hljs-string">'number'</span> ? vargs.shift() : <span class="hljs-number">30000</span>
+    callback = <span class="hljs-keyword">typeof</span> vargs[<span class="hljs-number">0</span>] == <span class="hljs-string">'function'</span> ? vargs.shift() : nop
+    <span class="hljs-keyword">this</span>._timeout(timeout, callback)
 }
 
 <span class="hljs-built_in">module</span>.exports = Destructible
