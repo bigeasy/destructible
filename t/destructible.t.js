@@ -1,4 +1,4 @@
-require('proof')(24, require('cadence')(prove))
+require('proof')(22, require('cadence')(prove))
 
 function prove (async, assert) {
     var Destructible = require('..')
@@ -149,7 +149,7 @@ function prove (async, assert) {
             ready.unlatch()
         })
         async([function () {
-            destructible.completed(async())
+            destructible.timeout(1000, async())
         }, function (error) {
             assert(error.message, 'caught', 'completed')
         }])
@@ -158,22 +158,10 @@ function prove (async, assert) {
         })
     }, function () {
         destructible = new Destructible('x')
-        destructible.monitor('x', function (ready, callback) { // never calls callback
-            ready.unlatch()
-        })
-        destructible.monitor('x')(new Error('thrown'))
-        async([function () {
-            destructible.completed(250, async())
-        }, function (error) {
-            assert(/^destructible#hung$/m.test(error.message), 'hung')
-            assert(error.cause.message, 'thrown', 'hung nested')
-        }])
-    }, function () {
-        destructible = new Destructible('x')
         destructible.monitor('x', function (ready, callback) {
             callback()
             ready.unlatch()
         })
-        destructible.completed(async())
+        destructible.timeout()
     })
 }

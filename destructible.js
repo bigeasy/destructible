@@ -26,6 +26,9 @@ var nop = require('nop')
 // Unique id for each instance of destructible.
 var INSTANCE = '0'
 
+// Uncatchable exception.
+var panicIf = require('./panic').panicIf
+
 function Destructible (key) {
     this.destroyed = false
     this.errors = []
@@ -67,7 +70,7 @@ Destructible.prototype._destroy = function (key, error) {
         }
         this._destructors = null
     }
-    if (this.waiting.length == 0) {
+    if (this.waiting.length == 0 && this._completed.open == null) {
         if (this.errors.length) {
             this._completed.unlatch(this.errors[0])
         } else {
@@ -223,20 +226,25 @@ Destructible.prototype.rescue = function () {
 // unify the interfaces, don't move to make them both signals or both methods.
 
 //
-Destructible.prototype.completed = cadence(function (async, timeout) {
+Destructible.prototype._timeout = cadence(function (async, timeout) {
     async(function () {
         this._destructing.wait(async())
     }, function () {
-        timeout = coalesce(timeout, 30000)
-        this._completed.wait(Math.max(coalesce(timeout, 30000) - (this._destroyedAt - Date.now()), 0), async())
+        timeout -= (this._destroyedAt - Date.now())
+        this._completed.wait(Math.max(timeout, 0), async())
     }, function () {
-        if (this._completed.open == null) {
-            throw interrupt('hung', {
-                destructible: this.key,
-                waiting: this.waiting.slice(),
-            }, { cause: coalesce(this.errors[0]) })
-        }
+        panicIf(this._completed.open == null, 'hung', {
+            destructible: this.key,
+            waiting: this.waiting.slice(),
+        }, { cause: coalesce(this.errors[0]) })
     })
 })
+
+Destructible.prototype.timeout = function (timeout, callback) {
+    var vargs = Array.prototype.slice.call(arguments)
+    timeout = typeof vargs[0] == 'number' ? vargs.shift() : 30000
+    callback = typeof vargs[0] == 'function' ? vargs.shift() : nop
+    this._timeout(timeout, callback)
+}
 
 module.exports = Destructible
