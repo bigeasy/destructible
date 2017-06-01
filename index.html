@@ -208,7 +208,46 @@ has the destructors, though.</p>
         input.closed(async())
     })
 })(abend)
-</code></pre></div>
+</code></pre><p>Don&apos;t get so melodramatic about the missed callbacks. You could also miss them
+if you raise an exception after creating a callback.</p>
+<p><strong>MAYBE</strong>: The only way to do this is to preserve the boundary.</p>
+<p>Thus, destructor generates callbacks. It does preserve the results and return
+them. This ends up duplicated Cadence a bit. Not sure how you would go about
+implementing Rescue. Ah, with a callback, too.</p>
+<p>Because the wrapping appears to be no end of trouble as far as propagation goes,
+and the special activities with someone else&apos;s <code>async</code> are way to tricky.</p>
+<ul>
+<li>Implies that this is some sort of inside-out Cadence, which makes you want to
+seek a Cadence decorator.</li>
+<li>Removes the nice and clean implementations you imagined, using closures, but
+it ought to be easier to see what is going on.</li>
+<li>Always wait for completed, gather your results there, or else get your error.</li>
+</ul>
+<p>Wrapping is causing a lot of architecture to appear, so before you walk away
+from wrapping, you&apos;re going to want to know why it didn&apos;t work.</p>
+<ul>
+<li>What did wrapping add to complexity to cause Cadence to catch use exceptions?</li>
+<li>What would it take to make that go away?</li>
+<li>Is there a way to do the <code>async</code> trick generally, and not bake it into
+libraries specifically?</li>
+<li>The use of <code>async</code> trick in Compassion is fooling you in Destructible.</li>
+<li>Can I remove <code>monitor</code> without affecting Staccato?</li>
+</ul>
+<p>The problem is in calling unwind and that, in turn, calling the completion
+Signal, which resumes running before everything is really wound down.</p>
+<p>Why? This means that arbitrary callbacks are being fired. The destructors. These
+are generally causing other stacks to unwind, so that is not going to often be
+an issue. But when the last one unwinds it triggers continued action.</p>
+<p>Thus, we call this completed function and resume from within a destructor that
+has it&apos;s own callback that will catch an error thrown from the resumed code.
+We&apos;re invoking from within Cadence.</p>
+<p>We could use nextTick, but we haven&apos;t yet. All this would change if we embraced
+it.</p>
+<p>Destructable becomes some sort of countdown latch, then. Doesn&apos;t really require
+a deep rethink of Cadence.</p>
+<p>Your program will exit because there is no work in the event loop, but you&apos;re
+stack trace does not appear because something didn&apos;t completely wind down.</p>
+</div>
   </div>
   <!-- todo: move into an edify plugin-->
   <script>

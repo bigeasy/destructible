@@ -238,3 +238,51 @@ cadence(function (async) {
     })
 })(abend)
 ```
+
+Don't get so melodramatic about the missed callbacks. You could also miss them
+if you raise an exception after creating a callback.
+
+**MAYBE**: The only way to do this is to preserve the boundary.
+
+Thus, destructor generates callbacks. It does preserve the results and return
+them. This ends up duplicated Cadence a bit. Not sure how you would go about
+implementing Rescue. Ah, with a callback, too.
+
+Because the wrapping appears to be no end of trouble as far as propagation goes,
+and the special activities with someone else's `async` are way to tricky.
+
+ * Implies that this is some sort of inside-out Cadence, which makes you want to
+ seek a Cadence decorator.
+ * Removes the nice and clean implementations you imagined, using closures, but
+ it ought to be easier to see what is going on.
+ * Always wait for completed, gather your results there, or else get your error.
+
+Wrapping is causing a lot of architecture to appear, so before you walk away
+from wrapping, you're going to want to know why it didn't work.
+
+ * What did wrapping add to complexity to cause Cadence to catch use exceptions?
+ * What would it take to make that go away?
+ * Is there a way to do the `async` trick generally, and not bake it into
+ libraries specifically?
+ * The use of `async` trick in Compassion is fooling you in Destructible.
+ * Can I remove `monitor` without affecting Staccato?
+
+The problem is in calling unwind and that, in turn, calling the completion
+Signal, which resumes running before everything is really wound down.
+
+Why? This means that arbitrary callbacks are being fired. The destructors. These
+are generally causing other stacks to unwind, so that is not going to often be
+an issue. But when the last one unwinds it triggers continued action.
+
+Thus, we call this completed function and resume from within a destructor that
+has it's own callback that will catch an error thrown from the resumed code.
+We're invoking from within Cadence.
+
+We could use nextTick, but we haven't yet. All this would change if we embraced
+it.
+
+Destructable becomes some sort of countdown latch, then. Doesn't really require
+a deep rethink of Cadence.
+
+Your program will exit because there is no work in the event loop, but you're
+stack trace does not appear because something didn't completely wind down.
