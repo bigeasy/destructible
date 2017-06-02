@@ -116,7 +116,7 @@ Destructible.prototype.getDestructors = function () {
 }
 
 Destructible.prototype.monitor = function (key) {
-    var wait = { module: 'destructible', method: 'rescue', key: key }
+    var wait = { module: 'destructible', method: 'monitor', key: key }
     this.waiting.push(wait)
     var index = this._index++
     return Operation([ this, function (error) {
@@ -132,7 +132,7 @@ Destructible.prototype.rescue = function (key) {
     this.waiting.push(wait)
     return Operation([ this, function (error) {
         if (error != null) {
-            this._destroy({ module: 'destructible', method: 'monitor', key: key }, error)
+            this._destroy({ module: 'destructible', method: 'rescue', key: key }, error)
         }
         this.waiting.splice(this.waiting.indexOf(wait), 1)
         if (this.destroyed) {
