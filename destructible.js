@@ -72,8 +72,8 @@ Destructible.prototype._complete = function () {
     }
 }
 
-Destructible.prototype.destroy = function () {
-    this._destroy({ module: 'destructible', method: 'destroy' })
+Destructible.prototype.destroy = function (error) {
+    this._destroy({ module: 'destructible', method: 'destroy' }, coalesce(error))
 }
 
 Destructible.prototype.markDestroyed = function (object, property) {
