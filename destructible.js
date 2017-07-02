@@ -7,9 +7,6 @@ var Keyify = require('keyify')
 // Contextualized callbacks and event handlers.
 var Operation = require('operation/variadic')
 
-// Event message queue.
-var Procession = require('procession')
-
 // Ever increasing serial integer with no maximum value.
 var Monotonic = require('monotonic').asString
 
