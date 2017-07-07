@@ -1,7 +1,18 @@
-require('proof')(8, require('cadence')(prove))
+require('proof')(9, require('cadence')(prove))
 
 function prove (async, assert) {
     var Destructible = require('..')
+
+    var destructible = new Destructible('bad')
+
+    destructible.addDestructor('bad', function () { throw new Error })
+
+    try {
+        destructible.destroy()
+    } catch (error) {
+        assert(/^destructible#destructor$/m.test(error.message), 'bad destructor')
+    }
+
     var destructible = new Destructible('keyed')
     assert(destructible.key, 'keyed', 'keyed')
     var destructible = new Destructible

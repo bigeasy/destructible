@@ -51,7 +51,14 @@ Destructible.prototype._destroy = function (key, error) {
         this._stackWhenDestroyed = new Error().stack
         this.destroyed = true
         for (var key in this._destructors) {
-            this._destructors[key].call()
+            try {
+                this._destructors[key].call()
+            } catch (error) {
+                throw interrupt('destructor', error, {
+                    destructible: this.key,
+                    destructor: Keyify.parse(key)
+                })
+            }
         }
         this._destructors = null
     }
