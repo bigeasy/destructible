@@ -48,7 +48,6 @@ Destructible.prototype._destroy = function (key, error) {
     if (!this.destroyed) {
         this._destroyedAt = Date.now()
         this._destructing.unlatch()
-        this._stackWhenDestroyed = new Error().stack
         this.destroyed = true
         for (var key in this._destructors) {
             try {
@@ -60,7 +59,6 @@ Destructible.prototype._destroy = function (key, error) {
                 })
             }
         }
-        this._destructors = null
     }
 }
 
@@ -98,10 +96,9 @@ Destructible.prototype.addDestructor = function (key) {
 
 Destructible.prototype.invokeDestructor = function (key) {
     key = Keyify.stringify(key)
-    interrupt.assert(this._destructors != null, 'invokeDestroyed', this.errors[0], {
-        stack: this._stackWhenDestroyed,
-        when: this.when,
-        destroyed: this.destroyed
+    interrupt.assert(! this.destroyed, 'destroyed', this.errors[0], {
+        destructible: this.key,
+        destructor: key
     })
     var destructor = this._destructors[key]
     destructor()
