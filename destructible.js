@@ -48,7 +48,6 @@ Destructible.prototype._destroy = function (key, error) {
     if (!this.destroyed) {
         this._destroyedAt = Date.now()
         this._destructing.unlatch()
-        this.destroyed = true
         for (var key in this._destructors) {
             try {
                 this._destructors[key].call()
@@ -59,6 +58,7 @@ Destructible.prototype._destroy = function (key, error) {
                 })
             }
         }
+        this.destroyed = true
     }
 }
 
