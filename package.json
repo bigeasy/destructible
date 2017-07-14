@@ -27,7 +27,7 @@
                             "monotonic":                    "3.0.x",
                             "nop":                          "1.0.0",
                             "operation":                    "1.6.x",
-                            "signal":                       "1.10.x"
+                            "signal":                       "3.0.x"
     },
     "devDependencies":
     {
