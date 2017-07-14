@@ -18,7 +18,7 @@ var cadence = require('cadence')
 var interrupt = require('interrupt').createInterrupter('destructible')
 
 // Do nothing.
-var nop = require('nop')
+var noop = require('nop')
 
 // Unique id for each instance of destructible.
 var INSTANCE = '0'
@@ -116,11 +116,24 @@ Destructible.prototype.getDestructors = function () {
     })
 }
 
+Destructible.prototype._createOrthogonal = function (vargs) {
+    return vargs.length ? Operation(vargs) : noop
+}
+Destructible.prototype._invokeOrthogonal = function (orthogonal, error) {
+    orthogonal.apply(null, error == null ? [] : [ error ])
+}
+
+// TODO Sketch of what might be a common aspect of turning the corner, waiting
+// for a start that never comes. You launch a stack using monitor or rescue and
+// wait for it to be ready using a semaphore, but an error occurs so that the
+// value is never ready.
 Destructible.prototype.monitor = function (key) {
+    var orthogonal = this._createOrthogonal(Array.prototype.slice.call(arguments, 1))
     var wait = { module: 'destructible', method: 'monitor', key: key }
     this.waiting.push(wait)
     var index = this._index++
     return Operation([ this, function (error) {
+        this._invokeOrthogonal(orthogonal, error)
         this._vargs[index] = Array.prototype.slice.call(arguments, 1)
         this._destroy({ module: 'destructible', method: 'monitor', key: key }, coalesce(error))
         this.waiting.splice(this.waiting.indexOf(wait), 1)
@@ -129,9 +142,11 @@ Destructible.prototype.monitor = function (key) {
 }
 
 Destructible.prototype.rescue = function (key) {
+    var orthogonal = this._createOrthogonal(Array.prototype.slice.call(arguments, 1))
     var wait = { module: 'destructible', method: 'rescue', key: key }
     this.waiting.push(wait)
     return Operation([ this, function (error) {
+        this._invokeOrthogonal(orthogonal, error)
         if (error != null) {
             this._destroy({ module: 'destructible', method: 'rescue', key: key }, error)
         }

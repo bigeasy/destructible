@@ -1,4 +1,4 @@
-require('proof')(9, require('cadence')(prove))
+require('proof')(10, require('cadence')(prove))
 
 function prove (async, assert) {
     var Destructible = require('..')
@@ -45,7 +45,7 @@ function prove (async, assert) {
         destructible = new Destructible('responses')
         destructible.completed(async())
         var callbacks = []
-        callbacks.push(destructible.rescue(0))
+        callbacks.push(destructible.rescue(0, function () { assert(true, 'done') }))
         callbacks.push(destructible.monitor(1))
         callbacks.push(destructible.monitor(2))
         callbacks.pop()(null, 2, 3)
