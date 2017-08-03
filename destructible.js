@@ -48,9 +48,11 @@ Destructible.prototype._destroy = function (key, error) {
     if (!this.destroyed) {
         this._destroyedAt = Date.now()
         this._destructing.unlatch()
-        for (var key in this._destructors) {
+        var destructors = this._destructors
+        this._destructors = {}
+        for (var key in destructors) {
             try {
-                this._destructors[key].call()
+                destructors[key].call()
             } catch (error) {
                 throw interrupt('destructor', error, {
                     destructible: this.key,
