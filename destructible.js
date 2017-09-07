@@ -59,11 +59,13 @@ Destructible.prototype._destroy = function (key, error) {
             }
             delete this._destructors[key]
         }
+        this._complete()
         this.destroyed = true
     }
 }
 
 Destructible.prototype._complete = function () {
+    // TODO Why not use `this.destroyed`?
     if (this.waiting.length == 0 && this._destroyed.open == null) {
         if (this.errors.length) {
             this._destroyed.unlatch(this.errors[0])
