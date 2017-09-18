@@ -36,6 +36,7 @@ function Destructible (key) {
     this.instance = INSTANCE = Monotonic.increment(INSTANCE, 0)
     this._destructing = new Signal
     this._destroyed = new Signal
+    this._destroyedAt = null
     this._index = 0
     this._vargs = []
 }
@@ -45,7 +46,7 @@ Destructible.prototype._destroy = function (key, error) {
         this.errors.push(error)
         this.interrupts.push(interrupt('error', { key: key }, error))
     }
-    if (!this.destroyed) {
+    if (!this.destroyed && this._destroyedAt == null) {
         this._destroyedAt = Date.now()
         this._destructing.unlatch()
         for (var key in this._destructors) {
