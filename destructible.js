@@ -176,7 +176,7 @@ Destructible.prototype._done = cadence(function (async, timeout) {
         async(function () {
             this._destructing.wait(async())
         }, function () {
-            timeout -= (this._destroyedAt - Date.now())
+            timeout -= (Date.now() - this._destroyedAt)
             this._completed.wait(Math.max(timeout, 0), async())
         }, function () {
             if (this._completed.open == null) {
