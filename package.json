@@ -20,6 +20,7 @@
     },
     "dependencies":
     {
+                            "abend":                        "1.0.x",
                             "cadence":                      "1.0.x",
                             "extant":                       "1.0.x",
                             "interrupt":                    "5.0.x",

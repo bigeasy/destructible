@@ -13,6 +13,7 @@ var Monotonic = require('monotonic').asString
 // Control-flow utilities.
 var Signal = require('signal')
 var cadence = require('cadence')
+var abend = require('abend')
 
 // Exceptions that you can catch by type.
 var interrupt = require('interrupt').createInterrupter('destructible')
@@ -26,19 +27,46 @@ var INSTANCE = '0'
 // Uncatchable exception.
 var panicIf = require('./panic').panicIf
 
-function Destructible (key) {
-    this.destroyed = false
+// Construct a destructable that will track callbacks and timeout if they are
+// not all invoked within a certain time frame when destroy is called.
+
+//
+function Destructible () {
+    var vargs = Array.prototype.slice.call(arguments)
+
+    // By default, we wait a full second for all outstanding callbacks to
+    // return.
+    var timeout = typeof vargs[0] == 'number' ? vargs.shift() : 1000
+
+    // Displayed when we timeout.
+    this.key = coalesce(vargs.shift())
+
+    // Errors returned to callbacks.
     this.errors = []
+
+    // Errors returned to calllbacks with contextual information.
     this.interrupts = []
-    this.key = coalesce(key)
-    this._destructors = {}
+
+    // True when all callbacks have completed or we've given up.
+    this.destroyed = false
+
+    // You're welcome to dump this list of waiting callbacks if it helps you
+    // with debugging.
     this.waiting = []
+
+    // Listen to know when we're done.
+    this.completed = new Signal
+
+    this._completed = new Signal
+
+    this._destructors = {}
     this.instance = INSTANCE = Monotonic.increment(INSTANCE, 0)
     this._destructing = new Signal
-    this._destroyed = new Signal
     this._destroyedAt = null
     this._index = 0
     this._vargs = []
+
+    this._done(timeout, abend)
 }
 
 Destructible.prototype._destroy = function (key, error) {
@@ -53,10 +81,7 @@ Destructible.prototype._destroy = function (key, error) {
             try {
                 this._destructors[key].call()
             } catch (error) {
-                throw interrupt('destructor', error, {
-                    destructible: this.key,
-                    destructor: Keyify.parse(key)
-                })
+                this._destroy(Keyify.parse(key), error)
             }
             delete this._destructors[key]
         }
@@ -67,11 +92,11 @@ Destructible.prototype._destroy = function (key, error) {
 
 Destructible.prototype._complete = function () {
     // TODO Why not use `this.destroyed`?
-    if (this.waiting.length == 0 && this._destroyed.open == null) {
+    if (this.waiting.length == 0 && this._completed.open == null) {
         if (this.errors.length) {
-            this._destroyed.unlatch(this.errors[0])
+            this._completed.unlatch(this.errors[0])
         } else {
-            this._destroyed.unlatch()
+            this._completed.unlatch()
         }
     }
 }
@@ -144,24 +169,28 @@ Destructible.prototype.rescue = function (key) {
     } ])
 }
 
-Destructible.prototype._completed = cadence(function (async, timeout) {
-    async(function () {
-        this._destructing.wait(async())
-    }, function () {
-        timeout -= (this._destroyedAt - Date.now())
-        this._destroyed.wait(Math.max(timeout, 0), async())
-    }, function () {
-        panicIf(this._destroyed.open == null, 'hung', {
-            destructible: this.key,
-            waiting: this.waiting.slice(),
-        }, { cause: coalesce(this.errors[0]) })
-    })
+Destructible.prototype._done = cadence(function (async, timeout) {
+    async([function () {
+        this.completed.unlatch()
+    }], [function () {
+        async(function () {
+            this._destructing.wait(async())
+        }, function () {
+            timeout -= (this._destroyedAt - Date.now())
+            this._completed.wait(Math.max(timeout, 0), async())
+        }, function () {
+            if (this._completed.open == null) {
+                throw new interrupt('hung', {
+                    destructible: this.key,
+                    waiting: this.waiting.slice(),
+                }, {
+                    cause: coalesce(this.errors[0])
+                })
+            }
+        })
+    }, function (error) {
+        this.completed.unlatch(error)
+    }])
 })
-
-Destructible.prototype.completed = function (timeout, callback) {
-    var vargs = Array.prototype.slice.call(arguments)
-    timeout = typeof vargs[0] == 'number' ? vargs.shift() : 30000
-    this._completed(timeout, vargs.shift())
-}
 
 module.exports = Destructible

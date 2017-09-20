@@ -1,17 +1,15 @@
-require('proof')(9, require('cadence')(prove))
+require('proof')(10, require('cadence')(prove))
 
 function prove (async, assert) {
     var Destructible = require('..')
 
     var destructible = new Destructible('bad')
 
-    destructible.addDestructor('bad', function () { throw new Error })
-
-    try {
-        destructible.destroy()
-    } catch (error) {
-        assert(/^destructible#destructor$/m.test(error.message), 'bad destructor')
-    }
+    destructible.addDestructor('bad', function () { throw new Error('bad') })
+    destructible.completed.wait(function (error) {
+        assert(error.message, 'bad','bad destructor')
+    })
+    destructible.destroy()
 
     var destructible = new Destructible('keyed')
     assert(destructible.key, 'keyed', 'keyed')
@@ -43,14 +41,13 @@ function prove (async, assert) {
 
     async(function () {
         destructible = new Destructible('responses')
-        destructible.completed(async())
-        var callbacks = []
+        destructible.completed.wait(async())
         destructible.monitor(1)()
     }, function () {
         assert(true, 'normal done')
     }, [function () {
         destructible = new Destructible('errors')
-        destructible.completed(1000, async())
+        destructible.completed.wait(async())
         var callbacks = []
         callbacks.push(destructible.monitor(1))
         callbacks.push(destructible.rescue(2))
@@ -59,6 +56,15 @@ function prove (async, assert) {
         callbacks.pop()(new Error('caught'))
         callbacks.pop()()
     }, function (error) {
-        assert(error.message, 'caught')
+        assert(error.message, 'caught', 'caught')
+    }], [function () {
+        destructible = new Destructible(50, 'timeout')
+        destructible.completed.wait(async())
+        var callbacks = []
+        callbacks.push(destructible.monitor(1))
+        callbacks.push(destructible.monitor(2))
+        callbacks.pop()()
+    }, function (error) {
+        assert(/^destructible#hung$/m.test(error.message), 'timeout')
     }])
 }
