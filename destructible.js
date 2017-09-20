@@ -71,9 +71,7 @@ Destructible.prototype._complete = function () {
         if (this.errors.length) {
             this._destroyed.unlatch(this.errors[0])
         } else {
-            var vargs = [ null ]
-            vargs = vargs.concat.apply(vargs, this._vargs)
-            this._destroyed.unlatch.apply(this._destroyed, vargs)
+            this._destroyed.unlatch()
         }
     }
 }

@@ -45,12 +45,9 @@ function prove (async, assert) {
         destructible = new Destructible('responses')
         destructible.completed(async())
         var callbacks = []
-        callbacks.push(destructible.monitor(1))
-        callbacks.push(destructible.monitor(2))
-        callbacks.pop()(null, 2, 3)
-        callbacks.pop()(null, 1)
-    }, function (one, two, three) {
-        assert([ one, two, three ], [ 1, 2, 3 ], 'responses')
+        destructible.monitor(1)()
+    }, function () {
+        assert(true, 'normal done')
     }, [function () {
         destructible = new Destructible('errors')
         destructible.completed(1000, async())
