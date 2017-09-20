@@ -24,9 +24,6 @@ var noop = require('nop')
 // Unique id for each instance of destructible.
 var INSTANCE = '0'
 
-// Uncatchable exception.
-var panicIf = require('./panic').panicIf
-
 // Construct a destructable that will track callbacks and timeout if they are
 // not all invoked within a certain time frame when destroy is called.
 
