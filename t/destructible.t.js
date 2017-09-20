@@ -29,6 +29,7 @@ function prove (async, assert) {
         throw new Error('should not run')
     })
     destructible.invokeDestructor('invoked')
+    destructible.invokeDestructor('invoked')
     destructible.removeDestructor('removed')
     assert(destructible.getDestructors(), [ 'markDestroyed', 'destructor' ], 'removed')
 

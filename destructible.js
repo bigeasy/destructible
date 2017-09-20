@@ -120,13 +120,13 @@ Destructible.prototype.addDestructor = function (key) {
 
 Destructible.prototype.invokeDestructor = function (key) {
     key = Keyify.stringify(key)
-    interrupt.assert(! this.destroyed, 'destroyed', this.errors[0], {
-        destructible: this.key,
-        destructor: key
-    })
     var destructor = this._destructors[key]
-    destructor()
-    delete this._destructors[key]
+    if (destructor != null) {
+        destructor()
+        delete this._destructors[key]
+        return true
+    }
+    return false
 }
 
 Destructible.prototype.removeDestructor = function (key) {
