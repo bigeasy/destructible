@@ -66,10 +66,10 @@ function Destructible () {
     this._done(timeout, abend)
 }
 
-Destructible.prototype._destroy = function (key, error) {
+Destructible.prototype._destroy = function (type, key, error) {
     if (error != null) {
         this.errors.push(error)
-        this.interrupts.push(interrupt('error', { key: key }, error))
+        this.interrupts.push(interrupt('error', { type: type, key: key }, error))
     }
     if (!this.destroyed && this._destroyedAt == null) {
         this._destroyedAt = Date.now()
@@ -78,7 +78,7 @@ Destructible.prototype._destroy = function (key, error) {
             try {
                 this._destructors[key].call()
             } catch (error) {
-                this._destroy(Keyify.parse(key), error)
+                this._destroy('destructor', Keyify.parse(key), error)
             }
             delete this._destructors[key]
         }
@@ -99,7 +99,7 @@ Destructible.prototype._complete = function () {
 }
 
 Destructible.prototype.destroy = function (error) {
-    this._destroy({ module: 'destructible', method: 'destroy' }, coalesce(error))
+    this._destroy('explicit', { module: 'destructible', method: 'destroy' }, coalesce(error))
 }
 
 Destructible.prototype.markDestroyed = function (object, property) {
@@ -146,7 +146,7 @@ Destructible.prototype.monitor = function (key) {
     var index = this._index++
     return Operation([ this, function (error) {
         this._vargs[index] = Array.prototype.slice.call(arguments, 1)
-        this._destroy({ module: 'destructible', method: 'monitor', key: key }, coalesce(error))
+        this._destroy('monitor', { module: 'destructible', method: 'monitor', key: key }, coalesce(error))
         this.waiting.splice(this.waiting.indexOf(wait), 1)
         this._complete()
     } ])
@@ -157,7 +157,7 @@ Destructible.prototype.rescue = function (key) {
     this.waiting.push(wait)
     return Operation([ this, function (error) {
         if (error != null) {
-            this._destroy({ module: 'destructible', method: 'rescue', key: key }, error)
+            this._destroy('rescue', { module: 'destructible', method: 'rescue', key: key }, error)
         }
         this.waiting.splice(this.waiting.indexOf(wait), 1)
         if (this.destroyed) {
