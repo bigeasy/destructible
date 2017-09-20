@@ -66,6 +66,30 @@ function Destructible () {
     this._done(timeout, abend)
 }
 
+Destructible.prototype._done = cadence(function (async, timeout) {
+    async([function () {
+        this.completed.unlatch()
+    }], [function () {
+        async(function () {
+            this._destructing.wait(async())
+        }, function () {
+            timeout -= (Date.now() - this._destroyedAt)
+            this._completed.wait(Math.max(timeout, 0), async())
+        }, function () {
+            if (this._completed.open == null) {
+                throw new interrupt('hung', {
+                    destructible: this.key,
+                    waiting: this.waiting.slice(),
+                }, {
+                    cause: coalesce(this.errors[0])
+                })
+            }
+        })
+    }, function (error) {
+        this.completed.unlatch(error)
+    }])
+})
+
 Destructible.prototype._destroy = function (type, key, error) {
     if (error != null) {
         this.errors.push(error)
@@ -165,29 +189,5 @@ Destructible.prototype.rescue = function (key) {
         }
     } ])
 }
-
-Destructible.prototype._done = cadence(function (async, timeout) {
-    async([function () {
-        this.completed.unlatch()
-    }], [function () {
-        async(function () {
-            this._destructing.wait(async())
-        }, function () {
-            timeout -= (Date.now() - this._destroyedAt)
-            this._completed.wait(Math.max(timeout, 0), async())
-        }, function () {
-            if (this._completed.open == null) {
-                throw new interrupt('hung', {
-                    destructible: this.key,
-                    waiting: this.waiting.slice(),
-                }, {
-                    cause: coalesce(this.errors[0])
-                })
-            }
-        })
-    }, function (error) {
-        this.completed.unlatch(error)
-    }])
-})
 
 module.exports = Destructible
