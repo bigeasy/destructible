@@ -56,6 +56,8 @@ function Destructible () {
 
     this._completed = new Signal
 
+    this._notifications = []
+
     this._destructors = {}
     this.instance = INSTANCE = Monotonic.increment(INSTANCE, 0)
     this._destructing = new Signal
@@ -114,10 +116,14 @@ Destructible.prototype._destroy = function (type, key, error) {
 Destructible.prototype._complete = function () {
     // TODO Why not use `this.destroyed`?
     if (this.waiting.length == 0 && this._completed.open == null) {
-        if (this.errors.length) {
-            this._completed.unlatch(this.errors[0])
-        } else {
-            this._completed.unlatch()
+        this.notifyDestroyed(this._completed, 'unlatch')
+        while (this._notifications.length != 0) {
+            var notify = this._notifications.shift()
+            if (this.errors.length) {
+                notify(this.errors[0])
+            } else {
+                notify()
+            }
         }
     }
 }
@@ -130,6 +136,10 @@ Destructible.prototype.markDestroyed = function (object, property) {
     this.addDestructor('markDestroyed', function () {
         object[coalesce(property, 'destroyed')] = true
     })
+}
+
+Destructible.prototype.notifyDestroyed = function () {
+    this._notifications.push(Operation(Array.prototype.slice.call(arguments)))
 }
 
 Destructible.prototype.addDestructor = function (key) {
