@@ -18,9 +18,6 @@ var abend = require('abend')
 // Exceptions that you can catch by type.
 var interrupt = require('interrupt').createInterrupter('destructible')
 
-// Do nothing.
-var noop = require('nop')
-
 // Unique id for each instance of destructible.
 var INSTANCE = '0'
 
