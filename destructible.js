@@ -70,7 +70,9 @@ function Destructible () {
 
 Destructible.prototype._done = cadence(function (async, timeout) {
     async([function () {
-        this.completed.unlatch()
+        var vargs = [ null ]
+        vargs = vargs.concat.apply(vargs, this._vargs)
+        this.completed.unlatch.apply(this.completed, vargs)
     }], [function () {
         async(function () {
             this._destructing.wait(async())
