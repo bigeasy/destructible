@@ -31,7 +31,7 @@ function Destructible (key) {
     this.errors = []
     this.interrupts = []
     this.key = coalesce(key)
-    this._destructors = {}
+    this._destructors = { order: [], keyed: {} }
     this.waiting = []
     this.instance = INSTANCE = Monotonic.increment(INSTANCE, 0)
     this._destructing = new Signal
@@ -48,16 +48,16 @@ Destructible.prototype._destroy = function (key, error) {
     if (!this.destroyed) {
         this._destroyedAt = Date.now()
         this._destructing.unlatch()
-        for (var key in this._destructors) {
+        this._destructors.order.reverse().forEach(function (key) {
             try {
-                this._destructors[key].call()
+                this._destructors.keyed[key].call()
             } catch (error) {
                 throw interrupt('destructor', error, {
                     destructible: this.key,
                     destructor: Keyify.parse(key)
                 })
             }
-        }
+        }, this)
         this.destroyed = true
     }
 }
@@ -90,7 +90,8 @@ Destructible.prototype.addDestructor = function (key) {
     if (this.destroyed) {
         operation()
     } else {
-        this._destructors[key] = operation
+        this._destructors.keyed[key] = operation
+        this._destructors.order.push(key)
     }
 }
 
@@ -100,18 +101,22 @@ Destructible.prototype.invokeDestructor = function (key) {
         destructible: this.key,
         destructor: key
     })
-    var destructor = this._destructors[key]
+    var destructor = this._destructors.keyed[key]
     destructor()
-    delete this._destructors[key]
+    this._removeDestructor(key)
 }
 
 Destructible.prototype.removeDestructor = function (key) {
-    key = Keyify.stringify(key)
-    delete this._destructors[key]
+    this._removeDestructor(Keyify.stringify(key))
+}
+
+Destructible.prototype._removeDestructor = function (key) {
+    this._destructors.order.splice(this._destructors.order.indexOf(key), 1)
+    delete this._destructors.keyed[key]
 }
 
 Destructible.prototype.getDestructors = function () {
-    return Object.keys(this._destructors).map(function (key) {
+    return this._destructors.order.map(function (key) {
         return Keyify.parse(key)
     })
 }
