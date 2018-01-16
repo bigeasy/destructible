@@ -15,7 +15,7 @@
     "license":              "MIT",
     "repository":
     {
-                            "url": "git://github.com/bigeasy/destructible.git",
+                            "url": "bigeasy/destructible",
                             "type": "git"
     },
     "dependencies":
