@@ -1,34 +1,34 @@
 require('proof')(11, require('cadence')(prove))
 
-function prove (async, assert) {
+function prove (async, okay) {
     var Destructible = require('..')
 
     var destructible = new Destructible('bad')
 
     destructible.addDestructor('bad', function () { throw new Error('bad') })
     destructible.completed.wait(function (error) {
-        assert(error.message, 'bad','bad destructor')
+        okay(error.message, 'bad','bad destructor')
     })
     destructible.destroy()
 
     var destructible = new Destructible('error')
     destructible.destruct.wait(function () { throw new Error('destruct') })
     destructible.destroy()
-    assert(destructible.errors[0].message, 'destruct', 'destruct error')
+    okay(destructible.errors[0].message, 'destruct', 'destruct error')
 
     var destructible = new Destructible('keyed')
-    assert(destructible.key, 'keyed', 'keyed')
+    okay(destructible.key, 'keyed', 'keyed')
     var destructible = new Destructible
-    assert(destructible.key, null, 'unkeyed')
+    okay(destructible.key, null, 'unkeyed')
 
     var object = { destroyed: false }
 
     destructible.markDestroyed(object, 'destroyed')
     destructible.addDestructor('destructor', function () {
-        assert(true, 'destructor ran')
+        okay(true, 'destructor ran')
     })
     destructible.addDestructor('invoked', function () {
-        assert(true, 'destructor invoked')
+        okay(true, 'destructor invoked')
     })
     destructible.addDestructor('removed', function () {
         throw new Error('should not run')
@@ -36,13 +36,13 @@ function prove (async, assert) {
     destructible.invokeDestructor('invoked')
     destructible.invokeDestructor('invoked')
     destructible.removeDestructor('removed')
-    assert(destructible.getDestructors(), [ 'markDestroyed', 'destructor' ], 'removed')
+    okay(destructible.getDestructors(), [ 'markDestroyed', 'destructor' ], 'removed')
 
     destructible.destroy()
     destructible.destroy()
 
     destructible.addDestructor('after', function () {
-        assert(true, 'after')
+        okay(true, 'after')
     })
 
     async(function () {
@@ -50,7 +50,7 @@ function prove (async, assert) {
         destructible.completed.wait(async())
         destructible.monitor(1)()
     }, function () {
-        assert(true, 'normal done')
+        okay(true, 'normal done')
     }, [function () {
         destructible = new Destructible('errors')
         destructible.completed.wait(async())
@@ -62,7 +62,7 @@ function prove (async, assert) {
         callbacks.pop()(new Error('caught'))
         callbacks.pop()()
     }, function (error) {
-        assert(error.message, 'caught', 'caught')
+        okay(error.message, 'caught', 'caught')
     }], [function () {
         destructible = new Destructible(50, 'timeout')
         destructible.completed.wait(async())
@@ -71,6 +71,6 @@ function prove (async, assert) {
         callbacks.push(destructible.monitor(2))
         callbacks.pop()()
     }, function (error) {
-        assert(/^destructible#hung$/m.test(error.message), 'timeout')
+        okay(/^destructible#hung$/m.test(error.message), 'timeout')
     }])
 }
