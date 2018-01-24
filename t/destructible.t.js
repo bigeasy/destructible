@@ -1,4 +1,4 @@
-require('proof')(11, require('cadence')(prove))
+require('proof')(12, require('cadence')(prove))
 
 function prove (async, okay) {
     var Destructible = require('..')
@@ -45,7 +45,26 @@ function prove (async, okay) {
         okay(true, 'after')
     })
 
+    function Daemon () {
+        this._callback = null
+    }
+
+    Daemon.prototype.destroy = function () {
+        this._callback.call()
+    }
+
+    Daemon.prototype.listen = function (value, callback) {
+        okay(value, 1, 'listening')
+        this._callback = callback
+    }
+
     async(function () {
+        destructible = new Destructible('daemons')
+        var daemon = new Daemon
+        destructible.monitor('daemon', daemon, 'listen', 1, 'destroy')
+        destructible.destroy()
+        destructible.completed.wait(async())
+    }, function () {
         destructible = new Destructible('responses')
         destructible.completed.wait(async())
         destructible.monitor(1)()

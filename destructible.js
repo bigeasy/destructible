@@ -178,7 +178,13 @@ Destructible.prototype.getDestructors = function () {
     })
 }
 
-Destructible.prototype.monitor = function (key) {
+Destructible.prototype.monitor = function () {
+    var vargs = Array.prototype.slice.call(arguments)
+    var key = vargs.shift()
+    if (vargs.length != 0) {
+        this.destruct.wait.apply(this.destruct, [ vargs[0], vargs.pop() ])
+        return new Operation(vargs).apply(null, vargs.concat(this.monitor(key)))
+    }
     var wait = { module: 'destructible', method: 'monitor', key: key }
     this.waiting.push(wait)
     var index = this._index++
