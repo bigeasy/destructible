@@ -54,6 +54,9 @@ function Destructible () {
     // Listen to know when we're done.
     this.completed = new Signal
 
+    // Listen to know when to shut down.
+    this.destruct = new Signal
+
     this._completed = new Signal
 
     this._notifications = []
@@ -103,6 +106,11 @@ Destructible.prototype._destroy = function (type, key, error) {
     if (!this.destroyed && this._destroyedAt == null) {
         this._destroyedAt = Date.now()
         this._destructing.unlatch()
+        try {
+            this.destruct.notify()
+        } catch (error) {
+            this._destroy('destructor', null, error)
+        }
         for (var key in this._destructors) {
             try {
                 this._destructors[key].call()

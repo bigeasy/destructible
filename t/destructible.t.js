@@ -1,4 +1,4 @@
-require('proof')(10, require('cadence')(prove))
+require('proof')(11, require('cadence')(prove))
 
 function prove (async, assert) {
     var Destructible = require('..')
@@ -10,6 +10,11 @@ function prove (async, assert) {
         assert(error.message, 'bad','bad destructor')
     })
     destructible.destroy()
+
+    var destructible = new Destructible('error')
+    destructible.destruct.wait(function () { throw new Error('destruct') })
+    destructible.destroy()
+    assert(destructible.errors[0].message, 'destruct', 'destruct error')
 
     var destructible = new Destructible('keyed')
     assert(destructible.key, 'keyed', 'keyed')
