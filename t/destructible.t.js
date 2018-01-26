@@ -1,4 +1,4 @@
-require('proof')(12, require('cadence')(prove))
+require('proof')(13, require('cadence')(prove))
 
 function prove (async, okay) {
     var Destructible = require('..')
@@ -53,17 +53,26 @@ function prove (async, okay) {
         this._callback.call()
     }
 
-    Daemon.prototype.listen = function (value, callback) {
+    Daemon.prototype.listen = function (value, initializer, callback) {
         okay(value, 1, 'listening')
         this._callback = callback
+        initializer.destructor(this, 'destroy')
+        var cookie = initializer.destructor(function () { okay(true, 'canceled') })
+        initializer.cancel(cookie)()
+        initializer.ready()
     }
 
     async(function () {
         destructible = new Destructible('daemons')
         var daemon = new Daemon
-        destructible.monitor('daemon', daemon, 'listen', 1, 'destroy')
-        destructible.destroy()
-        destructible.completed.wait(async())
+        async(function () {
+            destructible.monitor('daemon', daemon, 'listen', 1, async())
+        }, function () {
+            destructible.destroy()
+            destructible.completed.wait(async())
+        }, function () {
+            destructible.monitor('daemon', daemon, 'listen', 1, async())
+        })
     }, function () {
         destructible = new Destructible('responses')
         destructible.completed.wait(async())

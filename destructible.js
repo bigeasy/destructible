@@ -178,22 +178,54 @@ Destructible.prototype.getDestructors = function () {
     })
 }
 
+function Intializer (destructible, ready) {
+    this._ready = ready
+    this._destruct = new Signal
+    destructible.destruct.wait(this._destruct, 'unlatch')
+}
+
+Intializer.prototype.destructor = function () {
+    return this._destruct.wait.apply(this._destruct, Array.prototype.slice.call(arguments))
+}
+
+Intializer.prototype.cancel = function (cookie) {
+    return this._destruct.cancel(cookie)
+}
+
+Intializer.prototype.ready = function () {
+    this._ready.unlatch()
+}
+
+Destructible.prototype._capture = function (vargs, monitor) {
+    var callback = vargs.pop()
+    var f = Operation(vargs)
+    var ready = new Signal()
+    var initializer = new Intializer(this, ready)
+    this.completed.wait(ready, 'unlatch')
+    f.apply(null, vargs.concat(initializer, monitor))
+    ready.wait(callback)
+}
+
 Destructible.prototype.monitor = function () {
     var vargs = Array.prototype.slice.call(arguments)
     var key = vargs.shift()
     if (vargs.length != 0) {
-        this.destruct.wait.apply(this.destruct, [ vargs[0], vargs.pop() ])
-        return new Operation(vargs).apply(null, vargs.concat(this.monitor(key)))
+        if (this.destroyed) {
+            this.completed.wait(vargs.pop())
+        } else {
+            this._capture(vargs, this.monitor(key))
+        }
+    } else {
+        var wait = { module: 'destructible', method: 'monitor', key: key }
+        this.waiting.push(wait)
+        var index = this._index++
+        return Operation([ this, function (error) {
+            this._vargs[index] = Array.prototype.slice.call(arguments, 1)
+            this._destroy('monitor', { module: 'destructible', method: 'monitor', key: key }, coalesce(error))
+            this.waiting.splice(this.waiting.indexOf(wait), 1)
+            this._complete()
+        } ])
     }
-    var wait = { module: 'destructible', method: 'monitor', key: key }
-    this.waiting.push(wait)
-    var index = this._index++
-    return Operation([ this, function (error) {
-        this._vargs[index] = Array.prototype.slice.call(arguments, 1)
-        this._destroy('monitor', { module: 'destructible', method: 'monitor', key: key }, coalesce(error))
-        this.waiting.splice(this.waiting.indexOf(wait), 1)
-        this._complete()
-    } ])
 }
 
 Destructible.prototype.rescue = function (key) {
