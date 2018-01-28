@@ -193,7 +193,7 @@ Intializer.prototype.cancel = function (cookie) {
 }
 
 Intializer.prototype.ready = function () {
-    this._ready.unlatch()
+    this._ready.unlatch.apply(this._ready, Array.prototype.slice.call(arguments))
 }
 
 Destructible.prototype._capture = function (vargs, monitor) {
@@ -201,7 +201,13 @@ Destructible.prototype._capture = function (vargs, monitor) {
     var f = Operation(vargs)
     var ready = new Signal()
     var initializer = new Intializer(this, ready)
-    this.completed.wait(ready, 'unlatch')
+    this.completed.wait(function (error) {
+        if (error) {
+            ready.unlatch(error)
+        } else {
+            ready.unlatch(interrupt('unready'))
+        }
+    })
     f.apply(null, vargs.concat(initializer, monitor))
     ready.wait(callback)
 }
