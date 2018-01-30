@@ -27,7 +27,7 @@
                             "keyify":                       "0.0.x",
                             "monotonic":                    "3.0.x",
                             "operation":                    "1.6.x",
-                            "signal":                       "3.2.x"
+                            "signal":                       "3.3.x"
     },
     "devDependencies":
     {

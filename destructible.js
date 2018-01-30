@@ -196,30 +196,35 @@ Intializer.prototype.ready = function () {
     this._ready.unlatch.apply(this._ready, Array.prototype.slice.call(arguments))
 }
 
-Destructible.prototype._capture = function (vargs, monitor) {
-    var callback = vargs.pop()
-    var f = Operation(vargs)
-    var ready = new Signal()
-    var initializer = new Intializer(this, ready)
-    this.completed.wait(function (error) {
+function errorify (ready, message) {
+    return function (error) {
         if (error) {
             ready.unlatch(error)
         } else {
-            ready.unlatch(interrupt('unready'))
+            ready.unlatch(interrupt(message))
         }
-    })
+    }
     f.apply(null, vargs.concat(initializer, monitor))
     ready.wait(callback)
+}
+
+Destructible.prototype._capture = function (vargs, ready, monitor) {
+    var f = Operation(vargs)
+    var initializer = new Intializer(this, ready)
+    this.completed.wait(errorify(ready, 'unready'))
+    f.apply(null, vargs.concat(initializer, monitor))
 }
 
 Destructible.prototype.monitor = function () {
     var vargs = Array.prototype.slice.call(arguments)
     var key = vargs.shift()
     if (vargs.length != 0) {
+        var callback = vargs.pop()
+        var ready = new Signal(callback)
         if (this.destroyed) {
-            this.completed.wait(vargs.pop())
+            this.completed.wait(errorify(ready, 'destroyed'))
         } else {
-            this._capture(vargs, this.monitor(key))
+            this._capture(vargs, ready, this.monitor(key))
         }
     } else {
         var wait = { module: 'destructible', method: 'monitor', key: key }
