@@ -1,4 +1,4 @@
-require('proof')(16, require('cadence')(prove))
+require('proof')(18, require('cadence')(prove))
 
 function prove (async, okay) {
     var Destructible = require('..')
@@ -74,6 +74,28 @@ function prove (async, okay) {
             destructible.monitor('daemon', daemon, 'listen', 1, async())
         }, function (error) {
             okay(error.message, 'destructible#destroyed', 'already destroyed')
+        }])
+    }, function () {
+        destructible = new Destructible('timeout')
+        async(function () {
+            destructible.monitor('timeout canceled', 60000, function (initializer, callback) {
+                initializer.ready()
+                callback()
+            }, async())
+        }, function () {
+            destructible.completed.wait(async())
+        })
+    }, function () {
+        destructible = new Destructible('timeout')
+        async([function () {
+            destructible.monitor('timedout', 250, function (initializer, callback) {
+            }, async())
+        }, function (error) {
+            okay(error.message, 'destructible#timeout', 'timeout')
+        }], [function () {
+            destructible.completed.wait(async())
+        }, function (error) {
+            okay(error.message, 'destructible#timeout', 'timeout completed')
         }])
     }, function () {
         destructible = new Destructible('daemons')

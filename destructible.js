@@ -204,27 +204,37 @@ function errorify (ready, message) {
             ready.unlatch(interrupt(message))
         }
     }
-    f.apply(null, vargs.concat(initializer, monitor))
-    ready.wait(callback)
-}
-
-Destructible.prototype._capture = function (vargs, ready, monitor) {
-    var f = Operation(vargs)
-    var initializer = new Intializer(this, ready)
-    this.completed.wait(errorify(ready, 'unready'))
-    f.apply(null, vargs.concat(initializer, monitor))
 }
 
 Destructible.prototype.monitor = function () {
     var vargs = Array.prototype.slice.call(arguments)
     var key = vargs.shift()
     if (vargs.length != 0) {
-        var callback = vargs.pop()
-        var ready = new Signal(callback)
+        var ready = new Signal(vargs.pop())
         if (this.destroyed) {
             this.completed.wait(errorify(ready, 'destroyed'))
         } else {
-            this._capture(vargs, ready, this.monitor(key))
+            var monitor = this.monitor(key)
+            // We create a timer and clear the timeout when we are ready. The
+            // timeout will be cleared by the `ready` signal when the user says
+            // the stack is ready. If the stack crashes before it is ready, then
+            // the `ready` signal will be unlatched by the `completed` signal.
+            if (typeof vargs[0] == 'number') {
+                var timeout = setTimeout(function () {
+                    timeout = null
+                    monitor(interrupt('timeout'))
+                }, vargs.shift())
+                ready.wait(function () {
+                    if (timeout != null) {
+                        clearTimeout(timeout)
+                        timeout = null
+                    }
+                })
+            }
+            var f = Operation(vargs)
+            var initializer = new Intializer(this, ready)
+            this.completed.wait(errorify(ready, 'unready'))
+            f.apply(null, vargs.concat(initializer, monitor))
         }
     } else {
         var wait = { module: 'destructible', method: 'monitor', key: key }
