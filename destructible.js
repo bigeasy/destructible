@@ -206,8 +206,7 @@ function errorify (ready, message) {
     }
 }
 
-Destructible.prototype.monitor = function () {
-    var vargs = Array.prototype.slice.call(arguments)
+Destructible.prototype._monitor = function (method, vargs) {
     var key = vargs.shift()
     if (vargs.length != 0) {
         var ready = new Signal(vargs.pop())
@@ -241,26 +240,24 @@ Destructible.prototype.monitor = function () {
         this.waiting.push(wait)
         var index = this._index++
         return Operation([ this, function (error) {
-            this._vargs[index] = Array.prototype.slice.call(arguments, 1)
-            this._destroy('monitor', { module: 'destructible', method: 'monitor', key: key }, coalesce(error))
+            if (method == 'monitor') {
+                this._vargs[index] = Array.prototype.slice.call(arguments, 1)
+            }
+            if (method == 'monitor' || error != null) {
+                this._destroy('monitor', { module: 'destructible', method: method, key: key }, coalesce(error))
+            }
             this.waiting.splice(this.waiting.indexOf(wait), 1)
             this._complete()
         } ])
     }
 }
 
+Destructible.prototype.monitor = function () {
+    return this._monitor('monitor', Array.prototype.slice.call(arguments))
+}
+
 Destructible.prototype.rescue = function (key) {
-    var wait = { module: 'destructible', method: 'rescue', key: key }
-    this.waiting.push(wait)
-    return Operation([ this, function (error) {
-        if (error != null) {
-            this._destroy('rescue', { module: 'destructible', method: 'rescue', key: key }, error)
-        }
-        this.waiting.splice(this.waiting.indexOf(wait), 1)
-        if (this.destroyed) {
-            this._complete()
-        }
-    } ])
+    return this._monitor('rescue', Array.prototype.slice.call(arguments))
 }
 
 module.exports = Destructible
