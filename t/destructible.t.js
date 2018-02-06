@@ -128,8 +128,8 @@ function prove (async, okay) {
         destructible.completed.wait(async())
         var callbacks = []
         callbacks.push(destructible.monitor(1))
-        callbacks.push(destructible.rescue(2))
-        callbacks.push(destructible.rescue(3))
+        callbacks.push(destructible.monitor(2, false))
+        callbacks.push(destructible.monitor(3, false))
         callbacks.pop()()
         callbacks.pop()(new Error('caught'))
         callbacks.pop()()

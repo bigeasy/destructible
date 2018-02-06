@@ -206,14 +206,19 @@ function errorify (ready, message) {
     }
 }
 
-Destructible.prototype._monitor = function (method, vargs) {
+Destructible.prototype.monitor = function () {
+    var vargs = Array.prototype.slice.call(arguments)
     var key = vargs.shift()
+    var terminates = true
+    if (typeof vargs[0] == 'boolean') {
+        terminates = vargs.shift()
+    }
     if (vargs.length != 0) {
         var ready = new Signal(vargs.pop())
         if (this.destroyed) {
             this.completed.wait(errorify(ready, 'destroyed'))
         } else {
-            var monitor = this.monitor(key)
+            var monitor = this.monitor(key, terminates)
             // We create a timer and clear the timeout when we are ready. The
             // timeout will be cleared by the `ready` signal when the user says
             // the stack is ready. If the stack crashes before it is ready, then
@@ -236,28 +241,20 @@ Destructible.prototype._monitor = function (method, vargs) {
             f.apply(null, vargs.concat(initializer, monitor))
         }
     } else {
-        var wait = { module: 'destructible', method: 'monitor', key: key }
+        var wait = { module: 'destructible', method: 'monitor', terminates: terminates, key: key }
         this.waiting.push(wait)
         var index = this._index++
         return Operation([ this, function (error) {
-            if (method == 'monitor') {
+            if (terminates) {
                 this._vargs[index] = Array.prototype.slice.call(arguments, 1)
             }
-            if (method == 'monitor' || error != null) {
-                this._destroy('monitor', { module: 'destructible', method: method, key: key }, coalesce(error))
+            if (terminates || error != null) {
+                this._destroy('monitor', { module: 'destructible', method: 'monitor', terminates: terminates, key: key }, coalesce(error))
             }
             this.waiting.splice(this.waiting.indexOf(wait), 1)
             this._complete()
         } ])
     }
-}
-
-Destructible.prototype.monitor = function () {
-    return this._monitor('monitor', Array.prototype.slice.call(arguments))
-}
-
-Destructible.prototype.rescue = function (key) {
-    return this._monitor('rescue', Array.prototype.slice.call(arguments))
 }
 
 module.exports = Destructible
