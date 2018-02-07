@@ -209,7 +209,7 @@ function errorify (ready, message) {
 Destructible.prototype.monitor = function () {
     var vargs = Array.prototype.slice.call(arguments)
     var key = vargs.shift()
-    var terminates = true
+    var terminates = false
     if (typeof vargs[0] == 'boolean') {
         terminates = vargs.shift()
     }
@@ -245,10 +245,10 @@ Destructible.prototype.monitor = function () {
         this.waiting.push(wait)
         var index = this._index++
         return Operation([ this, function (error) {
-            if (terminates) {
+            if (! terminates) {
                 this._vargs[index] = Array.prototype.slice.call(arguments, 1)
             }
-            if (terminates || error != null) {
+            if (! terminates || error != null) {
                 this._destroy('monitor', { module: 'destructible', method: 'monitor', terminates: terminates, key: key }, coalesce(error))
             }
             this.waiting.splice(this.waiting.indexOf(wait), 1)
