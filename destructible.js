@@ -137,6 +137,16 @@ Destructible.prototype.addContext = function () {
     this.context.push.apply(this.context, Array.prototype.slice.call(arguments))
 }
 
+Destructible.prototype.destructible = function () {
+    var vargs = Array.prototype.slice.call(arguments)
+    var key = vargs[0]
+    var destructible = new Destructible(key)
+    var cookie = this.destruct.wait(destructible, 'destroy')
+    destructible.destruct.wait(this, function () { this.destruct.cancel(cookie) })
+    destructible.completed.wait(this.monitor.apply(this, vargs))
+    return destructible
+}
+
 function Intializer (destructible, ready) {
     this._ready = ready
     this._destruct = new Signal
