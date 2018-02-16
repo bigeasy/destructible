@@ -149,16 +149,15 @@ Destructible.prototype.destructible = function () {
 
 function Intializer (destructible, ready) {
     this._ready = ready
-    this._destruct = new Signal
-    destructible.destruct.wait(this._destruct, 'unlatch')
+    this._destructible = destructible
 }
 
 Intializer.prototype.destructor = function () {
-    return this._destruct.wait.apply(this._destruct, Array.prototype.slice.call(arguments))
+    return this._destructible.destruct.wait.apply(this._destructible.destruct, Array.prototype.slice.call(arguments))
 }
 
 Intializer.prototype.cancel = function (cookie) {
-    return this._destruct.cancel(cookie)
+    return this._destructible.destruct.cancel(cookie)
 }
 
 Intializer.prototype.ready = function () {
