@@ -61,7 +61,6 @@ function Destructible () {
 
     this._notifications = []
 
-    this._destructors = {}
     this.instance = INSTANCE = Monotonic.increment(INSTANCE, 0)
     this._destructing = new Signal
     this._destroyedAt = null
@@ -107,17 +106,9 @@ Destructible.prototype._destroy = function (type, key, error) {
         this._destroyedAt = Date.now()
         this._destructing.unlatch()
         try {
-            this.destruct.notify()
+            this.destruct.unlatch()
         } catch (error) {
             this._destroy('destructor', null, error)
-        }
-        for (var key in this._destructors) {
-            try {
-                this._destructors[key].call()
-            } catch (error) {
-                this._destroy('destructor', Keyify.parse(key), error)
-            }
-            delete this._destructors[key]
         }
         this._complete()
         this.destroyed = true
@@ -137,45 +128,13 @@ Destructible.prototype.destroy = function (error) {
 }
 
 Destructible.prototype.markDestroyed = function (object, property) {
-    this.addDestructor('markDestroyed', function () {
+    return this.destruct.wait(function () {
         object[coalesce(property, 'destroyed')] = true
     })
 }
 
 Destructible.prototype.addContext = function () {
     this.context.push.apply(this.context, Array.prototype.slice.call(arguments))
-}
-
-Destructible.prototype.addDestructor = function (key) {
-    key = Keyify.stringify(key)
-    var operation = Operation(Array.prototype.slice.call(arguments, 1))
-    if (this.destroyed) {
-        operation()
-    } else {
-        this._destructors[key] = operation
-    }
-}
-
-Destructible.prototype.invokeDestructor = function (key) {
-    key = Keyify.stringify(key)
-    var destructor = this._destructors[key]
-    if (destructor != null) {
-        destructor()
-        delete this._destructors[key]
-        return true
-    }
-    return false
-}
-
-Destructible.prototype.removeDestructor = function (key) {
-    key = Keyify.stringify(key)
-    delete this._destructors[key]
-}
-
-Destructible.prototype.getDestructors = function () {
-    return Object.keys(this._destructors).map(function (key) {
-        return Keyify.parse(key)
-    })
 }
 
 function Intializer (destructible, ready) {

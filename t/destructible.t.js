@@ -1,11 +1,11 @@
-require('proof')(18, require('cadence')(prove))
+require('proof')(15, require('cadence')(prove))
 
 function prove (async, okay) {
     var Destructible = require('..')
 
     var destructible = new Destructible('bad')
 
-    destructible.addDestructor('bad', function () { throw new Error('bad') })
+    destructible.destruct.wait(function () { throw new Error('bad') })
     destructible.completed.wait(function (error) {
         okay(error.message, 'bad','bad destructor')
     })
@@ -24,26 +24,10 @@ function prove (async, okay) {
     var object = { destroyed: false }
 
     destructible.markDestroyed(object, 'destroyed')
-    destructible.addDestructor('destructor', function () {
-        okay(true, 'destructor ran')
-    })
-    destructible.addDestructor('invoked', function () {
-        okay(true, 'destructor invoked')
-    })
-    destructible.addDestructor('removed', function () {
-        throw new Error('should not run')
-    })
-    destructible.invokeDestructor('invoked')
-    destructible.invokeDestructor('invoked')
-    destructible.removeDestructor('removed')
-    okay(destructible.getDestructors(), [ 'markDestroyed', 'destructor' ], 'removed')
 
     destructible.destroy()
+    okay(destructible.destroyed, 'marked destroyed')
     destructible.destroy()
-
-    destructible.addDestructor('after', function () {
-        okay(true, 'after')
-    })
 
     function Daemon () {
         this._callback = null
