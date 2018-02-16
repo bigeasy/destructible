@@ -1,4 +1,4 @@
-require('proof')(16, require('cadence')(prove))
+require('proof')(18, require('cadence')(prove))
 
 function prove (async, okay) {
     var Destructible = require('..')
@@ -41,6 +41,12 @@ function prove (async, okay) {
         okay(value, 1, 'listening')
         this._callback = callback
         initializer.destructor(this, 'destroy')
+        initializer.destructible().destruct.wait(this, function () {
+            okay(true, 'sub-destructible destruct one')
+        })
+        initializer.destructible().destruct.wait(this, function () {
+            okay(true, 'sub-destructible destruct two')
+        })
         var cookie = initializer.destructor(function () { okay(true, 'canceled') })
         initializer.cancel(cookie)()
         initializer.ready()

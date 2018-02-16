@@ -152,6 +152,13 @@ function Intializer (destructible, ready) {
     this._destructible = destructible
 }
 
+Intializer.prototype.destructible = function () {
+    if (this._childDestructible == null) {
+        this._childDestructible = this._destructible.destructible(this._key)
+    }
+    return this._childDestructible
+}
+
 Intializer.prototype.destructor = function () {
     return this._destructible.destruct.wait.apply(this._destructible.destruct, Array.prototype.slice.call(arguments))
 }
