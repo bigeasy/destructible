@@ -38,6 +38,7 @@ function prove (async, okay) {
     }
 
     Daemon.prototype.listen = function (value, initializer, callback) {
+        console.log(arguments)
         okay(value, 1, 'listening')
         this._callback = callback
         initializer.destructor(this, 'destroy')

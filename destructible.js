@@ -137,19 +137,20 @@ Destructible.prototype.addContext = function () {
     this.context.push.apply(this.context, Array.prototype.slice.call(arguments))
 }
 
-Destructible.prototype.destructible = function () {
+Destructible.prototype.destructible = function (terminates) {
     var vargs = Array.prototype.slice.call(arguments)
     var key = vargs[0]
     var destructible = new Destructible(key)
     var cookie = this.destruct.wait(destructible, 'destroy')
     destructible.destruct.wait(this, function () { this.destruct.cancel(cookie) })
-    destructible.completed.wait(this.monitor.apply(this, vargs))
+    destructible.completed.wait(this._monitor('destructible', [ key, !! terminates ]))
     return destructible
 }
 
 function Initializer (key, destructible, ready) {
-    this._ready = ready
+    this._key = key
     this._destructible = destructible
+    this._ready = ready
 }
 
 Initializer.prototype.destructible = function () {
@@ -181,8 +182,7 @@ function errorify (ready, message) {
     }
 }
 
-Destructible.prototype.monitor = function () {
-    var vargs = Array.prototype.slice.call(arguments)
+Destructible.prototype._monitor = function (method, vargs) {
     var key = vargs.shift()
     var terminates = false
     if (typeof vargs[0] == 'boolean') {
@@ -216,7 +216,7 @@ Destructible.prototype.monitor = function () {
             f.apply(null, vargs.concat(initializer, monitor))
         }
     } else {
-        var wait = { module: 'destructible', method: 'monitor', terminates: terminates, key: key }
+        var wait = { module: 'destructible', method: method, terminates: terminates, key: key }
         this.waiting.push(wait)
         var index = this._index++
         return Operation([ this, function (error) {
@@ -224,12 +224,16 @@ Destructible.prototype.monitor = function () {
                 this._vargs[index] = Array.prototype.slice.call(arguments, 1)
             }
             if (! terminates || error != null) {
-                this._destroy('monitor', { module: 'destructible', method: 'monitor', terminates: terminates, key: key }, coalesce(error))
+                this._destroy('monitor', { module: 'destructible', method: method, terminates: terminates, key: key }, coalesce(error))
             }
             this.waiting.splice(this.waiting.indexOf(wait), 1)
             this._complete()
         } ])
     }
+}
+
+Destructible.prototype.monitor = function () {
+    return this._monitor('monitor', Array.prototype.slice.call(arguments))
 }
 
 module.exports = Destructible
