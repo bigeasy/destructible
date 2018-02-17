@@ -147,27 +147,27 @@ Destructible.prototype.destructible = function () {
     return destructible
 }
 
-function Intializer (key, destructible, ready) {
+function Initializer (key, destructible, ready) {
     this._ready = ready
     this._destructible = destructible
 }
 
-Intializer.prototype.destructible = function () {
+Initializer.prototype.destructible = function () {
     if (this._childDestructible == null) {
         this._childDestructible = this._destructible.destructible(this._key)
     }
     return this._childDestructible
 }
 
-Intializer.prototype.destructor = function () {
+Initializer.prototype.destructor = function () {
     return this._destructible.destruct.wait.apply(this._destructible.destruct, Array.prototype.slice.call(arguments))
 }
 
-Intializer.prototype.cancel = function (cookie) {
+Initializer.prototype.cancel = function (cookie) {
     return this._destructible.destruct.cancel(cookie)
 }
 
-Intializer.prototype.ready = function () {
+Initializer.prototype.ready = function () {
     this._ready.unlatch.apply(this._ready, Array.prototype.slice.call(arguments))
 }
 
@@ -211,7 +211,7 @@ Destructible.prototype.monitor = function () {
                 })
             }
             var f = Operation(vargs)
-            var initializer = new Intializer(key, this, ready)
+            var initializer = new Initializer(key, this, ready)
             this.completed.wait(errorify(ready, 'unready'))
             f.apply(null, vargs.concat(initializer, monitor))
         }
