@@ -147,7 +147,7 @@ Destructible.prototype.destructible = function () {
     return destructible
 }
 
-function Intializer (destructible, ready) {
+function Intializer (key, destructible, ready) {
     this._ready = ready
     this._destructible = destructible
 }
@@ -211,7 +211,7 @@ Destructible.prototype.monitor = function () {
                 })
             }
             var f = Operation(vargs)
-            var initializer = new Intializer(this, ready)
+            var initializer = new Intializer(key, this, ready)
             this.completed.wait(errorify(ready, 'unready'))
             f.apply(null, vargs.concat(initializer, monitor))
         }
