@@ -97,10 +97,10 @@ Destructible.prototype._done = cadence(function (async, timeout) {
     }])
 })
 
-Destructible.prototype._destroy = function (type, key, error) {
+Destructible.prototype._destroy = function (context, error) {
     if (error != null) {
         this.errors.push(error)
-        this.interrupts.push(interrupt('error', { type: type, key: key }, error))
+        this.interrupts.push(interrupt('error', context, error))
     }
     if (!this.destroyed && this._destroyedAt == null) {
         this._destroyedAt = Date.now()
@@ -108,7 +108,7 @@ Destructible.prototype._destroy = function (type, key, error) {
         try {
             this.destruct.unlatch()
         } catch (error) {
-            this._destroy('destructor', null, error)
+            this._destroy({ module: 'destructible', method: 'destructing' }, error)
         }
         this._complete()
         this.destroyed = true
@@ -124,7 +124,7 @@ Destructible.prototype._complete = function () {
 }
 
 Destructible.prototype.destroy = function (error) {
-    this._destroy('explicit', { module: 'destructible', method: 'destroy' }, coalesce(error))
+    this._destroy({ module: 'destructible', method: 'destroy' }, coalesce(error))
 }
 
 Destructible.prototype.markDestroyed = function (object, property) {
@@ -224,7 +224,7 @@ Destructible.prototype._monitor = function (method, vargs) {
                 this._vargs[index] = Array.prototype.slice.call(arguments, 1)
             }
             if (! terminates || error != null) {
-                this._destroy('monitor', { module: 'destructible', method: method, terminates: terminates, key: key }, coalesce(error))
+                this._destroy({ module: 'destructible', method: method, terminates: terminates, key: key }, coalesce(error))
             }
             this.waiting.splice(this.waiting.indexOf(wait), 1)
             this._complete()
