@@ -1,4 +1,4 @@
-require('proof')(18, require('cadence')(prove))
+require('proof')(16, require('cadence')(prove))
 
 function prove (async, okay) {
     var Destructible = require('..')
@@ -37,20 +37,19 @@ function prove (async, okay) {
         this._callback.call()
     }
 
-    Daemon.prototype.listen = function (value, initializer, callback) {
-        console.log(arguments)
+    Daemon.prototype.listen = function (value, destructible, callback) {
         okay(value, 1, 'listening')
-        this._callback = callback
-        initializer.destructor(this, 'destroy')
-        initializer.destructible().destruct.wait(this, function () {
+        this._callback = destructible.monitor('main')
+        destructible.destruct.wait(this, 'destroy')
+        destructible.destruct.wait(this, function () {
             okay(true, 'sub-destructible destruct one')
         })
-        initializer.destructible().destruct.wait(this, function () {
+        destructible.destruct.wait(this, function () {
             okay(true, 'sub-destructible destruct two')
         })
-        var cookie = initializer.destructor(function () { okay(true, 'canceled') })
-        initializer.cancel(cookie)()
-        initializer.ready()
+        var cookie = destructible.destruct.wait(function () { okay(true, 'canceled') })
+        destructible.destruct.cancel(cookie)()
+        callback()
     }
 
     async(function () {
@@ -70,8 +69,8 @@ function prove (async, okay) {
         destructible = new Destructible('timeout')
         async(function () {
             destructible.monitor('timeout canceled', 60000, function (initializer, callback) {
-                initializer.ready()
                 callback()
+                initializer.monitor('main')()
             }, async())
         }, function () {
             destructible.completed.wait(async())
@@ -98,8 +97,8 @@ function prove (async, okay) {
     }, function () {
         destructible = new Destructible('daemons')
         async([function () {
-            destructible.monitor('errored', function (initializer, callback) {
-                initializer.destructor(callback)
+            destructible.monitor('errored', function (destructible, callback) {
+                destructible.destruct.wait(callback)
             }, async())
             destructible.monitor('abend')(new Error('errored'))
         }, function (error) {
@@ -108,8 +107,8 @@ function prove (async, okay) {
     }, function () {
         destructible = new Destructible('daemons')
         async([function () {
-            destructible.monitor('errored', function (initializer, callback) {
-                initializer.destructor(callback)
+            destructible.monitor('errored', function (destructible, callback) {
+                destructible.destruct.wait(callback)
             }, async())
             destructible.destroy()
         }, function (error) {

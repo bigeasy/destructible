@@ -147,40 +147,56 @@ Destructible.prototype.destructible = function (terminates) {
     return destructible
 }
 
-function Initializer (key, destructible, ready) {
-    this._key = key
-    this._destructible = destructible
-    this._ready = ready
-}
-
-Initializer.prototype.destructible = function () {
-    if (this._childDestructible == null) {
-        this._childDestructible = this._destructible.destructible(this._key)
-    }
-    return this._childDestructible
-}
-
-Initializer.prototype.destructor = function () {
-    return this._destructible.destruct.wait.apply(this._destructible.destruct, Array.prototype.slice.call(arguments))
-}
-
-Initializer.prototype.cancel = function (cookie) {
-    return this._destructible.destruct.cancel(cookie)
-}
-
-Initializer.prototype.ready = function () {
-    this._ready.unlatch.apply(this._ready, Array.prototype.slice.call(arguments))
-}
-
-function errorify (ready, message) {
+function errorify (callback, message) {
     return function (error) {
         if (error) {
-            ready.unlatch(error)
+            callback(error)
         } else {
-            ready.unlatch(interrupt(message))
+            callback(interrupt(message))
         }
     }
 }
+
+Destructible.prototype._fork = cadence(function (async, key, terminates, vargs, callback) {
+    var destructible = new Destructible(key)
+    var destroy = this.destruct.wait(destructible, 'destroy')
+    destructible.destruct.wait(this, function () { this.destruct.cancel(destroy) })
+    var monitor = this._monitor('destructible', [ key, !! terminates ])
+    destructible.completed.wait(function () {
+        monitor.apply(null, Array.prototype.slice.call(arguments))
+    })
+    var timeout = null
+    // We create a timer and clear the timeout when we are ready. The
+    // timeout will be cleared by the `ready` signal when the user says
+    // the stack is ready. If the stack crashes before it is ready, then
+    // the `ready` signal will be unlatched by the `completed` signal.
+    if (typeof vargs[0] == 'number') {
+        timeout = setTimeout(function () {
+            timeout = null
+            var e = interrupt('timeout')
+            destructible.destroy(e)
+            callback(e)
+        }, vargs.shift())
+    }
+    var unready = this.completed.wait(function () {
+        unready = null
+        destructible.destroy(interrupt('unready'))
+    })
+    async([function () {
+        if (timeout != null) {
+            clearTimeout(timeout)
+        }
+        if (unready != null) {
+            this.completed.cancel(unready)
+        }
+    }], [function () {
+        var f = Operation(vargs)
+        f.apply(null, vargs.concat(destructible, async()))
+    }, function (error) {
+        destructible.destroy(error)
+        throw error
+    }])
+})
 
 Destructible.prototype._monitor = function (method, vargs) {
     var key = vargs.shift()
@@ -189,31 +205,11 @@ Destructible.prototype._monitor = function (method, vargs) {
         terminates = vargs.shift()
     }
     if (vargs.length != 0) {
-        var ready = new Signal(vargs.pop())
+        var callback = vargs.pop()
         if (this.destroyed) {
-            this.completed.wait(errorify(ready, 'destroyed'))
+            this.completed.wait(errorify(callback, 'destroyed'))
         } else {
-            var monitor = this.monitor(key, terminates)
-            // We create a timer and clear the timeout when we are ready. The
-            // timeout will be cleared by the `ready` signal when the user says
-            // the stack is ready. If the stack crashes before it is ready, then
-            // the `ready` signal will be unlatched by the `completed` signal.
-            if (typeof vargs[0] == 'number') {
-                var timeout = setTimeout(function () {
-                    timeout = null
-                    monitor(interrupt('timeout'))
-                }, vargs.shift())
-                ready.wait(function () {
-                    if (timeout != null) {
-                        clearTimeout(timeout)
-                        timeout = null
-                    }
-                })
-            }
-            var f = Operation(vargs)
-            var initializer = new Initializer(key, this, ready)
-            this.completed.wait(errorify(ready, 'unready'))
-            f.apply(null, vargs.concat(initializer, monitor))
+            this._fork(key, terminates, vargs, callback, callback)
         }
     } else {
         var wait = { module: 'destructible', method: method, terminates: terminates, key: key }
