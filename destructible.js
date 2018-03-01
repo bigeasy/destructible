@@ -232,4 +232,9 @@ Destructible.prototype.monitor = function () {
     return this._monitor('monitor', Array.prototype.slice.call(arguments))
 }
 
+Destructible.prototype.subordinate = cadence(function (async, destructible) {
+    this.completed.wait(destructible.monitor('completed'))
+    destructible.destruct.wait(this, 'destroy')
+})
+
 module.exports = Destructible
