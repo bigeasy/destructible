@@ -117,7 +117,7 @@ Destructible.prototype._destroy = function (context, error) {
 
 Destructible.prototype._complete = function () {
     // TODO Why not use `this.destroyed`?
-    if (this.waiting.length == 0 && this._completed.open == null) {
+    if (this._destroyedAt != null && this.waiting.length == 0 && this._completed.open == null) {
         var vargs = this.errors.length ? [ this.errors[0] ] : []
         this._completed.unlatch.apply(this._completed, vargs)
     }
