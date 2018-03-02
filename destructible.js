@@ -191,7 +191,9 @@ Destructible.prototype._fork = cadence(function (async, key, terminates, vargs, 
         }
     }], [function () {
         var f = Operation(vargs)
-        f.apply(null, vargs.concat(destructible, async()))
+        vargs.push(async())
+        vargs.unshift(destructible)
+        f.apply(null, vargs)
     }, function (error) {
         destructible.destroy(error)
         throw error

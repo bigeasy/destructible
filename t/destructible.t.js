@@ -37,7 +37,7 @@ function prove (async, okay) {
         this._callback.call()
     }
 
-    Daemon.prototype.listen = function (value, destructible, callback) {
+    Daemon.prototype.listen = function (destructible, value, callback) {
         okay(value, 1, 'listening')
         this._callback = destructible.monitor('main')
         destructible.destruct.wait(this, 'destroy')
