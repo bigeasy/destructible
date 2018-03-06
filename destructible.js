@@ -57,6 +57,10 @@ function Destructible () {
     // Listen to know when to shut down.
     this.destruct = new Signal
 
+    // Listen to know if we've forcibly shutdown before all callbacks have
+    // returned.
+    this.scrammed = new Signal
+
     this._completed = new Signal
 
     this._notifications = []
@@ -76,13 +80,21 @@ Destructible.prototype._done = cadence(function (async, timeout) {
         vargs = vargs.concat.apply(vargs, this._vargs)
         this.completed.unlatch.apply(this.completed, vargs)
     }], [function () {
+        var timeout
         async(function () {
             this._destructing.wait(async())
         }, function () {
-            timeout -= (Date.now() - this._destroyedAt)
-            this._completed.wait(Math.max(timeout, 0), async())
-        }, function () {
-            if (this._completed.open == null) {
+            timeout = setTimeout(function () {
+                timeout = null
+                this.scram()
+            }.bind(this), Math.max(Date.now() - this._destroyedAt, 0))
+            this._completed.wait(async())
+        }, function (scrammed) {
+            if (timeout != null) {
+                clearTimeout(timeout)
+                timeout = null
+            }
+            if (!! scrammed) {
                 throw new interrupt('hung', {
                     destructible: this.key,
                     waiting: this.waiting.slice(),
@@ -125,6 +137,12 @@ Destructible.prototype._complete = function () {
 
 Destructible.prototype.destroy = function (error) {
     this._destroy({ module: 'destructible', method: 'destroy' }, coalesce(error))
+}
+
+Destructible.prototype.scram = function (error) {
+    this._destroy({ module: 'destructible', method: 'scram' }, coalesce(error))
+    this.scrammed.notify()
+    this._completed.notify(null, true)
 }
 
 Destructible.prototype.markDestroyed = function (object, property) {
