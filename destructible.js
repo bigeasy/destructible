@@ -80,19 +80,18 @@ Destructible.prototype._done = cadence(function (async, timeout) {
         vargs = vargs.concat.apply(vargs, this._vargs)
         this.completed.unlatch.apply(this.completed, vargs)
     }], [function () {
-        var timeout
+        var timer
         async(function () {
             this._destructing.wait(async())
         }, function () {
-            timeout = setTimeout(function () {
-                timeout = null
+            timer = setTimeout(function () {
+                timer = null
                 this.scram()
-            }.bind(this), Math.max(Date.now() - this._destroyedAt, 0))
+            }.bind(this), timeout - Math.max(Date.now() - this._destroyedAt, 0))
             this._completed.wait(async())
         }, function (scrammed) {
-            if (timeout != null) {
-                clearTimeout(timeout)
-                timeout = null
+            if (timer != null) {
+                clearTimeout(timer)
             }
             if (!! scrammed) {
                 throw new interrupt('hung', {
