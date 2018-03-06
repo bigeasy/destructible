@@ -1,4 +1,4 @@
-require('proof')(18, require('cadence')(prove))
+require('proof')(19, require('cadence')(prove))
 
 function prove (async, okay) {
     var Destructible = require('..')
@@ -86,6 +86,20 @@ function prove (async, okay) {
             destructible.completed.wait(async())
         }, function (error) {
             okay(error.message, 'destructible#timeout', 'timeout completed')
+        }])
+    }, function () {
+        var destructible = new Destructible('scrammed')
+        async(function () {
+            destructible.monitor('sub-scrammed', function (initializer, callback) {
+                initializer.monitor('hung')
+                callback()
+            }, async())
+        }, [function () {
+            destructible.destroy()
+            destructible.completed.wait(async())
+        }, function (error) {
+            okay(/^destructible#hung$/m.test(error.message), 'sub scram')
+            destructible.scram()
         }])
     }, function () {
         var destructible = new Destructible('child')

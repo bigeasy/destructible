@@ -139,9 +139,11 @@ Destructible.prototype.destroy = function (error) {
 }
 
 Destructible.prototype.scram = function (error) {
-    this._destroy({ module: 'destructible', method: 'scram' }, coalesce(error))
-    this.scrammed.notify()
-    this._completed.notify(null, true)
+    if (this._completed.open == null) {
+        this._destroy({ module: 'destructible', method: 'scram' }, coalesce(error))
+        this.scrammed.notify()
+        this._completed.notify(null, true)
+    }
 }
 
 Destructible.prototype.markDestroyed = function (object, property) {
@@ -177,9 +179,11 @@ function errorify (callback, message) {
 Destructible.prototype._fork = cadence(function (async, key, terminates, vargs, callback) {
     var destructible = new Destructible(key)
     var destroy = this.destruct.wait(destructible, 'destroy')
+    var scram = this.scrammed.wait(destructible, 'scram')
     destructible.destruct.wait(this, function () { this.destruct.cancel(destroy) })
     var monitor = this._monitor('destructible', [ key, !! terminates ])
-    destructible.completed.wait(function () {
+    destructible.completed.wait(this, function () {
+        this.scrammed.cancel(scram)
         monitor.apply(null, Array.prototype.slice.call(arguments))
     })
     var timeout = null
