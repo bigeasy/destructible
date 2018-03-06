@@ -102,7 +102,7 @@ Destructible.prototype._destroy = function (context, error) {
         this.errors.push(error)
         this.interrupts.push(interrupt('error', context, error))
     }
-    if (!this.destroyed && this._destroyedAt == null) {
+    if (this._destroyedAt == null) {
         this._destroyedAt = Date.now()
         this._destructing.unlatch()
         try {
