@@ -229,6 +229,9 @@ Destructible.prototype._monitor = function (method, vargs) {
     }
     if (vargs.length != 0) {
         var callback = vargs.pop()
+        if (callback === null) {
+            callback = this._monitor('initializer', [ key, true ])
+        }
         if (this.destroyed) {
             this.completed.wait(errorify(callback, 'destroyed'))
         } else {
