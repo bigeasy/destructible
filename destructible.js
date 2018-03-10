@@ -39,10 +39,7 @@ function Destructible () {
     this.addContext.apply(this, vargs)
 
     // Errors returned to callbacks.
-    this.errors = []
-
-    // Errors returned to calllbacks with contextual information.
-    this.interrupts = []
+    this._errors = []
 
     // True when all callbacks have completed or we've given up.
     this.destroyed = false
@@ -75,43 +72,43 @@ function Destructible () {
 }
 
 Destructible.prototype._done = cadence(function (async, timeout) {
-    async([function () {
-        var vargs = [ null ]
-        vargs = vargs.concat.apply(vargs, this._vargs)
-        this.completed.unlatch.apply(this.completed, vargs)
-    }], [function () {
-        var timer
-        async(function () {
-            this._destructing.wait(async())
-        }, function () {
-            timer = setTimeout(function () {
-                timer = null
-                this.scram()
-            }.bind(this), timeout - Math.max(Date.now() - this._destroyedAt, 0))
-            this._completed.wait(async())
-        }, function (scrammed) {
-            if (timer != null) {
-                clearTimeout(timer)
-            }
-            if (!! scrammed) {
-                throw new interrupt('hung', {
-                    destructible: this.key,
-                    waiting: this.waiting.slice(),
-                    context: this.context
-                }, {
-                    cause: coalesce(this.errors[0])
-                })
-            }
-        })
-    }, function (error) {
-        this.completed.unlatch(error)
-    }])
+    var timer
+    async(function () {
+        this._destructing.wait(async())
+    }, function () {
+        timer = setTimeout(function () {
+            timer = null
+            this.scram()
+        }.bind(this), timeout - Math.max(Date.now() - this._destroyedAt, 0))
+        this._completed.wait(async())
+    }, function (scrammed) {
+        if (timer != null) {
+            clearTimeout(timer)
+        }
+        if (scrammed) {
+            this.completed.unlatch(interrupt('hung', this._errors.slice(), {
+                destructible: this.key,
+                waiting: this.waiting.slice(),
+                context: this.context
+            }))
+        } else if (this._errors.length) {
+            this.completed.unlatch(interrupt('error', this._errors.slice(), {
+                module: 'destructible',
+                key: this.key,
+                waiting: this.waiting.slice(),
+                context: this.context
+            }))
+        } else {
+            var vargs = [ null ]
+            vargs = vargs.concat.apply(vargs, this._vargs)
+            this.completed.unlatch.apply(this.completed, vargs)
+        }
+    })
 })
 
 Destructible.prototype._destroy = function (context, error) {
     if (error != null) {
-        this.errors.push(error)
-        this.interrupts.push(interrupt('error', context, error))
+        this._errors.push(error)
     }
     if (this._destroyedAt == null) {
         this._destroyedAt = Date.now()
@@ -129,8 +126,7 @@ Destructible.prototype._destroy = function (context, error) {
 Destructible.prototype._complete = function () {
     // TODO Why not use `this.destroyed`?
     if (this._destroyedAt != null && this.waiting.length == 0 && this._completed.open == null) {
-        var vargs = this.errors.length ? [ this.errors[0] ] : []
-        this._completed.unlatch.apply(this._completed, vargs)
+        this._completed.unlatch(null, false)
     }
 }
 
@@ -166,13 +162,9 @@ Destructible.prototype.destructible = function (terminates) {
     return destructible
 }
 
-function errorify (callback, message) {
+function errorify (callback, message, context) {
     return function (error) {
-        if (error) {
-            callback(error)
-        } else {
-            callback(interrupt(message))
-        }
+        callback(interrupt(message, error, context))
     }
 }
 
@@ -216,7 +208,7 @@ Destructible.prototype._fork = cadence(function (async, key, terminates, vargs, 
         vargs.unshift(destructible)
         f.apply(null, vargs)
     }, function (error) {
-        destructible.destroy(error)
+        this._destroy({ module: 'destructible', method: 'initializer', terminates: terminates, key: key }, error)
         throw error
     }])
 })
@@ -233,7 +225,12 @@ Destructible.prototype._monitor = function (method, vargs) {
             callback = this._monitor('initializer', [ key, true ])
         }
         if (this.destroyed) {
-            this.completed.wait(errorify(callback, 'destroyed'))
+            this.completed.wait(errorify(callback, 'destroyed', {
+                module: 'destructible',
+                key: this.key,
+                waiting: this.waiting.slice(),
+                context: this.context
+            }))
         } else {
             this._fork(key, terminates, vargs, callback, callback)
         }

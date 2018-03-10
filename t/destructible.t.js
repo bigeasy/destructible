@@ -1,4 +1,4 @@
-require('proof')(19, require('cadence')(prove))
+require('proof')(18, require('cadence')(prove))
 
 function prove (async, okay) {
     var Destructible = require('..')
@@ -7,14 +7,9 @@ function prove (async, okay) {
 
     destructible.destruct.wait(function () { throw new Error('bad') })
     destructible.completed.wait(function (error) {
-        okay(error.message, 'bad','bad destructor')
+        okay(error.cause.message, 'bad','bad destructor')
     })
     destructible.destroy()
-
-    var destructible = new Destructible('error')
-    destructible.destruct.wait(function () { throw new Error('destruct') })
-    destructible.destroy()
-    okay(destructible.errors[0].message, 'destruct', 'destruct error')
 
     var destructible = new Destructible('keyed')
     okay(destructible.key, 'keyed', 'keyed')
@@ -63,7 +58,7 @@ function prove (async, okay) {
         }, [function () {
             destructible.monitor('daemon', daemon, 'listen', 1, async())
         }, function (error) {
-            okay(error.message, 'destructible#destroyed', 'already destroyed')
+            okay(error.qualified, 'destructible#destroyed', 'already destroyed')
         }])
     }, function () {
         destructible = new Destructible('timeout')
@@ -81,11 +76,11 @@ function prove (async, okay) {
             destructible.monitor('timedout', 250, function (initializer, callback) {
             }, async())
         }, function (error) {
-            okay(error.message, 'destructible#timeout', 'timeout')
+            okay(error.qualified, 'destructible#timeout', 'timeout')
         }], [function () {
             destructible.completed.wait(async())
         }, function (error) {
-            okay(error.message, 'destructible#timeout', 'timeout completed')
+            okay(error.cause.cause.qualified, 'destructible#timeout', 'timeout completed')
         }])
     }, function () {
         var destructible = new Destructible('scrammed')
@@ -98,7 +93,7 @@ function prove (async, okay) {
             destructible.destroy()
             destructible.completed.wait(async())
         }, function (error) {
-            okay(/^destructible#hung$/m.test(error.message), 'sub scram')
+            okay(error.cause.qualified, 'destructible#hung', 'sub scram')
             destructible.scram()
         }])
     }, function () {
@@ -116,7 +111,7 @@ function prove (async, okay) {
             }, async())
             destructible.monitor('abend')(new Error('errored'))
         }, function (error) {
-            okay(error.message, 'errored', 'ready error')
+            okay(error.cause.message, 'errored', 'ready error')
         }])
     }, function () {
         destructible = new Destructible('daemons')
@@ -160,7 +155,7 @@ function prove (async, okay) {
         callbacks.pop()(new Error('caught'))
         callbacks.pop()()
     }, function (error) {
-        okay(error.message, 'caught', 'caught')
+        okay(error.cause.message, 'caught', 'caught')
     }], [function () {
         destructible = new Destructible(50, 'timeout')
         destructible.completed.wait(async())
