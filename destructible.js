@@ -172,6 +172,7 @@ Destructible.prototype._fork = cadence(function (async, key, terminates, vargs, 
     var destructible = new Destructible(key)
     var destroy = this.destruct.wait(destructible, 'destroy')
     var scram = this.scrammed.wait(destructible, 'scram')
+    destructible.destruct.wait(this, 'destroy')
     destructible.destruct.wait(this, function () { this.destruct.cancel(destroy) })
     var monitor = this._monitor('destructible', [ key, !! terminates ])
     destructible.completed.wait(this, function () {
