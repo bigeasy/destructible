@@ -165,12 +165,6 @@ Destructible.prototype.destructible = function (terminates) {
     return destructible
 }
 
-function errorify (callback, message, context) {
-    return function (error) {
-        callback(interrupt(message, error, context))
-    }
-}
-
 Destructible.prototype._fork = cadence(function (async, key, terminates, vargs, callback) {
     var destructible = new Destructible(key)
     var destroy = this.destruct.wait(destructible, 'destroy')
@@ -223,12 +217,15 @@ Destructible.prototype._monitor = function (method, vargs) {
             callback = this._monitor('initializer', [ key, true ])
         }
         if (this.destroyed) {
-            this.completed.wait(errorify(callback, 'destroyed', {
+            var properties = {
                 module: 'destructible',
                 key: this.key,
                 waiting: this.waiting.slice(),
                 context: this.context
-            }))
+            }
+            this.completed.wait(function (error) {
+                callback(interrupt('destroyed', properties))
+            })
         } else {
             this._fork(key, terminates, vargs, callback, callback)
         }
