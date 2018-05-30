@@ -192,27 +192,11 @@ Destructible.prototype._fork = cadence(function (async, key, terminates, vargs, 
             this.destroy()
         }
     })
-    var timeout = null
-    // We create a timer and clear the timeout when we are ready. The
-    // timeout will be cleared by the `ready` signal when the user says
-    // the stack is ready. If the stack crashes before it is ready, then
-    // the `ready` signal will be unlatched by the `completed` signal.
-    if (typeof vargs[0] == 'number') {
-        timeout = setTimeout(function () {
-            timeout = null
-            var e = interrupt('timeout')
-            destructible.destroy(e)
-            callback(e)
-        }, vargs.shift())
-    }
     var unready = this.completed.wait(function () {
         unready = null
         destructible.destroy(interrupt('unready'))
     })
     async([function () {
-        if (timeout != null) {
-            clearTimeout(timeout)
-        }
         if (unready != null) {
             this.completed.cancel(unready)
         }

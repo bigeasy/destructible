@@ -1,4 +1,4 @@
-require('proof')(21, require('cadence')(prove))
+require('proof')(19, require('cadence')(prove))
 
 function prove (async, okay) {
     var Destructible = require('..')
@@ -59,28 +59,6 @@ function prove (async, okay) {
             destructible.monitor('daemon', daemon, 'listen', 1, async())
         }, function (error) {
             okay(error.qualified, 'destructible#destroyed', 'already destroyed')
-        }])
-    }, function () {
-        destructible = new Destructible('timeout')
-        async(function () {
-            destructible.monitor('timeout canceled', 60000, function (initializer, callback) {
-                callback()
-                initializer.monitor('main')()
-            }, async())
-        }, function () {
-            destructible.completed.wait(async())
-        })
-    }, function () {
-        var destructible = new Destructible('timeout')
-        async([function () {
-            destructible.monitor('timedout', 250, function (initializer, callback) {
-            }, async())
-        }, function (error) {
-            okay(error.qualified, 'destructible#timeout', 'timeout')
-        }], [function () {
-            destructible.completed.wait(async())
-        }, function (error) {
-            okay(error.cause.cause.qualified, 'destructible#timeout', 'timeout completed')
         }])
     }, function () {
         // We should be able to reach `okay` without having to explicitly
