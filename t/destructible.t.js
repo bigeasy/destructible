@@ -139,6 +139,20 @@ function prove (async, okay) {
             okay(true, 'subordinate supervisor done')
         })
     }, function () {
+        destructible = new Destructible('daemons')
+        destructible.destruct.wait(function () { console.log('wait') })
+        destructible.completed.wait(function () { console.log('completed') })
+        async(function () {
+            destructible.monitor('destroyed', function (destructible, callback) {
+                destructible.destruct.wait(function () { console.log('sub') })
+                setImmediate(function () { destructible.destroy() })
+                callback()
+            })
+        }, function () {
+            console.log('ready')
+        })
+    }, function () {
+        process.exit()
         destructible = new Destructible('responses')
         destructible.completed.wait(async())
         destructible.monitor(1)()
