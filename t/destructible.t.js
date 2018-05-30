@@ -1,4 +1,4 @@
-require('proof')(18, require('cadence')(prove))
+require('proof')(21, require('cadence')(prove))
 
 function prove (async, okay) {
     var Destructible = require('..')
@@ -82,6 +82,48 @@ function prove (async, okay) {
         }, function (error) {
             okay(error.cause.cause.qualified, 'destructible#timeout', 'timeout completed')
         }])
+    }, function () {
+        // We should be able to reach `okay` without having to explicitly
+        // destroy the parent Destructible, the child exiting will trigger
+        // `destroy` in the parent.
+        destructible = new Destructible('daemons')
+        async(function () {
+            destructible.monitor('destroyed', function (destructible, callback) {
+                setImmediate(function () { destructible.destroy() })
+                callback()
+            }, async())
+        }, function () {
+            destructible.completed.wait(async())
+        }, function () {
+            okay(destructible.destroyed, 'parent destroyed')
+        })
+    }, function () {
+        // Here we're testing what happpens when we destroy immediately.
+        // destroy the parent Destructible, the child exiting will trigger
+        // `destroy` in the parent.
+        destructible = new Destructible('daemons')
+        async(function () {
+            destructible.monitor('destroyed', function (destructible, callback) {
+                destructible.destroy()
+                callback()
+            }, async())
+        }, function () {
+            okay(destructible.destroyed, 'parent destroyed immediately')
+            destructible.completed.wait(async())
+        })
+    }, function () {
+        destructible = new Destructible('daemons')
+        destructible.completed.wait(async())
+        async(function () {
+            destructible.monitor('destroyed', true, function (destructible, callback) {
+                destructible.destroy()
+                callback()
+            }, async())
+        }, function () {
+            okay(!destructible.destroyed, 'parent spared')
+            destructible.destroy()
+            destructible.completed.wait(async())
+        })
     }, function () {
         var destructible = new Destructible('scrammed')
         async(function () {
