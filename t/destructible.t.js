@@ -1,4 +1,4 @@
-require('proof')(19, require('cadence')(prove))
+require('proof')(20, require('cadence')(prove))
 
 function prove (async, okay) {
     var Destructible = require('..')
@@ -60,6 +60,17 @@ function prove (async, okay) {
         }, function (error) {
             okay(error.qualified, 'destructible#destroyed', 'already destroyed')
         }])
+    }, function () {
+        destructible = new Destructible('daemons')
+        async(function () {
+            destructible.monitor('destroyed', function (destructible, callback) {
+                setImmediate(function () { destructible.destroy() })
+                callback()
+            }, null)
+            destructible.completed.wait(async())
+        }, function () {
+            okay(destructible.destroyed, 'hard fork')
+        })
     }, function () {
         // We should be able to reach `okay` without having to explicitly
         // destroy the parent Destructible, the child exiting will trigger
