@@ -68,6 +68,8 @@ function Destructible () {
     this._index = 0
     this._vargs = []
 
+    this._errored = function () {}
+
     this._done(timeout, abend)
 }
 
@@ -109,6 +111,7 @@ Destructible.prototype._done = cadence(function (async, timeout) {
 Destructible.prototype._destroy = function (context, error) {
     if (error != null) {
         this._errors.push(error)
+        this._errored.call()
     }
     if (this._destroyedAt == null) {
         this._destroyedAt = Date.now()
@@ -172,12 +175,22 @@ Destructible.prototype._fork = cadence(function (async, key, terminates, vargs, 
     var destructible = new Destructible(key)
     var destroy = this.destruct.wait(destructible, 'destroy')
     var scram = this.scrammed.wait(destructible, 'scram')
-    destructible.destruct.wait(this, 'destroy')
-    destructible.destruct.wait(this, function () { this.destruct.cancel(destroy) })
+    if (terminates) {
+        destructible._errored = function () {
+            this.destruct.cancel(destroy)
+            this.destroy()
+        }.bind(this)
+    } else {
+        destructible.destruct.wait(this, function () { this.destruct.cancel(destroy) })
+        destructible.destruct.wait(this, 'destroy')
+    }
     var monitor = this._monitor('destructible', [ key, !! terminates ])
-    destructible.completed.wait(this, function () {
+    destructible.completed.wait(this, function (error) {
         this.scrammed.cancel(scram)
         monitor.apply(null, Array.prototype.slice.call(arguments))
+        if (error != null || ! terminates) {
+            this.destroy()
+        }
     })
     var timeout = null
     // We create a timer and clear the timeout when we are ready. The
