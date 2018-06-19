@@ -5,7 +5,7 @@ var coalesce = require('extant')
 var Keyify = require('keyify')
 
 // Contextualized callbacks and event handlers.
-var Operation = require('operation/variadic')
+var Operation = require('operation')
 
 // Ever increasing serial integer with no maximum value.
 var Monotonic = require('monotonic').asString
