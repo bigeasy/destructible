@@ -246,6 +246,15 @@ Destructible.prototype._monitor = function (method, vargs) {
     }
 }
 
+// Thinking that maybe, unlike other error-first callbacks in my arena, this one
+// should assert that we're still open and fail immediately. We're going to
+// assume that we're using Cadence, so it is going to propagate. We can then
+// look for destroyed monitor exceptions and rescue them.
+//
+// We can come back and reevaluate our Cadence assumption, but I'm not sure I
+// want to use Destructible without Cadence. I don't want to use Node.js without
+// Cadence.
+//
 Destructible.prototype.monitor = function () {
     return this._monitor('monitor', Array.prototype.slice.call(arguments))
 }
