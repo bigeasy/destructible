@@ -35,8 +35,7 @@ function Destructible () {
     // Displayed when we timeout.
     this.key = coalesce(vargs.shift())
 
-    this.context = []
-    this.addContext.apply(this, vargs)
+    this.context = vargs
 
     // Errors returned to callbacks.
     this._errors = []
@@ -149,10 +148,6 @@ Destructible.prototype.markDestroyed = function (object, property) {
     return this.destruct.wait(function () {
         object[coalesce(property, 'destroyed')] = true
     })
-}
-
-Destructible.prototype.addContext = function () {
-    this.context.push.apply(this.context, Array.prototype.slice.call(arguments))
 }
 
 Destructible.prototype._fork = cadence(function (async, key, terminates, vargs, callback) {
