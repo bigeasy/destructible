@@ -1,6 +1,6 @@
 {
     "name":                 "destructible",
-    "version":              "0.30.5",
+    "version":              "0.31.0",
     "description":
 
       "Controlled demolition of complex objects.",
