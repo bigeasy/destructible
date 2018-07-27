@@ -155,16 +155,6 @@ Destructible.prototype.addContext = function () {
     this.context.push.apply(this.context, Array.prototype.slice.call(arguments))
 }
 
-Destructible.prototype.destructible = function (terminates) {
-    var vargs = Array.prototype.slice.call(arguments)
-    var key = vargs[0]
-    var destructible = new Destructible(key)
-    var cookie = this.destruct.wait(destructible, 'destroy')
-    destructible.destruct.wait(this, function () { this.destruct.cancel(cookie) })
-    destructible.completed.wait(this._monitor('destructible', [ key, !! terminates ]))
-    return destructible
-}
-
 Destructible.prototype._fork = cadence(function (async, key, terminates, vargs, callback) {
     var destructible = new Destructible(key)
     var destroy = this.destruct.wait(destructible, 'destroy')
