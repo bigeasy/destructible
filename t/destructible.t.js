@@ -1,4 +1,4 @@
-require('proof')(19, require('cadence')(prove))
+require('proof')(20, require('cadence')(prove))
 
 function prove (async, okay) {
     var Destructible = require('..')
@@ -46,6 +46,8 @@ function prove (async, okay) {
         destructible.destruct.cancel(cookie)()
         callback()
     }
+
+    var cadence = require('cadence')
 
     async(function () {
         var destructible = new Destructible('daemons')
@@ -123,14 +125,21 @@ function prove (async, okay) {
         }, async())
     }, function (error) {
         okay(error.causes[0].causes[0].message, 'early', 'terminates error')
-    }],[function () {
+    }], [function () {
         destructible = new Destructible('daemons')
         destructible.completed.wait(async())
-        destructible.monitor('destroyed', true, function (destructible, callback) {
-            callback(new Error('nope'))
-        }, async())
+        destructible.monitor('nested', cadence(function (async) {
+            async([function () {
+                destructible.monitor('destroyed', true, function (destructible, callback) {
+                    callback(new Error('nope'))
+                }, async())
+            }, function (error) {
+                okay(error.causes[0].message, 'nope', 'initialization exception')
+                throw error
+            }])
+        }), null)
     }, function (error) {
-        okay(error.causes[0].message, 'nope', 'failed initialization')
+        okay(error.causes[0].causes[0].causes[0].message, 'nope', 'initalization')
     }], function () {
         var destructible = new Destructible('scrammed')
         async(function () {

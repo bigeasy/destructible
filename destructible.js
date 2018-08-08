@@ -150,7 +150,7 @@ Destructible.prototype.markDestroyed = function (object, property) {
     })
 }
 
-Destructible.prototype._fork = cadence(function (async, key, terminates, vargs, callback) {
+Destructible.prototype._fork = cadence(function (async, key, terminates, vargs) {
     var destructible = new Destructible(key)
     var destroy = this.destruct.wait(destructible, 'destroy')
     var scram = this.scrammed.wait(destructible, 'scram')
@@ -185,8 +185,7 @@ Destructible.prototype._fork = cadence(function (async, key, terminates, vargs, 
         vargs.unshift(destructible)
         f.apply(null, vargs)
     }, function (error) {
-        this._destroy({ module: 'destructible', method: 'initializer', terminates: terminates, key: key }, error)
-        throw error
+        throw interrupt('initializer', error, { key: key })
     }])
 })
 
