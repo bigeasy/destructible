@@ -16,7 +16,7 @@ var cadence = require('cadence')
 var abend = require('abend')
 
 // Exceptions that you can catch by type.
-var interrupt = require('interrupt').createInterrupter('destructible')
+var Interrupt = require('interrupt').createInterrupter('destructible')
 
 // Unique id for each instance of destructible.
 var INSTANCE = '0'
@@ -87,14 +87,15 @@ Destructible.prototype._done = cadence(function (async, timeout) {
             clearTimeout(timer)
         }
         if (scrammed) {
-            this.completed.unlatch(interrupt('hung', this._errors.slice(), {
+            this.completed.unlatch(new Interrupt('hung', {
+                causes: this._errors,
                 destructible: this.key,
                 waiting: this.waiting.slice(),
                 context: this.context
             }))
         } else if (this._errors.length) {
-            this.completed.unlatch(interrupt('error', this._errors.slice(), {
-                module: 'destructible',
+            this.completed.unlatch(new Interrupt('error', {
+                causes: this._errors,
                 key: this.key,
                 waiting: this.waiting.slice(),
                 context: this.context
@@ -107,9 +108,9 @@ Destructible.prototype._done = cadence(function (async, timeout) {
     })
 })
 
-Destructible.prototype._destroy = function (context, error) {
+Destructible.prototype._destroy = function (error, context) {
     if (error != null) {
-        this._errors.push(error)
+        this._errors.push([ error, context ])
         this._errored.call()
     }
     if (this._destroyedAt == null) {
@@ -118,7 +119,7 @@ Destructible.prototype._destroy = function (context, error) {
         try {
             this.destruct.unlatch()
         } catch (error) {
-            this._destroy({ module: 'destructible', method: 'destructing' }, error)
+            this._destroy(error, { module: 'destructible', method: 'destruct' })
         }
         this._complete()
         this.destroyed = true
@@ -133,12 +134,12 @@ Destructible.prototype._complete = function () {
 }
 
 Destructible.prototype.destroy = function (error) {
-    this._destroy({ module: 'destructible', method: 'destroy' }, coalesce(error))
+    this._destroy(error, { module: 'destructible', method: 'destroy' })
 }
 
 Destructible.prototype.scram = function (error) {
     if (this._completed.open == null) {
-        this._destroy({ module: 'destructible', method: 'scram' }, coalesce(error))
+        this._destroy(error, { module: 'destructible', method: 'scram' })
         this.scrammed.notify()
         this._completed.notify(null, true)
     }
@@ -171,22 +172,23 @@ Destructible.prototype._fork = cadence(function (async, key, terminates, vargs) 
             this.destroy()
         }
     })
+    var parent = this
     var unready = this.completed.wait(function () {
         unready = null
-        destructible.destroy(interrupt('unready'))
+        destructible.destroy(new Interrupt('unready', {
+            key: [ parent.key, destructible.key ]
+        }))
     })
     async([function () {
         if (unready != null) {
             this.completed.cancel(unready)
         }
-    }], [function () {
+    }], function () {
         var f = Operation(vargs)
         vargs.push(async())
         vargs.unshift(destructible)
         f.apply(null, vargs)
-    }, function (error) {
-        throw interrupt('initializer', error, { key: key })
-    }])
+    })
 })
 
 Destructible.prototype._monitor = function (method, vargs) {
@@ -201,15 +203,13 @@ Destructible.prototype._monitor = function (method, vargs) {
             callback = this._monitor('initializer', [ key, true ])
         }
         if (this.destroyed) {
-            var properties = {
-                module: 'destructible',
-                key: this.key,
-                waiting: this.waiting.slice(),
-                context: this.context
-            }
             this.completed.wait(function (error) {
-                callback(interrupt('destroyed', properties))
-            })
+                callback(new Interrupt('destroyed', {
+                    keys: [ this.key, key ],
+                    waiting: this.waiting.slice(),
+                    context: this.context
+                }))
+            }.bind(this))
         } else {
             this._fork(key, terminates, vargs, callback, callback)
         }
@@ -222,7 +222,12 @@ Destructible.prototype._monitor = function (method, vargs) {
                 this._vargs[index] = Array.prototype.slice.call(arguments, 1)
             }
             if (! terminates || error != null) {
-                this._destroy({ module: 'destructible', method: method, terminates: terminates, key: key }, coalesce(error))
+                this._destroy(error, {
+                    module: 'destructible',
+                    method: method,
+                    terminates: terminates,
+                    key: key
+                })
             }
             this.waiting.splice(this.waiting.indexOf(wait), 1)
             this._complete()
