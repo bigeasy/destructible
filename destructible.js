@@ -107,9 +107,14 @@ Destructible.prototype._done = cadence(function (async, timeout) {
     })
 })
 
-Destructible.prototype._destroy = function (context, error) {
+Destructible.prototype._interrupt = function (error, context) {
+    context.context = this.context
+    return interrupt(context.method, error, context)
+}
+
+Destructible.prototype._destroy = function (error, context) {
     if (error != null) {
-        this._errors.push(error)
+        this._errors.push(this._interrupt(error, context))
         this._errored.call()
     }
     if (this._destroyedAt == null) {
@@ -118,7 +123,7 @@ Destructible.prototype._destroy = function (context, error) {
         try {
             this.destruct.unlatch()
         } catch (error) {
-            this._destroy({ module: 'destructible', method: 'destructing' }, error)
+            this._destroy(error, { module: 'destructible', method: 'destruct' })
         }
         this._complete()
         this.destroyed = true
@@ -133,12 +138,12 @@ Destructible.prototype._complete = function () {
 }
 
 Destructible.prototype.destroy = function (error) {
-    this._destroy({ module: 'destructible', method: 'destroy' }, coalesce(error))
+    this._destroy(error, { module: 'destructible', method: 'destroy' })
 }
 
 Destructible.prototype.scram = function (error) {
     if (this._completed.open == null) {
-        this._destroy({ module: 'destructible', method: 'scram' }, coalesce(error))
+        this._destroy(error, { module: 'destructible', method: 'scram' })
         this.scrammed.notify()
         this._completed.notify(null, true)
     }
@@ -185,7 +190,11 @@ Destructible.prototype._fork = cadence(function (async, key, terminates, vargs) 
         vargs.unshift(destructible)
         f.apply(null, vargs)
     }, function (error) {
-        throw interrupt('initializer', error, { key: key })
+        throw this._interrupt(error, {
+            module: 'destructible',
+            method: 'initialize',
+            key: key
+        })
     }])
 })
 
@@ -222,7 +231,12 @@ Destructible.prototype._monitor = function (method, vargs) {
                 this._vargs[index] = Array.prototype.slice.call(arguments, 1)
             }
             if (! terminates || error != null) {
-                this._destroy({ module: 'destructible', method: method, terminates: terminates, key: key }, coalesce(error))
+                this._destroy(error, {
+                    module: 'destructible',
+                    method: method,
+                    terminates: terminates,
+                    key: key
+                })
             }
             this.waiting.splice(this.waiting.indexOf(wait), 1)
             this._complete()

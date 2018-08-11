@@ -7,7 +7,7 @@ function prove (async, okay) {
 
     destructible.destruct.wait(function () { throw new Error('bad') })
     destructible.completed.wait(function (error) {
-        okay(error.cause.message, 'bad','bad destructor')
+        okay(error.cause.cause.message, 'bad','bad destructor')
     })
     destructible.destroy()
 
@@ -124,7 +124,7 @@ function prove (async, okay) {
             callback()
         }, async())
     }, function (error) {
-        okay(error.causes[0].causes[0].message, 'early', 'terminates error')
+        okay(error.causes[0].causes[0].causes[0].causes[0].message, 'early', 'terminates error')
     }], [function () {
         destructible = new Destructible('daemons')
         destructible.completed.wait(async())
@@ -139,7 +139,7 @@ function prove (async, okay) {
             }])
         }), null)
     }, function (error) {
-        okay(error.causes[0].causes[0].causes[0].message, 'nope', 'initalization')
+        okay(error.causes[0].causes[0].causes[0].causes[0].message, 'nope', 'initalization')
     }], function () {
         var destructible = new Destructible('scrammed')
         async(function () {
