@@ -40,7 +40,8 @@ function Destructible () {
     // Errors returned to callbacks.
     this._errors = []
 
-    // True when all callbacks have completed or we've given up.
+    // Set immediately upon destruction. Will be true if inspected by any of the
+    // destructors registered with `destruct` or `scrammed`.
     this.destroyed = false
 
     // You're welcome to dump this list of waiting callbacks if it helps you
@@ -113,22 +114,23 @@ Destructible.prototype._destroy = function (error, context) {
         this._errors.push([ error, context ])
         this._errored.call()
     }
-    if (this._destroyedAt == null) {
+    if (!this.destroyed) {
+        this.destroyed = true
         this._destroyedAt = Date.now()
         this._destructing.unlatch()
         try {
             this.destruct.unlatch()
         } catch (error) {
-            this._destroy(error, { module: 'destructible', method: 'destruct' })
+            // TODO We know the module, maybe we just have `upon: 'destruct`'.
+            this._errors.push([ error, { module: 'destructible', method: 'destruct' } ])
         }
         this._complete()
-        this.destroyed = true
     }
 }
 
 Destructible.prototype._complete = function () {
     // TODO Why not use `this.destroyed`?
-    if (this._destroyedAt != null && this.waiting.length == 0 && this._completed.open == null) {
+    if (this.destroyed && this.waiting.length == 0 && this._completed.open == null) {
         this._completed.unlatch(null, false)
     }
 }
