@@ -11,6 +11,7 @@ var Operation = require('operation')
 var Monotonic = require('monotonic').asString
 
 // Control-flow utilities.
+var Cubbyhole = require('cubbyhole')
 var Signal = require('signal')
 var cadence = require('cadence')
 var abend = require('abend')
@@ -57,6 +58,9 @@ function Destructible () {
     // Listen to know if we've forcibly shutdown before all callbacks have
     // returned.
     this.scrammed = new Signal
+
+    this.children = new Cubbyhole
+    this.siblings = new Cubbyhole
 
     this._completed = new Signal
 
@@ -153,6 +157,7 @@ Destructible.prototype.markDestroyed = function (object, property) {
 
 Destructible.prototype._fork = cadence(function (async, key, terminates, vargs) {
     var destructible = new Destructible(key)
+    destructible.siblings = this.children
     var destroy = this.destruct.wait(destructible, 'destroy')
     var scram = this.scrammed.wait(destructible, 'scram')
     if (terminates) {
@@ -187,7 +192,13 @@ Destructible.prototype._fork = cadence(function (async, key, terminates, vargs) 
         var f = Operation(vargs)
         vargs.push(async())
         vargs.unshift(destructible)
-        f.apply(null, vargs)
+        async(function () {
+            f.apply(null, vargs)
+        }, [], function (vargs) {
+            destructible.destruct.wait(this, function () { this.children.remove(key) })
+            this.children.set(key, null, vargs)
+            return vargs
+        })
     })
 })
 
