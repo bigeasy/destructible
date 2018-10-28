@@ -60,8 +60,6 @@ function Destructible () {
 
     this._completed = new Signal
 
-    this._notifications = []
-
     this.instance = INSTANCE = Monotonic.increment(INSTANCE, 0)
     this._destructing = new Signal
     this._destroyedAt = null
