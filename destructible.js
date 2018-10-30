@@ -214,16 +214,11 @@ Destructible.prototype._monitor = function (method, vargs) {
             callback = this._monitor('initializer', [ key, true ])
         }
         if (this.destroyed) {
-            // Is this callback supposed to get invoked after this destructible
-            // has been completed if it could have been created by this
-            // destructible five lines (including comments) above?
-            this.completed.wait(function (error) {
-                callback(new Interrupt('destroyed', {
-                    keys: [ this.key, key ],
-                    waiting: this.waiting.slice(),
-                    context: this.context
-                }))
-            }.bind(this))
+            callback(new Interrupt('destroyed', {
+                keys: [ this.key, key ],
+                waiting: this.waiting.slice(),
+                context: this.context
+            }))
         } else {
             this._fork(key, terminates, vargs, callback)
         }
