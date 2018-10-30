@@ -230,7 +230,9 @@ Destructible.prototype._monitor = function (method, vargs) {
     } else {
         var wait = { module: 'destructible', method: method, terminates: terminates, key: key }
         this.waiting.push(wait)
-        var index = this._index++
+        if (! terminates) {
+            var index = this._index++
+        }
         return Operation([ this, function (error) {
             if (! terminates) {
                 this._vargs[index] = Array.prototype.slice.call(arguments, 1)
