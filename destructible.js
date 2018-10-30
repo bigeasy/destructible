@@ -222,7 +222,7 @@ Destructible.prototype._monitor = function (method, vargs) {
                 }))
             }.bind(this))
         } else {
-            this._fork(key, terminates, vargs, callback, callback)
+            this._fork(key, terminates, vargs, callback)
         }
     } else {
         var wait = { module: 'destructible', method: method, terminates: terminates, key: key }
