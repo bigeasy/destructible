@@ -187,7 +187,7 @@ Destructible.prototype._fork = cadence(function (async, key, terminates, vargs) 
         if (unready != null) {
             this.completed.cancel(unready)
         }
-    }], function () {
+    }], [function () {
         var f = Operation(vargs)
         vargs.push(async())
         vargs.unshift(destructible)
@@ -198,7 +198,16 @@ Destructible.prototype._fork = cadence(function (async, key, terminates, vargs) 
             this.children.set(key, null, vargs)
             return vargs
         })
-    })
+    }, function (error) {
+        destructible.destroy()
+        /*
+        destructible.destroy(new Interrupt('constuction', {
+            causes: [[ error ]],
+            key: JSON.parse(JSON.stringify([ this.key, key, parent.key, destructible.key ]))
+        }))
+        */
+        throw error
+    }])
 })
 
 Destructible.prototype._monitor = function (method, vargs) {
