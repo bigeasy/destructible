@@ -38,12 +38,12 @@ function prove (async, okay) {
         this._callback = destructible.monitor('main')
         destructible.destruct.wait(this, 'destroy')
         destructible.destruct.wait(this, function () {
-            okay(true, 'sub-destructible destruct one')
+            okay('sub-destructible destruct one')
         })
         destructible.destruct.wait(this, function () {
-            okay(true, 'sub-destructible destruct two')
+            okay('sub-destructible destruct two')
         })
-        var cookie = destructible.destruct.wait(function () { okay(true, 'canceled') })
+        var cookie = destructible.destruct.wait(function () { okay('canceled') })
         destructible.destruct.cancel(cookie)()
         callback()
     }
@@ -180,7 +180,7 @@ function prove (async, okay) {
         destructible.completed.wait(async())
         destructible.monitor(1)()
     }, function () {
-        okay(true, 'normal done')
+        okay('normal done')
     }, [function () {
         destructible = new Destructible('errors')
         destructible.completed.wait(async())
