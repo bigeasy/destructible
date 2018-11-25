@@ -1,5 +1,7 @@
 /.*
 /*.md
+/_destructible.js
+/benchmark
 /coverage
 /docs
 /node_modules
