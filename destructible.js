@@ -5,7 +5,7 @@ var coalesce = require('extant')
 var Keyify = require('keyify')
 
 // Contextualized callbacks and event handlers.
-var Operation = require('operation')
+var operation = require('operation')
 
 // Ever increasing serial integer with no maximum value.
 var Monotonic = require('monotonic').asString
@@ -188,7 +188,7 @@ Destructible.prototype._fork = cadence(function (async, key, terminates, vargs) 
             this.completed.cancel(unready)
         }
     }], [function () {
-        var f = Operation(vargs)
+        var f = operation.shift(vargs)
         vargs.push(async())
         vargs.unshift(destructible)
         async(function () {
@@ -236,7 +236,7 @@ Destructible.prototype._monitor = function (method, vargs) {
         if (! terminates) {
             var index = this._index++
         }
-        return Operation([ this, function (error) {
+        return function (error) {
             if (! terminates) {
                 this._vargs[index] = Array.prototype.slice.call(arguments, 1)
             }
@@ -250,7 +250,7 @@ Destructible.prototype._monitor = function (method, vargs) {
             }
             this.waiting.splice(this.waiting.indexOf(wait), 1)
             this._complete()
-        } ])
+        }.bind(this)
     }
 }
 
