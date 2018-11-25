@@ -32,7 +32,7 @@ function Destructible () {
 
     // By default, we wait a full second for all outstanding callbacks to
     // return.
-    var timeout = typeof vargs[0] == 'number' ? vargs.shift() : 1000
+    this._timeout = typeof vargs[0] == 'number' ? vargs.shift() : 1000
 
     // Displayed when we timeout.
     this.key = coalesce(vargs.shift())
@@ -66,21 +66,17 @@ function Destructible () {
     this._completed = new Signal
 
     this.instance = INSTANCE = Monotonic.increment(INSTANCE, 0)
-    this._destructing = new Signal
     this._destroyedAt = null
     this._index = 0
     this._vargs = []
 
     this._errored = function () {}
 
-    this._done(timeout, abend)
 }
 
 Destructible.prototype._done = cadence(function (async, timeout) {
     var timer
     async(function () {
-        this._destructing.wait(async())
-    }, function () {
         timer = setTimeout(function () {
             timer = null
             this.scram()
@@ -120,7 +116,7 @@ Destructible.prototype._destroy = function (error, context) {
     if (!this.destroyed) {
         this.destroyed = true
         this._destroyedAt = Date.now()
-        this._destructing.unlatch()
+        this._done(this._timeout, abend)
         try {
             this.destruct.unlatch()
         } catch (error) {
