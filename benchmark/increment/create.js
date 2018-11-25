@@ -5,7 +5,7 @@ var Benchmark = require('benchmark')
 var suite = new Benchmark.Suite('call')
 
 function create (Destructible) {
-    return function () { new Destructible('destructible') }
+    return function () { new Destructible('destructible').destroy() }
 }
 
 create(Destructible)()
