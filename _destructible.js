@@ -27,7 +27,8 @@ var INSTANCE = '0'
 
 //
 function Destructible () {
-    var vargs = Array.prototype.slice.call(arguments)
+    var vargs = []
+    vargs.push.apply(vargs, arguments)
 
     // By default, we wait a full second for all outstanding callbacks to
     // return.
