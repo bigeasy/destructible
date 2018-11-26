@@ -228,17 +228,32 @@ Destructible.prototype._fork = cadence(function (async, key, terminates, vargs) 
         // the stack and that error is only the first one raised. Other
         // participants might also be crashing, or they might error out first
         // because your exception called `destroy()` and the destructors are
-        // raising more errors that are also propigating up and out of a
+        // raising more errors that are also propagating up and out of a
         // constructor. This appeared in Olio where I'm staring a lot of workers
         // in parallel using a dirty parallel that uses the Node.js work queue.
+        //
+        // I'm seeing an error raised by one Destructible constructor trigger
+        // the non-error `destroy` which causes another stack to crash with an
+        // early exit. That is the only one reported because that is the only
+        // one that returns from Cadence, Cadence returns only the first error.
+        //
+        // So…
+        //
+        // Crazy place to put notes like this, but… It's the parallel start with
+        // the implicit queue that is screwing me up. It is always thus when you
+        // do something in "parallel" in Node.js. I used a `new Destructible` to
+        // gather those error and they got caught so I ended up nesting
+        // destructibles, passing in one that is temporary for initialization
+        // and one that is permanent both form the same tree. Now the
+        // `destructible.destroy()` doesn't seem necessary.
+        /*
         destructible.destroy(new Interrupt('constuction', {
             causes: [[ error ]],
             parentKey: parent.key,
             key: key
         }))
-        /*
-        destructible.destroy()
         */
+        destructible.destroy()
         throw error
     }])
 })
