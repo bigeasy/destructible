@@ -90,8 +90,13 @@ Destructible.prototype._return = function (scrammed) {
             context: this.context
         }))
     } else {
-        var vargs = [ null ]
-        vargs = vargs.concat.apply(vargs, this._vargs)
+        var vargs = []
+        if (this._vargs.length) {
+            vargs.push(null)
+            while (this._vargs.length) {
+                vargs.push.apply(vargs, this._vargs.shift())
+            }
+        }
         this.completed.unlatch.apply(this.completed, vargs)
     }
 }

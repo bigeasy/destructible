@@ -74,7 +74,29 @@ function Destructible () {
 
 }
 
-Destructible.prototype._done = cadence(function (async, timeout) {
+Destructible.prototype._return = function (scrammed) {
+    if (scrammed) {
+        this.completed.unlatch(new Interrupt('hung', {
+            causes: this._errors,
+            destructible: this.key,
+            waiting: this.waiting.slice(),
+            context: this.context
+        }))
+    } else if (this._errors.length) {
+        this.completed.unlatch(new Interrupt('error', {
+            causes: this._errors,
+            key: this.key,
+            waiting: this.waiting.slice(),
+            context: this.context
+        }))
+    } else {
+        var vargs = [ null ]
+        vargs = vargs.concat.apply(vargs, this._vargs)
+        this.completed.unlatch.apply(this.completed, vargs)
+    }
+}
+
+Destructible.prototype._countdown = cadence(function (async, timeout) {
     var timer
     async(function () {
         timer = setTimeout(function () {
@@ -86,25 +108,7 @@ Destructible.prototype._done = cadence(function (async, timeout) {
         if (timer != null) {
             clearTimeout(timer)
         }
-        if (scrammed) {
-            this.completed.unlatch(new Interrupt('hung', {
-                causes: this._errors,
-                destructible: this.key,
-                waiting: this.waiting.slice(),
-                context: this.context
-            }))
-        } else if (this._errors.length) {
-            this.completed.unlatch(new Interrupt('error', {
-                causes: this._errors,
-                key: this.key,
-                waiting: this.waiting.slice(),
-                context: this.context
-            }))
-        } else {
-            var vargs = [ null ]
-            vargs = vargs.concat.apply(vargs, this._vargs)
-            this.completed.unlatch.apply(this.completed, vargs)
-        }
+        this._return(scrammed)
     })
 })
 
@@ -116,20 +120,26 @@ Destructible.prototype._destroy = function (error, context) {
     if (!this.destroyed) {
         this.destroyed = true
         this._destroyedAt = Date.now()
-        this._done(this._timeout, abend)
         try {
             this.destruct.unlatch()
         } catch (error) {
             // TODO We know the module, maybe we just have `upon: 'destruct`'.
             this._errors.push([ error, { module: 'destructible', method: 'destruct' } ])
         }
-        this._complete()
+        if (this._complete()) {
+            this._return(false)
+        } else {
+            this._countdown(this._timeout, abend)
+        }
     }
 }
 
 Destructible.prototype._complete = function () {
     if (this.destroyed && this.waiting.length == 0 && this._completed.open == null) {
         this._completed.unlatch(null, false)
+        return true
+    } else {
+        return false
     }
 }
 
