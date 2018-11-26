@@ -217,12 +217,27 @@ Destructible.prototype._fork = cadence(function (async, key, terminates, vargs) 
             return vargs
         })
     }, function (error) {
-        destructible.destroy()
-        /*
+        // For a while this catch block was missing and we did not destroy the
+        // destructible when an error was raised during monitor construction.
+        // You would imagine that this would caused the error to be caught by
+        // a monitor that encapsulates the construction, but it didn't work out
+        // that way.
+        //
+        // For a while it was just `destructible.destroy()`, but that meant that
+        // only a single error was reported. You have an error that is unwinding
+        // the stack and that error is only the first one raised. Other
+        // participants might also be crashing, or they might error out first
+        // because your exception called `destroy()` and the destructors are
+        // raising more errors that are also propigating up and out of a
+        // constructor. This appeared in Olio where I'm staring a lot of workers
+        // in parallel using a dirty parallel that uses the Node.js work queue.
         destructible.destroy(new Interrupt('constuction', {
             causes: [[ error ]],
-            key: JSON.parse(JSON.stringify([ this.key, key, parent.key, destructible.key ]))
+            parentKey: parent.key,
+            key: key
         }))
+        /*
+        destructible.destroy()
         */
         throw error
     }])
