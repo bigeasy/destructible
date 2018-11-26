@@ -90,6 +90,7 @@ Destructible.prototype._return = function (scrammed) {
             context: this.context
         }))
     } else {
+        // TODO Where am I actually using return value?
         var vargs = []
         if (this._vargs.length) {
             vargs.push(null)
