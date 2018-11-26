@@ -60,6 +60,7 @@ function Destructible () {
     // returned.
     this.scrammed = new Signal
 
+    // TODO Dubious and could be implemented outside of `Destructible`.
     this.children = new Cubbyhole
     this.siblings = new Cubbyhole
 
@@ -125,6 +126,8 @@ Destructible.prototype._destroy = function (error, context) {
     }
     if (!this.destroyed) {
         this.destroyed = true
+        // TODO Do not read time if we do not need it, countdown begins after
+        // synchronous operations.
         this._destroyedAt = Date.now()
         try {
             this.destruct.unlatch()
@@ -156,6 +159,8 @@ Destructible.prototype.destroy = function (error) {
 Destructible.prototype.scram = function (error) {
     if (this._completed.open == null) {
         this._destroy(error, { module: 'destructible', method: 'scram' })
+        // TODO Remove `scrammed`, just use `_completed` in children to chain
+        // shutdown.
         this.scrammed.notify()
         this._completed.notify(null, true)
     }
