@@ -255,7 +255,7 @@ Destructible.prototype._monitor = function (method, terminates, vargs) {
     if (vargs.length != 0) {
         var callback = vargs.pop()
         if (callback === null) {
-            callback = this._monitor('initializer', true, [ key ])
+            callback = this._monitor('constructor', true, [ key ])
         }
         if (this.destroyed) {
             callback(new Interrupt('destroyed', {
