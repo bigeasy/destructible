@@ -104,6 +104,7 @@ function prove (async, okay) {
             destructible.completed.wait(async())
         })
     }, function () {
+        console.log('--- xxxx ---')
         destructible = new Destructible('daemons')
         destructible.completed.wait(async())
         async(function () {
@@ -144,15 +145,16 @@ function prove (async, okay) {
     }], function () {
         var destructible = new Destructible('scrammed')
         async(function () {
-            destructible.durable('sub-scrammed', function (initializer, callback) {
-                initializer.durable('hung')
+            destructible.durable('sub-scrammed', function (destructible, callback) {
+                destructible.durable('hung')
                 callback()
             }, async())
         }, [function () {
             destructible.destroy()
             destructible.completed.wait(async())
         }, function (error) {
-            okay(error.causes[0].qualified, 'destructible#hung', 'sub scram')
+            console.log(error.stack)
+            okay(error.causes[0].qualified, 'destructible#scrammed', 'sub scram')
             destructible.scram()
         }])
     }, function () {
@@ -201,6 +203,6 @@ function prove (async, okay) {
         callbacks.push(destructible.durable(2))
         callbacks.pop()()
     }, function (error) {
-        okay(/^destructible#hung$/m.test(error.message), 'timeout')
+        okay(/^destructible#scrammed$/m.test(error.message), 'timeout')
     }])
 }
