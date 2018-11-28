@@ -186,7 +186,7 @@ Destructible.prototype._fork = cadence(function (async, key, terminates, vargs) 
     var monitor = this._monitor('destructible', !! terminates, [ key ])
     destructible.completed.wait(this, function (error) {
         this.scrammed.cancel(scram)
-        monitor.apply(null, Array.prototype.slice.call(arguments))
+        monitor.apply(null, arguments)
     })
     var parent = this
     var unready = this.completed.wait(function () {
