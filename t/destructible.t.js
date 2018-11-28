@@ -35,7 +35,7 @@ function prove (async, okay) {
 
     Daemon.prototype.listen = function (destructible, value, callback) {
         okay(value, 1, 'listening')
-        this._callback = destructible.monitor('main')
+        this._callback = destructible.durable('main')
         destructible.destruct.wait(this, 'destroy')
         destructible.destruct.wait(this, function () {
             okay('sub-destructible destruct one')
@@ -54,19 +54,19 @@ function prove (async, okay) {
         var destructible = new Destructible('daemons')
         var daemon = new Daemon
         async(function () {
-            destructible.monitor('daemon', daemon, 'listen', 1, async())
+            destructible.durable('daemon', daemon, 'listen', 1, async())
         }, function () {
             destructible.destroy()
             destructible.completed.wait(async())
         }, [function () {
-            destructible.monitor('daemon', daemon, 'listen', 1, async())
+            destructible.durable('daemon', daemon, 'listen', 1, async())
         }, function (error) {
             okay(error.qualified, 'destructible#destroyed', 'already destroyed')
         }])
     }, function () {
         destructible = new Destructible('daemons')
         async(function () {
-            destructible.monitor('destroyed', function (destructible, callback) {
+            destructible.durable('destroyed', function (destructible, callback) {
                 setImmediate(function () { destructible.destroy() })
                 callback()
             }, null)
@@ -80,7 +80,7 @@ function prove (async, okay) {
         // `destroy` in the parent.
         destructible = new Destructible('daemons')
         async(function () {
-            destructible.monitor('destroyed', function (destructible, callback) {
+            destructible.durable('destroyed', function (destructible, callback) {
                 setImmediate(function () { destructible.destroy() })
                 callback()
             }, async())
@@ -95,7 +95,7 @@ function prove (async, okay) {
         // `destroy` in the parent.
         destructible = new Destructible('daemons')
         async(function () {
-            destructible.monitor('destroyed', function (destructible, callback) {
+            destructible.durable('destroyed', function (destructible, callback) {
                 destructible.destroy()
                 callback()
             }, async())
@@ -107,7 +107,7 @@ function prove (async, okay) {
         destructible = new Destructible('daemons')
         destructible.completed.wait(async())
         async(function () {
-            destructible.monitor('destroyed', true, function (destructible, callback) {
+            destructible.ephemeral('destroyed', function (destructible, callback) {
                 destructible.destroy()
                 callback()
             }, async())
@@ -119,8 +119,8 @@ function prove (async, okay) {
     }, [function () {
         destructible = new Destructible('daemons')
         destructible.completed.wait(async())
-        destructible.monitor('destroyed', true, function (destructible, callback) {
-            var monitor = destructible.monitor('exploded')
+        destructible.ephemeral('destroyed', function (destructible, callback) {
+            var monitor = destructible.durable('exploded')
             setImmediate(function () { monitor(new Error('early')) })
             callback()
         }, async())
@@ -129,9 +129,9 @@ function prove (async, okay) {
     }], [function () {
         destructible = new Destructible('daemons')
         destructible.completed.wait(async())
-        destructible.monitor('nested', cadence(function (async) {
+        destructible.durable('nested', cadence(function (async) {
             async([function () {
-                destructible.monitor('destroyed', true, function (destructible, callback) {
+                destructible.ephemeral('destroyed', function (destructible, callback) {
                     callback(new Error('nope'))
                 }, async())
             }, function (error) {
@@ -144,8 +144,8 @@ function prove (async, okay) {
     }], function () {
         var destructible = new Destructible('scrammed')
         async(function () {
-            destructible.monitor('sub-scrammed', function (initializer, callback) {
-                initializer.monitor('hung')
+            destructible.durable('sub-scrammed', function (initializer, callback) {
+                initializer.durable('hung')
                 callback()
             }, async())
         }, [function () {
@@ -158,17 +158,17 @@ function prove (async, okay) {
     }, function () {
         destructible = new Destructible('daemons')
         async([function () {
-            destructible.monitor('errored', function (destructible, callback) {
+            destructible.durable('errored', function (destructible, callback) {
                 destructible.destruct.wait(callback)
             }, async())
-            destructible.monitor('abend')(new Error('errored'))
+            destructible.durable('abend')(new Error('errored'))
         }, function (error) {
             okay(error.cause.message, 'errored', 'ready error')
         }])
     }, function () {
         destructible = new Destructible('daemons')
         async([function () {
-            destructible.monitor('errored', function (destructible, callback) {
+            destructible.durable('errored', function (destructible, callback) {
                 destructible.destruct.wait(callback)
             }, async())
             destructible.destroy()
@@ -178,16 +178,16 @@ function prove (async, okay) {
     }, function () {
         destructible = new Destructible('responses')
         destructible.completed.wait(async())
-        destructible.monitor(1)()
+        destructible.durable(1)()
     }, function () {
         okay('normal done')
     }, [function () {
         destructible = new Destructible('errors')
         destructible.completed.wait(async())
         var callbacks = []
-        callbacks.push(destructible.monitor(1))
-        callbacks.push(destructible.monitor(2, true))
-        callbacks.push(destructible.monitor(3, true))
+        callbacks.push(destructible.durable(1))
+        callbacks.push(destructible.ephemeral(2))
+        callbacks.push(destructible.ephemeral(3))
         callbacks.pop()()
         callbacks.pop()(new Error('caught'))
         callbacks.pop()()
@@ -197,8 +197,8 @@ function prove (async, okay) {
         destructible = new Destructible(50, 'timeout')
         destructible.completed.wait(async())
         var callbacks = []
-        callbacks.push(destructible.monitor(1))
-        callbacks.push(destructible.monitor(2))
+        callbacks.push(destructible.durable(1))
+        callbacks.push(destructible.durable(2))
         callbacks.pop()()
     }, function (error) {
         okay(/^destructible#hung$/m.test(error.message), 'timeout')

@@ -181,7 +181,7 @@ Destructible.prototype._fork = cadence(function (async, key, terminates, vargs) 
         destructible.destruct.wait(this, function () { this.destruct.cancel(destroy) })
         destructible.destruct.wait(this, 'destroy')
     }
-    var monitor = this._monitor('destructible', [ key, !! terminates ])
+    var monitor = this._monitor('destructible', !! terminates, [ key ])
     destructible.completed.wait(this, function (error) {
         this.scrammed.cancel(scram)
         monitor.apply(null, Array.prototype.slice.call(arguments))
@@ -251,16 +251,12 @@ Destructible.prototype._fork = cadence(function (async, key, terminates, vargs) 
     }])
 })
 
-Destructible.prototype._monitor = function (method, vargs) {
+Destructible.prototype._monitor = function (method, terminates, vargs) {
     var key = vargs.shift()
-    var terminates = false
-    if (typeof vargs[0] == 'boolean') {
-        terminates = vargs.shift()
-    }
     if (vargs.length != 0) {
         var callback = vargs.pop()
         if (callback === null) {
-            callback = this._monitor('initializer', [ key, true ])
+            callback = this._monitor('initializer', true, [ key ])
         }
         if (this.destroyed) {
             callback(new Interrupt('destroyed', {
@@ -304,8 +300,16 @@ Destructible.prototype._monitor = function (method, vargs) {
 // want to use Destructible without Cadence. I don't want to use Node.js without
 // Cadence.
 //
-Destructible.prototype.monitor = function () {
-    return this._monitor('monitor', Array.prototype.slice.call(arguments))
+Destructible.prototype.ephemeral = function () {
+    var vargs = []
+    vargs.push.apply(vargs, arguments)
+    return this._monitor('monitor', true, vargs)
+}
+
+Destructible.prototype.durable = function () {
+    var vargs = []
+    vargs.push.apply(vargs, arguments)
+    return this._monitor('monitor', false, vargs)
 }
 
 module.exports = Destructible

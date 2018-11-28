@@ -26,8 +26,8 @@ function prove (okay, callback) {
 
     //
     cadence(function (async) {
-        destructible.monitor('foo', cadence(function (async, destructible) {
+        destructible.durable('foo', cadence(function (async, destructible) {
             throw new Error('foo')
         }), async())
-    })(destructible.monitor('test'))
+    })(destructible.durable('test'))
 }

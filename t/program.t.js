@@ -22,7 +22,7 @@ function prove (okay, callback) {
             if (raise == 'initializer') {
                 throw new Error('initializer')
             }
-            destructible.monitor('foo', cadence(function (async, destructible) {
+            destructible.durable('foo', cadence(function (async, destructible) {
                 if (raise == 'constructor') {
                     throw new Error('constructor')
                 }
@@ -37,9 +37,9 @@ function prove (okay, callback) {
                         // Exit our program.
                         return [ 0 ]
                     })
-                })(destructible.monitor('program'))
+                })(destructible.durable('program'))
             }), async())
-        })(destructible.monitor('initialize', true))
+        })(destructible.ephemeral('initialize'))
                      // ^^^^^^^ want to have names and fewer magic arguments
 
         // What should they be.
