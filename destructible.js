@@ -170,17 +170,19 @@ Destructible.prototype.markDestroyed = function (object, property) {
 
 Destructible.prototype._fork = cadence(function (async, key, terminates, vargs) {
     var destructible = new Destructible(key)
+
     var destroy = this.destruct.wait(destructible, 'destroy')
+
     var scram = this.scrammed.wait(destructible, 'scram')
+
     if (terminates) {
-        destructible.errored.wait(function () {
-            this.destruct.cancel(destroy)
-            this.destroy()
-        }.bind(this))
+        destructible.errored.wait(this, 'destroy')
     } else {
-        destructible.destruct.wait(this, function () { this.destruct.cancel(destroy) })
         destructible.destruct.wait(this, 'destroy')
     }
+
+    destructible.destruct.wait(this, function () { this.destruct.cancel(destroy) })
+
     var monitor = this._monitor('destructible', !! terminates, [ key ])
     destructible.completed.wait(this, function (error) {
         this.scrammed.cancel(scram)
