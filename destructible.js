@@ -203,11 +203,7 @@ Destructible.prototype._fork = cadence(function (async, key, terminates, vargs) 
         var f = operation.shift(vargs)
         vargs.push(async())
         vargs.unshift(destructible)
-        async(function () {
-            f.apply(null, vargs)
-        }, [], function (vargs) {
-            return vargs
-        })
+        f.apply(null, vargs)
     })
 })
 
