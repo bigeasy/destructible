@@ -206,7 +206,9 @@ Destructible.prototype._fork = cadence(function (async, key, terminates, vargs) 
         vargs.unshift(destructible)
         async(function () {
             f.apply(null, vargs)
-        }, [])
+        }, [], function (vargs) {
+            return vargs
+        })
     }, function (error) {
         // For a while this catch block was missing and we did not destroy the
         // destructible when an error was raised during monitor construction.
