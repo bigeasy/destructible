@@ -106,7 +106,9 @@ Destructible.prototype._return = function (scrammed) {
 Destructible.prototype._countdown = cadence(function (async, timeout) {
     var timer
     async(function () {
+        console.log('counting down', this.key)
         timer = setTimeout(function () {
+            console.log('scram')
             timer = null
             this.scram()
         }.bind(this), timeout - Math.max(Date.now() - this._destroyedAt, 0))
@@ -194,17 +196,11 @@ Destructible.prototype._fork = cadence(function (async, key, terminates, vargs) 
             this.destroy()
         }
     })
-    var parent = this
-    var unready = this.completed.wait(function () {
-        unready = null
-        destructible.destroy(new Interrupt('unready', {
-            key: [ parent.key, destructible.key ]
-        }))
-    })
+    // TODO Could also do this by pushing something onto `waiting`.
+    this.waiting.push({ module: 'destructible', method: 'constructor', terminates: terminates, key: key })
     async([function () {
-        if (unready != null) {
-            this.completed.cancel(unready)
-        }
+        this.waiting.shift()
+        this._complete()
     }], [function () {
         var f = operation.shift(vargs)
         vargs.push(async())

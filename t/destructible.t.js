@@ -95,23 +95,27 @@ function prove (async, okay) {
         // `destroy` in the parent.
         destructible = new Destructible('daemons')
         async(function () {
-            destructible.monitor('destroyed', function (destructible, callback) {
+            destructible.monitor('destroyed-x', function (destructible, callback) {
                 destructible.destroy()
                 callback()
             }, async())
         }, function () {
             okay(destructible.destroyed, 'parent destroyed immediately')
+            console.log(destructible.waiting)
             destructible.completed.wait(async())
         })
     }, function () {
         destructible = new Destructible('daemons')
         destructible.completed.wait(async())
+        console.log('---- testing ---')
         async(function () {
             destructible.monitor('destroyed', true, function (destructible, callback) {
+                console.log('destroying')
                 destructible.destroy()
                 callback()
             }, async())
         }, function () {
+                console.log('done')
             okay(!destructible.destroyed, 'parent spared')
             destructible.destroy()
             destructible.completed.wait(async())
@@ -156,6 +160,7 @@ function prove (async, okay) {
             destructible.scram()
         }])
     }, function () {
+        return
         destructible = new Destructible('daemons')
         async([function () {
             destructible.monitor('errored', function (destructible, callback) {
@@ -166,13 +171,13 @@ function prove (async, okay) {
             okay(error.cause.message, 'errored', 'ready error')
         }])
     }, function () {
-        destructible = new Destructible('daemons')
+        destructible = new Destructible('unready')
         async([function () {
-            destructible.monitor('errored', function (destructible, callback) {
-                destructible.destruct.wait(callback)
-            }, async())
+            destructible.monitor('hung', function (destructible, callback) {}, null)
             destructible.destroy()
+            destructible.completed.wait(async())
         }, function (error) {
+            console.log(error.stack)
             okay(error.message, 'destructible#unready', 'not ready')
         }])
     }, function () {
