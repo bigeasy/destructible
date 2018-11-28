@@ -53,4 +53,170 @@ require('proof')(1, prove)
 //
 function prove (okay) {
     okay(require('..'), 'require')
+    return
+
+    function program (raise) {
+        var destructible = new Destructible('t/series.t.js')
+
+        var signal = new Signal
+
+        // However your parallel stacks are communicating, you're going to want
+        // to be able to push a cancellation though that semaphore if you
+        // destruct early.
+
+        //
+        destructible.destruct.wait(function () {
+            signal.unlatch(new Error('canceled'))
+        })
+
+        var children = [cadence(function (async, destructible) {
+            async(function () {
+                signal.wait(async())
+            }, function () {
+                return { name: 'first' }
+            })
+        }), cadence(function (async, destructible) {
+            signal.unlatch()
+            return { name: 'second' }
+        })]
+
+        // So instead of using Destructible as a funnel, we gather up the
+        // responses ourselves. This is the essence of turning-the-corner in
+        // parallel. If you can find a way to funnel through destructible have
+        // at it. If you use a durable constructor callback you're going to
+        // trigger the scram mechanism in Destructible. How would you use a
+        // durable constructor callback? By creating an ephemeral destructible
+        // and then creating durable callbacks on that destructible. You'd pass
+        // in the parent destructible as an argument. If you're hanging on the
+        // sempahore in our example here than the scarm is going to cause the
+        // sempahore to error, but you won't see it in your errors because the
+        // error is going to be the hung error, the subsequent cancel error is
+        // going to get swallowed. Yes, the scram willl cause the root to close
+        // and raise an error from the sempahore, but you won't see it.
+        //
+        // We could have logic to determine if we're isolated and if we are then
+        // we only waited on ourselves to determine if we've hung up. We can
+        // then destroy our parent and wait on our parent to cleanup, generating
+        // the hung message on the parent's scram and if anything waiting also
+        // finished it would appear in our causes. We could add a stage property
+        // so that you could see that an error came at destruct or scram. You
+        // would be able to see that we hung but we did get our hung messages
+        // after scam.
+        //
+        // You could then use Destructible as a funnel and not lose error
+        // messages, but now wouldn't you get duplicate error messages? You're
+        // listening on that the base ephemeral destructible, waiting for it to
+        // return and if it completes with an error. Well, I guess you can't
+        // funnel, because the ephemeral doesn't funnel anyway. You're going to
+        // have to gather your results in your constructor mechanism.
+        //
+        // By constructor mechanism I assume you're wrapping calls to
+        // Destructible constructors as is the case below.
+
+        //
+        function initializer (children, callback) {
+            var count = 0, gathered
+            children.forEach(function (child, index) {
+                cadence([function () {
+                    if (++count == children.length) {
+                        callback(null, gathered)
+                    }
+                }], function () {
+                    destructible.durable(index, child, async())
+                }, function (child) {
+                    gathered[index] = child
+                })(destructible.ephemeral([ 'constructor', index ]))
+            })
+        }
+
+        var ifWeHadPostScramErrors  = cadnece(function (async, ephemeral, durable) {
+            var count = 0, gathered = []
+            children.forEach(function (child, index) {
+                cadence(function () {
+                    destructible.durable(index, child, async())
+                }, function (child) {
+                    gathered[index] = child
+                })(ephemeral.durable([ 'constructor', index ]))
+            })
+            async([function () {
+            }, function (error) {
+                // Yeah, there's an error, isn't there? Which means if we throw
+                // it it is going to repeat itself in the tree. We know we got
+                // it so let's throw something else. Or can we just duplicate
+                // it? Maybe Interrupt should display duplicates better?
+                throw new Error('initialization.failure')
+                throw error
+            }])
+        })
+
+        /// Or maybe our ephemeral is not in the existing tree.
+        var createAWholeDestructible  = cadnece(function (async, destructible) {
+            var ephemeral = new Destructible('ephemeral')
+            var count = 0, gathered = []
+            children.forEach(function (child, index) {
+                cadence(function () {
+                    destructible.durable(index, child, async())
+                }, function (child) {
+                    gathered[index] = child
+                })(ephemeral.durable([ 'constructor', index ]))
+            })
+            ephemeral.errored.wait(destructible, 'destroy')
+            ephemeral.drain()
+            // Now our error is only reported once or not at all if there is no
+            // error. We build our own funnel still. Problem is if we hang we're
+            // still going to miss the message, if we do ephemeral constructor
+            // callbacks we're going to never complete. For the former we need
+            // some sort of post scram wait, dear user gets a scram and does
+            // something says, hey give me nother five seconds and then raise
+            // your error (complete). For the latter, maybe away to say, hey
+            // start counting down, if you get to zero we're done, do like
+            // `Destructible.drain`.
+            //
+            // This is getting closer.
+            //
+            async(function () {
+                ephemeral.completed.wait(async())
+            }, function () {
+                return [ gathered ]
+            })
+        })
+
+        // We use a monitor callback to monitor a root function that does not return
+        // until we've completed. When it returns the test is destroyed. If any of
+        // the constructors throws an error, we catch it in our `test` monitor and
+        // report it.
+
+        //
+        cadence(function (async) {
+            if (raise == 'initializer') {
+                throw new Error('initializer')
+            }
+            destructible.durable('foo', cadence(function (async, destructible) {
+                if (raise == 'constructor') {
+                    throw new Error('constructor')
+                }
+                cadence(function () {
+                    if (raise == 'runtime') {
+                        throw new Error('runtime')
+                    }
+                    async(function () {
+                        // Run our program for a while.
+                        setTimeout(async(), 250)
+                    }, function () {
+                        // Exit our program.
+                        return [ 0 ]
+                    })
+                })(destructible.durable('program'))
+            }), async())
+        })(destructible.ephemeral('initialize'))
+                     // ^^^^^^^ want to have names and fewer magic arguments
+
+        // What should they be.
+        //  * callback? task? child? socket? serve? spawn? fork?
+        //  * fork and exec, where exec is long running?
+        // How about make the move now to naming, but come back and choose the
+        // best names only after you've worked with them for a while.
+
+        return destructible
+    }
 }
