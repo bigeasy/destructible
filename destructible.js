@@ -11,7 +11,6 @@ var operation = require('operation')
 var Monotonic = require('monotonic').asString
 
 // Control-flow utilities.
-var Cubbyhole = require('cubbyhole')
 var Signal = require('signal')
 var cadence = require('cadence')
 var abend = require('abend')
