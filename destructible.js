@@ -161,12 +161,6 @@ Destructible.prototype.scram = function (error) {
     }
 }
 
-Destructible.prototype.markDestroyed = function (object, property) {
-    return this.destruct.wait(function () {
-        object[coalesce(property, 'destroyed')] = true
-    })
-}
-
 Destructible.prototype._monitor = function (method, ephemeral, vargs) {
     var key = vargs.shift()
     if (vargs.length != 0) {

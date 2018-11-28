@@ -19,7 +19,7 @@ function prove (async, okay) {
 
     var object = { destroyed: false }
 
-    destructible.markDestroyed(object, 'destroyed')
+    destructible.destruct.wait(object, function () { this.destroyed = true })
 
     destructible.destroy()
     okay(destructible.destroyed, 'marked destroyed')
