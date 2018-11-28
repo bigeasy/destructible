@@ -60,10 +60,6 @@ function Destructible () {
     // returned.
     this.scrammed = new Signal
 
-    // TODO Dubious and could be implemented outside of `Destructible`.
-    this.children = new Cubbyhole
-    this.siblings = new Cubbyhole
-
     this._completed = new Signal
 
     this.instance = INSTANCE = Monotonic.increment(INSTANCE, 0)
@@ -174,7 +170,6 @@ Destructible.prototype.markDestroyed = function (object, property) {
 
 Destructible.prototype._fork = cadence(function (async, key, terminates, vargs) {
     var destructible = new Destructible(key)
-    destructible.siblings = this.children
     var destroy = this.destruct.wait(destructible, 'destroy')
     var scram = this.scrammed.wait(destructible, 'scram')
     if (terminates) {
@@ -211,11 +206,7 @@ Destructible.prototype._fork = cadence(function (async, key, terminates, vargs) 
         vargs.unshift(destructible)
         async(function () {
             f.apply(null, vargs)
-        }, [], function (vargs) {
-            destructible.destruct.wait(this, function () { this.children.remove(key) })
-            this.children.set(key, null, vargs)
-            return vargs
-        })
+        }, [])
     }, function (error) {
         // For a while this catch block was missing and we did not destroy the
         // destructible when an error was raised during monitor construction.
