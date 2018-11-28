@@ -66,7 +66,7 @@ function Destructible () {
     this._index = 0
     this._vargs = []
 
-    this._errored = function () {}
+    this.errored = new Signal
 
 }
 
@@ -117,7 +117,7 @@ Destructible.prototype._countdown = cadence(function (async, timeout) {
 Destructible.prototype._destroy = function (error, context) {
     if (error != null) {
         this._errors.push([ error, context ])
-        this._errored.call()
+        this.errored.unlatch()
     }
     if (!this.destroyed) {
         this.destroyed = true
@@ -172,10 +172,10 @@ Destructible.prototype._fork = cadence(function (async, key, terminates, vargs) 
     var destroy = this.destruct.wait(destructible, 'destroy')
     var scram = this.scrammed.wait(destructible, 'scram')
     if (terminates) {
-        destructible._errored = function () {
+        destructible.errored.wait(function () {
             this.destruct.cancel(destroy)
             this.destroy()
-        }.bind(this)
+        }.bind(this))
     } else {
         destructible.destruct.wait(this, function () { this.destruct.cancel(destroy) })
         destructible.destruct.wait(this, 'destroy')
