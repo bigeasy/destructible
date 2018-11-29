@@ -67,9 +67,6 @@ function Destructible () {
     // Internal completion signal.
     this._completed = new Signal
 
-    // If we scram we're completed.
-    this.scrammed.wait(this._completed, 'unlatch')
-
     this.instance = INSTANCE = Monotonic.increment(INSTANCE, 0)
     this._index = 0
     this._vargs = []
@@ -121,6 +118,12 @@ Destructible.prototype._destroy = function (error, context) {
         if (this._complete()) {
             this._return()
         } else {
+            // Bind scram now so that we mark ourselves completed as the last
+            // scram action, all our children can report their scrams first.
+            this.scrammed.wait(this._completed, 'unlatch')
+            // Run a timer if we're at the root of an ephemeral destructible.
+            // TODO Do not run timer if our parent is destroyed, only if we're
+            // shutting down in isolation.
             var timer = null
             if (this._runScramTimer) {
                 timer = setTimeout(this.scrammed.unlatch.bind(this.scrammed), this._timeout)
@@ -183,7 +186,7 @@ Destructible.prototype._monitor = function (method, ephemeral, vargs) {
                 destructible.errored.wait(this, 'destroy')
             } else {
                 destructible.destruct.wait(this, 'destroy')
-                destructible._runScramTimer = true
+                destructible._runScramTimer = false
             }
 
             // When we are destroyed we unregister parent to child destruction
