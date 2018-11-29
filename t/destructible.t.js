@@ -1,4 +1,4 @@
-require('proof')(20, require('cadence')(prove))
+require('proof')(21, require('cadence')(prove))
 
 function prove (async, okay) {
     var Destructible = require('..')
@@ -170,11 +170,11 @@ function prove (async, okay) {
         destructible = new Destructible('daemons')
         async([function () {
             destructible.durable('errored', function (destructible, callback) {
-                destructible.destruct.wait(callback)
             }, async())
             destructible.destroy()
         }, function (error) {
-            okay(error.message, 'destructible#unready', 'not ready')
+            console.log(error.stack)
+            okay(/^destructible#scrammed$/m.test(error.message), 'constructor scrammed')
         }])
     }, function () {
         destructible = new Destructible('responses')

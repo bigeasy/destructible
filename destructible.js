@@ -225,8 +225,14 @@ Destructible.prototype._monitor = function (method, ephemeral, vargs) {
             constructed.wait(callback)
 
             // We bury our return and raise this exception.
-            var unready = destructible.scrammed.wait(function () {
-                constructed.unlatch(new Interrupt('scrammed'))
+            var unready = destructible.scrammed.wait(this, function () {
+                constructed.unlatch(new Interrupt('scrammed', {
+                    module: 'destructible',
+                    method: 'constructor',
+                    ephemeral: ephemeral,
+                    parentKey: this.key,
+                    key: key
+                }))
             })
 
             // This will let our destruction process know we're waiting on a
