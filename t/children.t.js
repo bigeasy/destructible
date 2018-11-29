@@ -152,6 +152,10 @@ function prove (okay) {
         /// Or maybe our ephemeral is not in the existing tree.
         var createAWholeDestructible  = cadnece(function (async, destructible) {
             var ephemeral = new Destructible('ephemeral')
+
+            var destroy = destructible.destruct.wait(ephemeral, 'destroy')
+            ephemeral.destruct.wait(function () { destructible.destruct.cancel(destroy) })
+
             var count = 0, gathered = []
             children.forEach(function (child, index) {
                 cadence(function () {
@@ -160,8 +164,10 @@ function prove (okay) {
                     gathered[index] = child
                 })(ephemeral.durable([ 'constructor', index ]))
             })
+
             ephemeral.errored.wait(destructible, 'destroy')
             ephemeral.drain()
+
             // Now our error is only reported once or not at all if there is no
             // error. We build our own funnel still. Problem is if we hang we're
             // still going to miss the message, if we do ephemeral constructor
