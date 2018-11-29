@@ -1,8 +1,5 @@
 var assert = require('assert')
 
-// Generate a unique, canonical string key from a JSON object.
-var Keyify = require('keyify')
-
 // Contextualized callbacks and event handlers.
 var operation = require('operation')
 
