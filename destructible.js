@@ -1,8 +1,5 @@
 var assert = require('assert')
 
-// Return the first not null-like value.
-var coalesce = require('extant')
-
 // Generate a unique, canonical string key from a JSON object.
 var Keyify = require('keyify')
 
@@ -12,7 +9,6 @@ var operation = require('operation')
 // Control-flow utilities.
 var Signal = require('signal')
 var cadence = require('cadence')
-var abend = require('abend')
 
 // Exceptions that you can catch by type.
 var Interrupt = require('interrupt').createInterrupter('destructible')
@@ -30,7 +26,7 @@ function Destructible () {
     this._timeout = typeof vargs[0] == 'number' ? vargs.shift() : 1000
 
     // Displayed when we timeout.
-    this.key = coalesce(vargs.shift())
+    this.key = vargs.shift()
 
     this.context = vargs
 
