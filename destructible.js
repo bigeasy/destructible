@@ -9,9 +9,6 @@ var Keyify = require('keyify')
 // Contextualized callbacks and event handlers.
 var operation = require('operation')
 
-// Ever increasing serial integer with no maximum value.
-var Monotonic = require('monotonic').asString
-
 // Control-flow utilities.
 var Signal = require('signal')
 var cadence = require('cadence')
@@ -19,9 +16,6 @@ var abend = require('abend')
 
 // Exceptions that you can catch by type.
 var Interrupt = require('interrupt').createInterrupter('destructible')
-
-// Unique id for each instance of destructible.
-var INSTANCE = '0'
 
 // Construct a destructable that will track callbacks and timeout if they are
 // not all invoked within a certain time frame when destroy is called.
@@ -67,7 +61,6 @@ function Destructible () {
     // Internal completion signal.
     this._completed = new Signal
 
-    this.instance = INSTANCE = Monotonic.increment(INSTANCE, 0)
     this._vargs = []
 
     this._runScramTimer = true
