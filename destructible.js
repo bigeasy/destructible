@@ -68,7 +68,6 @@ function Destructible () {
     this._completed = new Signal
 
     this.instance = INSTANCE = Monotonic.increment(INSTANCE, 0)
-    this._index = 0
     this._vargs = []
 
     this._runScramTimer = true
@@ -95,6 +94,7 @@ Destructible.prototype._return = function () {
         if (this._vargs.length) {
             vargs.push(null)
             while (this._vargs.length) {
+                this._vargs[0].shift()
                 vargs.push.apply(vargs, this._vargs.shift())
             }
         }
@@ -264,11 +264,12 @@ Destructible.prototype._monitor = function (method, ephemeral, vargs) {
             key: key
         })
         if (! ephemeral) {
-            var index = this._index++
+            var index = this._vargs.length
+            this._vargs.push([])
         }
         return function (error) {
             if (! ephemeral) {
-                this._vargs[index] = Array.prototype.slice.call(arguments, 1)
+                this._vargs[index].push.apply(this._vargs[index], arguments)
             }
             if (! ephemeral || error != null) {
                 this._destroy(error, {
