@@ -279,7 +279,6 @@ Destructible.prototype._monitor = function (method, ephemeral, forgivable, vargs
                 this._vargs[index].push.apply(this._vargs[index], arguments)
             }
             if (! ephemeral || (error != null && ! forgivable)) {
-                console.log(forgivable, this.key, key)
                 this._destroy(error, {
                     module: 'destructible',
                     method: method,
