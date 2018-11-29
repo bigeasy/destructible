@@ -1,4 +1,4 @@
-require('proof')(21, require('cadence')(prove))
+require('proof')(22, require('cadence')(prove))
 
 function prove (async, okay) {
     var Destructible = require('..')
@@ -163,8 +163,10 @@ function prove (async, okay) {
                 destructible.destruct.wait(callback)
             }, async())
             destructible.durable('abend')(new Error('errored'))
+            destructible.completed.wait(async())
         }, function (error) {
-            okay(error.cause.message, 'errored', 'ready error')
+            console.log(error.stack)
+            okay(error.causes[0].message, 'errored', 'callbacks completing after destroy')
         }])
     }, function () {
         destructible = new Destructible('daemons')
