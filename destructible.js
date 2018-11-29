@@ -151,16 +151,6 @@ Destructible.prototype.destroy = function (error) {
     this._destroy(error, { module: 'destructible', method: 'destroy' })
 }
 
-Destructible.prototype.scram = function (error) {
-    if (this._completed.open == null) {
-        this._destroy(error, { module: 'destructible', method: 'scram' })
-        // TODO Remove `scrammed`, just use `_completed` in children to chain
-        // shutdown.
-        this.scrammed.notify()
-        this._completed.notify(null, true)
-    }
-}
-
 Destructible.prototype._monitor = function (method, ephemeral, vargs) {
     var key = vargs.shift()
     if (vargs.length != 0) {
@@ -185,7 +175,7 @@ Destructible.prototype._monitor = function (method, ephemeral, vargs) {
             var destroy = this.destruct.wait(destructible, 'destroy')
 
             // Scram the child destructible when we're scrammed.
-            var scram = this.scrammed.wait(destructible, 'scram')
+            var scram = this.scrammed.wait(destructible.scrammed, 'unlatch')
 
             // If the child is ephemeral then we'll destory ourselves only if it
             // errors, otherwise we'll destroy ourself if it is destroyed.

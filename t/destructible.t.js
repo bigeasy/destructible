@@ -155,7 +155,6 @@ function prove (async, okay) {
         }, function (error) {
             console.log(error.stack)
             okay(error.causes[0].qualified, 'destructible#scrammed', 'sub scram')
-            destructible.scram()
         }])
     }, function () {
         destructible = new Destructible('daemons')
