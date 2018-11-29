@@ -152,12 +152,12 @@ Destructible.prototype.destroy = function (error) {
     this._destroy(error, { module: 'destructible', method: 'destroy' })
 }
 
-Destructible.prototype._monitor = function (method, ephemeral, vargs) {
+Destructible.prototype._monitor = function (method, ephemeral, forgivable, vargs) {
     var key = vargs.shift()
     if (vargs.length != 0) {
         var callback = vargs.pop()
         if (callback === null) {
-            callback = this._monitor('constructor', true, [ key ])
+            callback = this._monitor('constructor', true, false, [ key ])
         }
         if (this.destroyed) {
             callback(new Interrupt('destroyed', {
@@ -167,7 +167,7 @@ Destructible.prototype._monitor = function (method, ephemeral, vargs) {
             }))
         } else {
             // Create a callback to give to the new stack.
-            var monitor = this._monitor('destructible', ephemeral, [ key ])
+            var monitor = this._monitor('destructible', ephemeral, forgivable, [ key ])
 
             // Create a destructible to monitor the stack.
             var destructible = new Destructible(key)
@@ -181,7 +181,9 @@ Destructible.prototype._monitor = function (method, ephemeral, vargs) {
             // If the child is ephemeral then we'll destory ourselves only if it
             // errors, otherwise we'll destroy ourself if it is destroyed.
             if (ephemeral) {
-                destructible.errored.wait(this, 'destroy')
+                if (!forgivable) {
+                    destructible.errored.wait(this, 'destroy')
+                }
             } else {
                 destructible.destruct.wait(this, 'destroy')
                 destructible._runScramTimer = false
@@ -276,7 +278,8 @@ Destructible.prototype._monitor = function (method, ephemeral, vargs) {
             if (! ephemeral) {
                 this._vargs[index].push.apply(this._vargs[index], arguments)
             }
-            if (! ephemeral || error != null) {
+            if (! ephemeral || (error != null && ! forgivable)) {
+                console.log(forgivable, this.key, key)
                 this._destroy(error, {
                     module: 'destructible',
                     method: method,
@@ -300,16 +303,34 @@ Destructible.prototype._monitor = function (method, ephemeral, vargs) {
 // want to use Destructible without Cadence. I don't want to use Node.js without
 // Cadence.
 //
-Destructible.prototype.ephemeral = function () {
-    var vargs = []
-    vargs.push.apply(vargs, arguments)
-    return this._monitor('monitor', true, vargs)
-}
-
 Destructible.prototype.durable = function () {
     var vargs = []
     vargs.push.apply(vargs, arguments)
-    return this._monitor('monitor', false, vargs)
+    return this._monitor('monitor', false, false, vargs)
+}
+
+Destructible.prototype.ephemeral = function () {
+    var vargs = []
+    vargs.push.apply(vargs, arguments)
+    return this._monitor('monitor', true, false, vargs)
+}
+
+// Hard to find a word that means semi-disconnected. Independent? The purpose is
+// to tie the child to the shutdown mechanisms, but to avoid propagating its
+// errors so that they do not appear in in the tree. We assume that the errors
+// will be rejoin the tree at some other point. Probably only useful as a child
+// destructible and not a callback.
+//
+// Errors do not cause the parent to destruct, nor do errors get reported in the
+// parent, however if the parent is destroyed the child will be destroyed and
+// the child's scram will be canceled and the parent will countdown to scram and
+// scram the child if necessary.
+
+//
+Destructible.prototype.forgivable = function () {
+    var vargs = []
+    vargs.push.apply(vargs, arguments)
+    return this._monitor('monitor', true, true, vargs)
 }
 
 module.exports = Destructible

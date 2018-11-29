@@ -1,4 +1,4 @@
-require('proof')(22, require('cadence')(prove))
+require('proof')(24, require('cadence')(prove))
 
 function prove (async, okay) {
     var Destructible = require('..')
@@ -169,12 +169,31 @@ function prove (async, okay) {
     }, function () {
         destructible = new Destructible('daemons')
         async([function () {
-            destructible.durable('errored', function (destructible, callback) {
-            }, async())
+            destructible.durable('errored', function (destructible, callback) {}, async())
             destructible.destroy()
+            destructible.completed.wait(function () {
+                console.log(arguments[0].stack)
+            })
         }, function (error) {
             console.log(error.stack)
             okay(/^destructible#scrammed$/m.test(error.message), 'constructor scrammed')
+        }])
+    }, function () {
+        destructible = new Destructible('daemons')
+        async([function () {
+            var completed = async()
+            destructible.forgivable('forgivable', function (forgivable, callback) {
+                forgivable.durable('exploded')(new Error('exploded'))
+                callback(null, forgivable)
+            }, function (error, forgivable) {
+                forgivable.completed.wait(completed)
+            })
+        }, function (error) {
+            console.log(error.stack)
+            okay(error.causes[0].message, 'exploded', 'forgivable')
+            okay(!destructible.destroyed, 'forgivable parent survived')
+            destructible.completed.wait(async())
+            destructible.destroy()
         }])
     }, function () {
         var callbacks = []
