@@ -131,6 +131,18 @@ Destructible.prototype._destroy = function (error, context) {
     }
 }
 
+Destructible.prototype.drain = function () {
+    this.draining = true
+    this._drained()
+    this._complete()
+}
+
+Destructible.prototype._drained = function () {
+    if (this.draining && this.waiting.length == 0) {
+        this.destroy()
+    }
+}
+
 Destructible.prototype._complete = function () {
     if (this.destroyed && this.waiting.length == 0 && this._completed.open == null) {
         this._completed.unlatch(null, false)
@@ -244,6 +256,7 @@ Destructible.prototype._monitor = function (method, ephemeral, vargs) {
                 async([function () {
                     destructible.scrammed.cancel(unready)
                     destructible.waiting.shift()
+                    destructible._drained()
                     destructible._complete()
                 }], function () {
                     var f = operation.shift(vargs)
@@ -279,6 +292,7 @@ Destructible.prototype._monitor = function (method, ephemeral, vargs) {
                 })
             }
             this.waiting.splice(this.waiting.indexOf(wait), 1)
+            this._drained()
             this._complete()
         }.bind(this)
     }
