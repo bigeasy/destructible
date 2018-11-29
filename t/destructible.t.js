@@ -1,4 +1,4 @@
-require('proof')(23, require('cadence')(prove))
+require('proof')(22, require('cadence')(prove))
 
 function prove (async, okay) {
     var Destructible = require('..')
@@ -14,8 +14,6 @@ function prove (async, okay) {
 
     var destructible = new Destructible('keyed')
     okay(destructible.key, 'keyed', 'keyed')
-    var destructible = new Destructible
-    okay(destructible.key, null, 'unkeyed')
 
     var object = { destroyed: false }
 
