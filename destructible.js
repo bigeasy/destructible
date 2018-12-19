@@ -145,11 +145,9 @@ Destructible.prototype._complete = function () {
     }
 }
 
-// TODO Passing an error is really dubious, why are errors coming from the
-// outside in? Let's assert to see who's using this.
-Destructible.prototype.destroy = function (error) {
-    assert(arguments.length == 0)
-    this._destroy(error, { module: 'destructible', method: 'destroy' })
+Destructible.prototype.destroy = function () {
+    assert(arguments.length == 0) // We used to accept a final error, but no.
+    this._destroy(null, { module: 'destructible', method: 'destroy' })
 }
 
 Destructible.prototype._monitor = function (method, ephemeral, forgivable, vargs) {
