@@ -20,7 +20,7 @@
     },
     "dependencies":
     {
-                            "cadence":                      "2.0.x",
+                            "cadence":                      "3.0.x",
                             "interrupt":                    "7.0.x",
                             "operation":                    "5.0.x",
                             "signal":                       "7.0.x"
