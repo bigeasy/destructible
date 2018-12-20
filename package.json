@@ -22,7 +22,7 @@
     {
                             "cadence":                      "2.0.x",
                             "interrupt":                    "6.4.x",
-                            "operation":                    "4.0.x",
+                            "operation":                    "5.0.x",
                             "signal":                       "7.0.x"
     },
     "devDependencies":
