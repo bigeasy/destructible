@@ -97,7 +97,8 @@ Destructible.prototype._destroy = function (error, context) {
             ephemeral: context.ephemeral || null,
             key: this.key,
             monitorKey: context.key || null,
-            cause: context.cause || null
+            cause: context.cause || null,
+            stack: error ? error.stack : null
         }
     }
     if (error != null) {
