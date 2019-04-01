@@ -191,7 +191,15 @@ Destructible.prototype._monitor = function (method, ephemeral, forgivable, vargs
             // errors, otherwise we'll destroy ourself if it is destroyed.
             if (ephemeral) {
                 if (!forgivable) {
-                    destructible.errored.wait(this, 'destroy')
+                    destructible.errored.wait(this, function () {
+                        this._destroy(null, {
+                            module: 'destructible',
+                            method: 'destruct',
+                            key: key,
+                            cause: destructible.cause,
+                            ephemeral: true
+                        })
+                    })
                 }
             } else {
                 destructible.destruct.wait(this, function () {
