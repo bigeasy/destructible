@@ -61,6 +61,7 @@ function Destructible () {
 
 Destructible.prototype._return = function () {
     if (this.waiting.length !== 0) {
+        console.log('YES SCRAM', this.key)
         this.completed.unlatch(new Interrupt('scrammed', {
             causes: this._errors,
             destructible: this.key,
@@ -89,7 +90,17 @@ Destructible.prototype._return = function () {
 }
 
 Destructible.prototype._destroy = function (error, context) {
+    if (this.cause == null) {
+        this.cause = {
+            module: 'destructible',
+            method: context.method,
+            ephemeral: context.ephemeral || null,
+            key: this.key,
+            monitorKey: context.key || null
+        }
+    }
     if (error != null) {
+        console.log('DESTRUCTIBLE ERROR')
         this._errors.push([ error, context ])
         this.errored.unlatch()
     }
@@ -112,10 +123,12 @@ Destructible.prototype._destroy = function (error, context) {
             // shutting down in isolation.
             var timer = null
             if (this._runScramTimer) {
+                console.log('SET SCRAM TIMER', this.key)
                 timer = setTimeout(this.scrammed.unlatch.bind(this.scrammed), this._timeout)
             }
             this._completed.wait(this, function () {
                 if (timer != null) {
+                    console.log('CLEAR SCRAM TIMER', this.key)
                     clearTimeout(timer)
                 }
                 this._return()
