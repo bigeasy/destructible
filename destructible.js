@@ -96,7 +96,8 @@ Destructible.prototype._destroy = function (error, context) {
             method: context.method,
             ephemeral: context.ephemeral || null,
             key: this.key,
-            monitorKey: context.key || null
+            monitorKey: context.key || null,
+            cause: context.cause || null
         }
     }
     if (error != null) {
@@ -196,7 +197,15 @@ Destructible.prototype._monitor = function (method, ephemeral, forgivable, vargs
                     destructible.errored.wait(this, 'destroy')
                 }
             } else {
-                destructible.destruct.wait(this, 'destroy')
+                destructible.destruct.wait(this, function () {
+                    this._destroy(null, {
+                        module: 'destructible',
+                        method: 'destruct',
+                        key: key,
+                        cause: destructible.cause,
+                        ephemeral: false
+                    })
+                })
                 destructible._runScramTimer = false
             }
 
