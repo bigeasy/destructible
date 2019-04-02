@@ -106,7 +106,7 @@ function prove (async, okay) {
         destructible = new Destructible('daemons')
         destructible.completed.wait(async())
         async(function () {
-            destructible.ephemeral('destroyed', function (destructible, callback) {
+            destructible.ephemeral('destroyed', 1000, function (destructible, callback) {
                 destructible.destroy()
                 callback()
             }, async())

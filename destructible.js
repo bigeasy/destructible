@@ -164,6 +164,7 @@ Destructible.prototype.destroy = function () {
 Destructible.prototype._monitor = function (method, ephemeral, forgivable, vargs) {
     var key = vargs.shift()
     if (vargs.length != 0) {
+        var timeout = typeof vargs[0] == 'number' ? vargs.shift() : this._timeout
         var callback = vargs.pop()
         if (callback === null) {
             callback = this._monitor('constructor', true, false, [ key ])
@@ -179,7 +180,7 @@ Destructible.prototype._monitor = function (method, ephemeral, forgivable, vargs
             var monitor = this._monitor('destructible', ephemeral, forgivable, [ key ])
 
             // Create a destructible to monitor the stack.
-            var destructible = new Destructible(key)
+            var destructible = new Destructible(timeout, key)
 
             // Destory the child destructible when we're destroyed.
             var destroy = this.destruct.wait(destructible, 'destroy')
