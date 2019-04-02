@@ -56,7 +56,7 @@ function Destructible () {
 
     this._vargs = []
 
-    this._runScramTimer = true
+    this._runScramTimer = this._timeout != Infinity
 }
 
 Destructible.prototype._return = function () {
