@@ -292,8 +292,7 @@ Destructible.prototype._monitor = function (method, ephemeral, forgivable, vargs
         this.waiting.push(wait = {
             module: 'destructible',
             method: method,
-            ephemeral:
-            ephemeral,
+            ephemeral: ephemeral,
             key: key
         })
         if (! ephemeral) {
