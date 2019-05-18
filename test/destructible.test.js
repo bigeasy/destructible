@@ -90,9 +90,18 @@ describe('destructible', () => {
             await destructible.promise
         } catch (error) {
             console.log(error.stack)
-            test.push(error.message)
+            test.push(error.causes[0].message)
         } finally {
             destructible.destroy()
         }
+        assert.deepStrictEqual(test, [ 'thrown' ], 'catch')
+    })
+    it('can destroy a destructible when a sub-destructible completes', async () => {
+        const test = []
+        const destructible = new Destructible(10000, 'main')
+        destructible.durable('parent', (destructible) => {
+            destructible.durable('child', Promise.resolve(true))
+        })
+        await destructible.promise
     })
 })

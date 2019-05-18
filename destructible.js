@@ -35,14 +35,11 @@ class Destructible {
         this._errored = new Latch
         this._expired = new Latch
         this._completed = new Future
+        this.promise = this._completed.promise
 
         this._results = {}
 
         this._scramTimer = { clear: () => {} }
-    }
-
-    get promise () {
-        return this._completed.promise
     }
 
     destruct (f) {
@@ -82,7 +79,7 @@ class Destructible {
         }
     }
 
-    async _destroy (context, error) {
+    async _fireAndForgetDestroy (context, error) {
         if (this.cause == null) {
             this.cause = {
                 module: 'destructible',
@@ -110,8 +107,9 @@ class Destructible {
                 this._return()
             } else {
                 if (this._timeout != Infinity) {
+                    const timer = (this._scramTimer = delay(this._timeout))
                     this._expired.await(() => this._scramTimer.clear())
-                    await (this._scramTimer = delay(this._timeout))
+                    await timer
                     this._expired.unlatch()
                 } else {
                     const future = new Future
@@ -123,8 +121,12 @@ class Destructible {
        }
     }
 
+    _destroy (context, error) {
+        this._fireAndForgetDestroy(context, error)
+    }
+
     destroy () {
-        this._destroy({ method: 'destroy' })
+        this._fireAndForgetDestroy({ method: 'destroy' })
     }
 
     _complete () {
@@ -155,7 +157,7 @@ class Destructible {
         }
     }
 
-    async _await (ephemeral, method, key, operation) {
+    async _awaitPromise (ephemeral, method, key, operation) {
         const wait = { module: 'destructible', method, ephemeral, key }
         this.waiting.push(wait)
         try {
@@ -169,8 +171,6 @@ class Destructible {
             }
             this._complete()
         } catch (error) {
-            console.log('>>>', error.stack)
-            console.log('>>>', this.waiting.length)
             this._destroy({ method, key, ephemeral }, error)
         }
     }
@@ -203,7 +203,7 @@ class Destructible {
         const key = vargs.shift()
         const operation = vargs.shift()
         if (operation instanceof Promise) {
-            this._await(ephemeral, 'promise', key, operation)
+            this._awaitPromise(ephemeral, 'promise', key, operation)
             if (vargs.length != 0) {
                 return this.destruct(vargs.shift())
             }
@@ -229,7 +229,7 @@ class Destructible {
             destructible._expired.await(() => this._expired.cancel(scram))
 
             // Monitor our new destructible as child of this destructible.
-            this._await(ephemeral, 'block', key, destructible.promise)
+            this._awaitPromise(ephemeral, 'block', key, destructible.promise)
 
             // Run the initialization block and then remove our waiting entry
             // and check for completion.
