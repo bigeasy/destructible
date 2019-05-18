@@ -30,7 +30,6 @@ class Destructible {
         this._errors = []
 
         this._destructors = []
-        this._errored = new Latch
         this._expired = new Latch
         this._completed = new Future
         this.promise = this._completed.promise
@@ -166,9 +165,10 @@ class Destructible {
             if (!ephemeral) {
                 this._destroy({ method, key, ephemeral })
             }
-            this._complete()
         } catch (error) {
             this._destroy({ method, key, ephemeral }, error)
+        } finally {
+            this._complete()
         }
     }
 
@@ -215,9 +215,7 @@ class Destructible {
             const method = 'block'
             // If the child is ephemeral, only destory the parent on error,
             // otherwise, destroy the parent when the child is destroyed.
-            if (ephemeral) {
-                destructible._errored.await(() => this._destroy({ method, key, ephemeral }))
-            } else {
+            if (!ephemeral) {
                 destructible.destruct(() => this._destroy({ method, key, ephemeral }))
             }
 

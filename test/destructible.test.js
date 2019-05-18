@@ -96,12 +96,24 @@ describe('destructible', () => {
         }
         assert.deepStrictEqual(test, [ 'thrown' ], 'catch')
     })
-    it('can destroy a destructible when a sub-destructible completes', async () => {
-        const test = []
+    it('can destroy a destructible when a durable block completes', async () => {
         const destructible = new Destructible(10000, 'main')
         destructible.durable('parent', (destructible) => {
             destructible.durable('child', Promise.resolve(true))
         })
         await destructible.promise
+    })
+    it('can destroy a destructible when an ephemeral block errors', async () => {
+        const test = []
+        const destructible = new Destructible(10000, 'main')
+        destructible.durable('parent', (destructible) => {
+            destructible.ephemeral('child', Promise.reject(new Error('thrown')))
+        })
+        try {
+            await destructible.promise
+        } catch (error) {
+            test.push(error.causes[0].causes[0].message)
+        }
+        assert.deepStrictEqual(test, [ 'thrown' ], 'catch')
     })
 })
