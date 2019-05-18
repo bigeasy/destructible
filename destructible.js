@@ -2,6 +2,21 @@ const delay = require('delay')
 const Latch = require('prospective/latch')
 const Future = require('prospective/future')
 
+class Destructor {
+    constructor (destructible) {
+        this._destructors = []
+        this._destructible = destructible
+    }
+
+    destruct (f) {
+        this._destructors.push(this._destructible.destruct(() => f()))
+    }
+
+    clear () {
+        this._destructors.splice(0).forEach(f => this._destructible.clear(f))
+    }
+}
+
 class Destructible {
     constructor (...vargs) {
         this._timeout = typeof vargs[0] == 'number' ? vargs.shift() : 1000
@@ -34,12 +49,16 @@ class Destructible {
         return f
     }
 
-    cancel (f) {
+    clear (f) {
         const index = this._destructors.indexOf(f)
         if (~index) {
             return this._destructors.splice(index, 1).shift()
         }
         return null
+    }
+
+    destructor () {
+        return new Destructor(this)
     }
 
     _return () {
@@ -192,7 +211,7 @@ class Destructible {
 
             // Destroy the child destructible when we are destroyed.
             const destruct = this.destruct(() => destructible.destroy())
-            destructible.destruct(() => this.cancel(destruct))
+            destructible.destruct(() => this.clear(destruct))
 
             // If the child is ephemeral, only destory the parent on error,
             // otherwise, destroy the parent when the child is destroyed.

@@ -20,6 +20,18 @@ describe('destructible', () => {
         await destructible.promise
         assert(destructible.destroyed, 'destroyed')
     })
+    it('cat create a destructor group', async () => {
+        const test = []
+        const destructible = new Destructible('main')
+        const cleared = destructible.destructor()
+        cleared.destruct(() => { throw new Error })
+        cleared.clear()
+        const destructor = destructible.destructor()
+        cleared.destruct(() => test.push('destructed'))
+        destructible.destroy()
+        await destructible.promise
+        assert.deepStrictEqual(test, [ 'destructed' ], 'destructed')
+    })
     it('can gather return values', async () => {
         const destructible = new Destructible('main')
         const one = new Future
