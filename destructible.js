@@ -37,7 +37,7 @@ class Destructible {
 
         this._results = {}
 
-        this._scramTimer = { clear: () => {} }
+        this._scramTimer = null
     }
 
     destruct (f) {
