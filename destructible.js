@@ -19,7 +19,6 @@ class Destructor {
 }
 
 class Destructible {
-    static Error = Interrupt.create('Destructible.Error')
 
     constructor (...vargs) {
         this._timeout = typeof vargs[0] == 'number' ? vargs.shift() : 1000
@@ -255,5 +254,7 @@ class Destructible {
         return this._monitor(true, vargs)
     }
 }
+
+Destructible.Error = Interrupt.create('Destructible.Error')
 
 module.exports = Destructible
