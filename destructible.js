@@ -19,7 +19,6 @@ class Destructor {
 }
 
 class Destructible {
-
     constructor (...vargs) {
         this._timeout = typeof vargs[0] == 'number' ? vargs.shift() : 1000
         this.key = vargs.shift()
