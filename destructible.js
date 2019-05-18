@@ -1,360 +1,237 @@
-var assert = require('assert')
+const delay = require('delay')
+const Latch = require('prospective/latch')
+const Future = require('prospective/future')
 
-// Contextualized callbacks and event handlers.
-var operation = require('operation')
+class Destructible {
+    constructor (...vargs) {
+        this._timeout = typeof vargs[0] == 'number' ? vargs.shift() : 1000
+        this.key = vargs.shift()
+        this.context = vargs
 
-// Control-flow utilities.
-var Signal = require('signal')
-var cadence = require('cadence')
+        this.destroyed = false
+        this.waiting = []
 
-// Exceptions that you can catch by type.
-var Interrupt = require('interrupt').createInterrupter('destructible')
+        this._errors = []
 
-// Construct a destructable that will track callbacks and timeout if they are
-// not all invoked within a certain time frame when destroy is called.
+        this._destructors = []
+        this._errored = new Latch
+        this._expired = new Latch
+        this._completed = new Future
 
-//
-function Destructible () {
-    var vargs = []
-    vargs.push.apply(vargs, arguments)
+        this._results = {}
 
-    // By default, we wait a full second for all outstanding callbacks to
-    // return.
-    this._timeout = typeof vargs[0] == 'number' ? vargs.shift() : 1000
+        this._scramTimer = { clear: () => {} }
+    }
 
-    // Displayed when we timeout.
-    this.key = vargs.shift()
+    get promise () {
+        return this._completed.promise
+    }
 
-    this.context = vargs
-
-    // Errors returned to callbacks.
-    this._errors = []
-
-    // Set immediately upon destruction. Will be true if inspected by any of the
-    // destructors registered with `destruct` or `scrammed`.
-    this.destroyed = false
-
-    // You're welcome to dump this list of waiting callbacks if it helps you
-    // with debugging.
-    this.waiting = []
-
-    // Listen to know when to shut down.
-    this.destruct = new Signal
-
-    // Listen to know the moment we get an error, but not to get the error.
-    this.errored = new Signal
-
-    // Listen to know when we're done.
-    this.completed = new Signal
-
-    // Listen to know if we've forcibly shutdown before all callbacks have
-    // returned.
-    this.scrammed = new Signal
-
-    // Internal completion signal.
-    this._completed = new Signal
-
-    this._vargs = []
-
-    this._runScramTimer = this._timeout != Infinity
-}
-
-Destructible.prototype._return = function () {
-    if (this.waiting.length !== 0) {
-        this.completed.unlatch(new Interrupt('scrammed', {
-            causes: this._errors,
-            destructible: this.key,
-            waiting: this.waiting.slice(),
-            context: this.context
-        }))
-    } else if (this._errors.length !== 0) {
-        this.completed.unlatch(new Interrupt('error', {
-            causes: this._errors,
-            key: this.key,
-            waiting: this.waiting.slice(),
-            context: this.context
-        }))
-    } else {
-        // TODO Where am I actually using return value?
-        var vargs = []
-        if (this._vargs.length) {
-            vargs.push(null)
-            while (this._vargs.length) {
-                this._vargs[0].shift()
-                vargs.push.apply(vargs, this._vargs.shift())
-            }
+    destruct (f) {
+        if (!~this._destructors.indexOf(f)) {
+            this._destructors.push(f)
         }
-        this.completed.unlatch.apply(this.completed, vargs)
+        return f
     }
-}
 
-Destructible.prototype._destroy = function (error, context) {
-    if (this.cause == null) {
-        this.cause = {
-            module: 'destructible',
-            method: context.method,
-            ephemeral: context.ephemeral || null,
-            key: this.key,
-            monitorKey: context.key || null,
-            cause: context.cause || null,
-            stack: error ? error.stack : null
+    cancel (f) {
+        const index = this._destructors.indexOf(f)
+        if (~index) {
+            return this._destructors.splice(index, 1).shift()
         }
+        return null
     }
-    if (error != null) {
-        this._errors.push([ error, context ])
-        this.errored.unlatch()
-    }
-    if (!this.destroyed) {
-        this.destroyed = true
-        try {
-            this.destruct.unlatch()
-        } catch (error) {
-            // TODO We know the module, maybe we just have `upon: 'destruct`'.
-            this._errors.push([ error, { module: 'destructible', method: 'destruct' } ])
-        }
-        if (this._complete()) {
-            this._return()
-        } else {
-            // Bind scram now so that we mark ourselves completed as the last
-            // scram action, all our children can report their scrams first.
-            this.scrammed.wait(this._completed, 'unlatch')
-            // Run a timer if we're at the root of an ephemeral destructible.
-            // TODO Do not run timer if our parent is destroyed, only if we're
-            // shutting down in isolation.
-            var timer = null
-            if (this._runScramTimer) {
-                timer = setTimeout(this.scrammed.unlatch.bind(this.scrammed), this._timeout)
-            }
-            this._completed.wait(this, function () {
-                if (timer != null) {
-                    clearTimeout(timer)
-                }
-                this._return()
-            })
-        }
-    }
-}
 
-Destructible.prototype.drain = function () {
-    this.draining = true
-    this._drained()
-    this._complete()
-}
-
-Destructible.prototype._drained = function () {
-    if (this.draining && this.waiting.length == 0) {
-        this.destroy()
-    }
-}
-
-Destructible.prototype._complete = function () {
-    if (this.destroyed && this.waiting.length == 0 && this._completed.open == null) {
-        this._completed.unlatch(null, false)
-        return true
-    } else {
-        return false
-    }
-}
-
-Destructible.prototype.destroy = function () {
-    assert(arguments.length == 0) // We used to accept a final error, but no.
-    this._destroy(null, { module: 'destructible', method: 'destroy' })
-}
-
-Destructible.prototype._monitor = function (method, ephemeral, forgivable, vargs) {
-    var key = vargs.shift()
-    if (vargs.length != 0) {
-        var timeout = typeof vargs[0] == 'number' ? vargs.shift() : this._timeout
-        var callback = vargs.pop()
-        if (callback === null) {
-            callback = this._monitor('constructor', true, false, [ key ])
-        }
-        if (this.destroyed) {
-            callback(new Interrupt('destroyed', {
-                keys: [ this.key, key ],
+    _return () {
+        if (this.waiting.length != 0) {
+            this._completed.resolve(new Interrupt('scrammed', {
+                causes: this._errors,
+                destructible: this.key,
+                waiting: this.waiting.slice(),
+                context: this.context
+            }))
+        } else if (this._errors.length != 0) {
+            this._completed.resolve(new Interrupt('error', {
+                causes: this._errors,
+                key: this.key,
                 waiting: this.waiting.slice(),
                 context: this.context
             }))
         } else {
-            // Create a callback to give to the new stack.
-            var monitor = this._monitor('destructible', ephemeral, forgivable, [ key ])
-
-            // Create a destructible to monitor the stack.
-            var destructible = new Destructible(timeout, key)
-
-            // Destory the child destructible when we're destroyed.
-            var destroy = this.destruct.wait(destructible, 'destroy')
-
-            // Scram the child destructible when we're scrammed.
-            var scram = this.scrammed.wait(destructible.scrammed, 'unlatch')
-
-            // If the child is ephemeral then we'll destory ourselves only if it
-            // errors, otherwise we'll destroy ourself if it is destroyed.
-            if (ephemeral) {
-                if (!forgivable) {
-                    destructible.errored.wait(this, function () {
-                        this._destroy(null, {
-                            module: 'destructible',
-                            method: 'destruct',
-                            key: key,
-                            cause: destructible.cause,
-                            ephemeral: true
-                        })
-                    })
-                }
-            } else {
-                destructible.destruct.wait(this, function () {
-                    this._destroy(null, {
-                        module: 'destructible',
-                        method: 'destruct',
-                        key: key,
-                        cause: destructible.cause,
-                        ephemeral: false
-                    })
-                })
-                destructible._runScramTimer = false
-            }
-
-            // When we are destroyed we unregister parent to child destruction
-            // notification.
-            destructible.destruct.wait(this, function () { this.destruct.cancel(destroy) })
-
-            // When we've completed we unregister parent to child scram
-            // notification and return our results to the destructible callback.
-            destructible.completed.wait(this, function () {
-                this.scrammed.cancel(scram)
-                monitor.apply(null, arguments)
-            })
-
-            // So… Like Turnstile, any error coming out of Destructible should
-            // be a fatal error that ends the program. Same reasons. Hard to
-            // handle the stange meta error is the one reason, but here and
-            // elsewhere there's the reason that we may be timing you out,
-            // you're not getting an error related to your call, but a meta
-            // error from Destructible saying that your call did not complete.
-            // We're giving you this error to unwind your stack, you should not
-            // recover from it.
-            //
-            // This is the way and it might be the rule that tidies up all this
-            // hanging and removes the duplications. You have your real errors
-            // and these scrammed and hung messages are there to tell you about
-            // other places that hit a dead end. You'll probably be able to
-            // infer some of the reasons for the dead ends from the callbacks.
-            //
-            // We fussed with this in so many ways. You even wrote a module that
-            // would perform some dirty logic to from the first callback that
-            // returns. Let's round up all that nonsense into this one place.
-            //
-            var constructed = new Signal
-
-            // Call our callback with a response passed via a latch.
-            constructed.wait(callback)
-
-            // We bury our return and raise this exception.
-            var unready = destructible.scrammed.wait(this, function () {
-                constructed.unlatch(new Interrupt('scrammed', {
-                    module: 'destructible',
-                    method: 'constructor',
-                    ephemeral: ephemeral,
-                    parentKey: this.key,
-                    key: key
-                }))
-            })
-
-            // This will let our destruction process know we're waiting on a
-            // consturctor to turn-the-corner.
-            destructible.waiting.push({
-                module: 'destructible',
-                method: 'constructor',
-                ephemeral: ephemeral,
-                parentKey: this.key,
-                key: key
-            })
-
-            // Unless, of course, everything goes according to plan. We use
-            // Cadence here for the conversion of exceptions to errors.
-            cadence(function (async) {
-                async([function () {
-                    destructible.scrammed.cancel(unready)
-                    destructible.waiting.shift()
-                    destructible._drained()
-                    destructible._complete()
-                }], function () {
-                    var f = operation.shift(vargs)
-                    vargs.unshift(destructible)
-                    vargs.push(async())
-                    f.apply(null, vargs)
-                })
-            })(constructed.unlatch.bind(constructed))
+            this._completed.resolve(null, this._results)
         }
-    } else {
-        var wait
-        this.waiting.push(wait = {
-            module: 'destructible',
-            method: method,
-            ephemeral: ephemeral,
-            key: key
-        })
-        if (! ephemeral) {
-            var index = this._vargs.length
-            this._vargs.push([])
-        }
-        return function (error) {
-            if (! ephemeral) {
-                this._vargs[index].push.apply(this._vargs[index], arguments)
-            }
-            if (! ephemeral || (error != null && ! forgivable)) {
-                this._destroy(error, {
-                    module: 'destructible',
-                    method: method,
-                    ephemeral: ephemeral,
-                    key: key
-                })
-            }
-            this.waiting.splice(this.waiting.indexOf(wait), 1)
-            this._drained()
-            this._complete()
-        }.bind(this)
     }
-}
 
-// Thinking that maybe, unlike other error-first callbacks in my arena, this one
-// should assert that we're still open and fail immediately. We're going to
-// assume that we're using Cadence, so it is going to propagate. We can then
-// look for destroyed monitor exceptions and rescue them.
-//
-// We can come back and reevaluate our Cadence assumption, but I'm not sure I
-// want to use Destructible without Cadence. I don't want to use Node.js without
-// Cadence.
-//
-Destructible.prototype.durable = function () {
-    var vargs = []
-    vargs.push.apply(vargs, arguments)
-    return this._monitor('monitor', false, false, vargs)
-}
+    async _destroy (error) {
+        if (this.cuause == null) {
+            this.cause = {
+                module: 'destructible',
+                method: context.method,
+                ephemeral: context.ephemeral || null,
+                key: this.key,
+                monitorKey: context.key || null,
+                cause: context.cause || null,
+                stack: error ? error.stack : null
+            }
+        }
+        if (!this.destroyed) {
+            this.destroyed = true
+            while (this._destructors.length != 0) {
+                try {
+                    const result = this._destructors.shift().call(null)
+                    if (result instanceof Promise) {
+                        await result
+                    }
+                } catch (error) {
+                    console.log(error.stack)
+                }
+            }
+            if (this._complete()) {
+                this._return()
+            } else {
+                if (this._timeout != Infinity) {
+                    this._expired.await(() => this._scramTimer.clear())
+                    await (this._scramTimer = delay(this._timeout))
+                    this._expired.unlatch()
+                } else {
+                    const future = new Future
+                    this._expired.await(future.resolve.bind(future))
+                    await future.promise
+                }
+                this._return()
+            }
+       }
+    }
 
-Destructible.prototype.ephemeral = function () {
-    var vargs = []
-    vargs.push.apply(vargs, arguments)
-    return this._monitor('monitor', true, false, vargs)
-}
+    destroy () {
+        this._destroy(null, { module: 'destructible', method: 'destroy' })
+    }
 
-// Hard to find a word that means semi-disconnected. Independent? The purpose is
-// to tie the child to the shutdown mechanisms, but to avoid propagating its
-// errors so that they do not appear in in the tree. We assume that the errors
-// will be rejoin the tree at some other point. Probably only useful as a child
-// destructible and not a callback.
-//
-// Errors do not cause the parent to destruct, nor do errors get reported in the
-// parent, however if the parent is destroyed the child will be destroyed and
-// the child's scram will be canceled and the parent will countdown to scram and
-// scram the child if necessary.
+    _complete () {
+        if (this.destroyed && this.waiting.length == 0) {
+            this._expired.unlatch()
+            return true
+        } else {
+            return false
+        }
+    }
 
-//
-Destructible.prototype.forgivable = function () {
-    var vargs = []
-    vargs.push.apply(vargs, arguments)
-    return this._monitor('monitor', true, true, vargs)
+    _setResult (key, result) {
+        if (result !== (void(0))) {
+            if (Array.isArray(key)) {
+                let iterator = this._results
+                const path = key.slice()
+                while (path.length != 1) {
+                    if (!(path[0] in iterator)) {
+                        iterator[path[0]] = {}
+                    }
+                    iterator = iterator[path[0]]
+                    path.shift()
+                }
+                iterator[path[0]] = result
+            } else {
+                this._results[key] = result
+            }
+        }
+    }
+
+    async _await (ephemeral, method, key, operation) {
+        const wait = { module: 'destructible', method, ephemeral, key }
+        this.waiting.push(wait)
+        try {
+            try {
+                this._setResult(key, await operation)
+            } finally {
+                this.waiting.splice(this.waiting.indexOf(wait), 1)
+            }
+            if (!ephemeral) {
+                this._destroy(null, context)
+            }
+        } catch (error) {
+            this._destroy(error, context)
+        } finally {
+            this._complete()
+        }
+    }
+
+    async _awaitBlock (destructible, ephemeral, key, promise) {
+        // Add a waiting entry for the initialization block. If we expire
+        // before the block completes the blcok wait will be reported in a
+        // scram type error.
+        const wait = {
+            module: 'destructible',
+            method: 'block',
+            ephemeral: ephemeral,
+            parentKey: this.key,
+            key: key
+        }
+        destructible.waiting.push(wait)
+        try {
+            await promise
+        } catch (error) {
+            // User will have a copy.
+        } finally {
+            destructible.waiting.splice(destructible.waiting.indexOf(wait), 1)
+            destructible._complete()
+        }
+    }
+
+    _monitor (ephemeral, vargs) {
+        // Ephemeral destructible children can set a scram timeout.
+        const timeout = ephemeral && typeof vargs[0] == 'number' ? vargs.shift() : Infinity
+        const key = vargs.shift()
+        const operation = vargs.shift()
+        if (operation instanceof Promise) {
+            this._await(ephemeral, 'promise', key, operation)
+            if (vargs.length != 0) {
+                return this.destruct(vargs.shift())
+            }
+        } else {
+            // Create the child destructible.
+            const destructible = new Destructible(timeout, key)
+
+            // Destroy the child destructible when we are destroyed.
+            const destruct = this.destruct(() => destructible.destroy())
+            destructible.destruct(() => this.cancel(destruct))
+
+            // If the child is ephemeral, only destory the parent on error,
+            // otherwise, destroy the parent when the child is destroyed.
+            if (ephemeral) {
+                destructible._errored.await(() => this._destroy(null, { key, ephemeral }))
+            } else {
+                destructible.destruct(() => this.destroy_(null, { key, ephemeral }))
+            }
+
+            // Scram the child destructible if we are scrammed.
+            const scram = this._expired.await(() => destructible._expired.unlatch())
+            destructible._expired.await(() => this._expired.cancel(scram))
+
+            // Monitor our new destructible as child of this destructible.
+            this._await(ephemeral, 'block', key, destructible.promise)
+
+            // Run the initialization block and then remove our waiting entry
+            // and check for completion.
+            const result = operation.call(null, destructible)
+            if (result instanceof Promise) {
+                this._awaitBlock(destructible, ephemeral, key, result)
+            }
+            return result
+        }
+    }
+
+    // Monitor an operation that lasts the lifetime of the `Destructible`. When
+    // the promise resolves or rejects we perform an orderly shutdown of the
+    // `Destructible`.
+    durable (...vargs) {
+        return this._monitor(false, vargs)
+    }
+
+    // Monitor an operation that does not  last the lifetime of the
+    // `Destructible`. Only when the promise rejects do we perform an orderly
+    // shutdown of the `Destructible`.
+    ephemeral (...vargs) {
+        return this._monitor(true, vargs)
+    }
 }
 
 module.exports = Destructible

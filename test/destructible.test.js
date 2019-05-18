@@ -1,7 +1,7 @@
 describe('destructible', () => {
     const assert = require('assert')
-    const Destructible = require('../es6')
-    const Future = require('signal/future')
+    const Destructible = require('..')
+    const Future = require('prospective/future')
     it('can be constructed', async () => {
         const destructible = new Destructible('main')
         destructible.destroy()
