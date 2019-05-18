@@ -41,10 +41,9 @@ class Destructible {
     }
 
     destruct (f) {
-        if (!~this._destructors.indexOf(f)) {
-            this._destructors.push(f)
-        }
-        return f
+        const destructor = () => f()
+        this._destructors.push(destructor)
+        return destructor
     }
 
     clear (f) {
