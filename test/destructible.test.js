@@ -82,4 +82,17 @@ describe('destructible', () => {
         }
         await destructible.promise
     })
+    it('can catch an error from a monitored promise', async () => {
+        const test = []
+        const destructible = new Destructible('main')
+        destructible.durable('error', (async () => { throw new Error('thrown') })())
+        try {
+            await destructible.promise
+        } catch (error) {
+            console.log(error.stack)
+            test.push(error.message)
+        } finally {
+            destructible.destroy()
+        }
+    })
 })

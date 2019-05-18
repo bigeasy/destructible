@@ -66,13 +66,13 @@ class Destructible {
 
     _return () {
         if (this.waiting.length != 0) {
-            this._completed.resolve(new Destructor.Error('scrammed', this._errors, {
+            this._completed.resolve(new Destructible.Error('scrammed', this._errors, {
                 destructible: this.key,
                 waiting: this.waiting.slice(),
                 context: this.context
             }))
         } else if (this._errors.length != 0) {
-            this._completed.resolve(new Destructor.Error('error', this._errors, {
+            this._completed.resolve(new Destructible.Error('error', this._errors, {
                 key: this.key,
                 waiting: this.waiting.slice(),
                 context: this.context
@@ -167,10 +167,11 @@ class Destructible {
             if (!ephemeral) {
                 this._destroy({ method, key, ephemeral })
             }
-        } catch (error) {
-            this._destroy({ method, key, ephemeral }, error)
-        } finally {
             this._complete()
+        } catch (error) {
+            console.log('>>>', error.stack)
+            console.log('>>>', this.waiting.length)
+            this._destroy({ method, key, ephemeral }, error)
         }
     }
 
