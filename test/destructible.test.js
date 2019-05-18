@@ -112,7 +112,21 @@ describe('destructible', () => {
         try {
             await destructible.promise
         } catch (error) {
+            console.log(error.stack)
             test.push(error.causes[0].causes[0].message)
+        }
+        assert.deepStrictEqual(test, [ 'thrown' ], 'catch')
+    })
+    it('can catch destructor errors', async () => {
+        const test = []
+        const destructible = new Destructible(10000, 'main')
+        destructible.destruct(() => { throw new Error('thrown') })
+        destructible.destroy()
+        try {
+            await destructible.promise
+        } catch (error) {
+            console.log(error.stack)
+            test.push(error.causes[0].message)
         }
         assert.deepStrictEqual(test, [ 'thrown' ], 'catch')
     })
