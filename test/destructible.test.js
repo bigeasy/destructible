@@ -130,4 +130,35 @@ describe('destructible', () => {
         }
         assert.deepStrictEqual(test, [ 'thrown' ], 'catch')
     })
+    it('can scram', async () => {
+        const test = []
+        const destructible = new Destructible(50, 'main')
+        let _resolve = null
+        destructible.durable('unresolved', new Promise(resolve => _resolve = resolve))
+        destructible.destroy()
+        try {
+            await destructible.promise
+        } catch (error) {
+            console.log(error.stack)
+            test.push(error.label)
+        }
+        assert.deepStrictEqual(test, [ 'scrammed' ], 'catch')
+        _resolve()
+    })
+    it('can scram a block', async () => {
+        const test = []
+        const destructible = new Destructible(50, 'main')
+        let _resolve = null
+        destructible.durable('parent', (destructible) => {
+            destructible.durable('unresolved', new Promise(resolve => _resolve = resolve))
+        })
+        destructible.destroy()
+        try {
+            await destructible.promise
+        } catch (error) {
+            console.log(error.stack)
+            test.push(/^scrammed$/m.test(error.causes[0].message))
+        }
+        assert.deepStrictEqual(test, [ true ], 'catch')
+    })
 })

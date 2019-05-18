@@ -107,6 +107,7 @@ class Destructible {
                     this._expired.await(() => this._scramTimer.clear())
                     await timer
                     this._expired.unlatch()
+                    await new Promise(resolve => setImmediate(resolve))
                 } else {
                     const future = new Future
                     this._expired.await(future.resolve.bind(future))
