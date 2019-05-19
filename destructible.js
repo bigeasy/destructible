@@ -197,7 +197,6 @@ class Destructible {
 
     _monitor (ephemeral, vargs) {
         // Ephemeral destructible children can set a scram timeout.
-        const timeout = ephemeral && typeof vargs[0] == 'number' ? vargs.shift() : Infinity
         const key = vargs.shift()
         const operation = vargs.shift()
         if (operation instanceof Promise) {
@@ -206,6 +205,7 @@ class Destructible {
                 return this.destruct(vargs.shift())
             }
         } else {
+            const timeout = ephemeral && typeof vargs[0] == 'number' ? vargs.shift() : Infinity
             // Create the child destructible.
             const destructible = new Destructible(timeout, key)
 

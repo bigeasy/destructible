@@ -161,4 +161,20 @@ describe('destructible', () => {
         }
         assert.deepStrictEqual(test, [ true ], 'catch')
     })
+    it('can set a timeout for an ephemeral block', async () => {
+        const test = []
+        const destructible = new Destructible('main')
+        let _resolve = null
+        destructible.ephemeral('parent', (destructible) => {
+            destructible.durable('unresolved', new Promise(resolve => _resolve = resolve))
+            destructible.destroy()
+        }, 50)
+        try {
+            await destructible.promise
+        } catch (error) {
+            console.log(error.stack)
+            test.push(/^scrammed$/m.test(error.causes[0].message))
+        }
+        assert.deepStrictEqual(test, [ true ], 'catch')
+    })
 })
