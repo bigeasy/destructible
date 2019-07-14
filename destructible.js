@@ -18,7 +18,7 @@ class Destructor {
     // Invoke the given destructor `f` if the parent `Destructible` is
     // destroyed.
     destruct (f) {
-        this._destructors.push(this._destructible.destruct(() => f()))
+        this._destructors.push(this._destructible.destruct(f))
     }
 
     // Clear all the destructors registered by this `Destructor` instance.
