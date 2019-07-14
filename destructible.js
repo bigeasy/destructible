@@ -285,9 +285,8 @@ class Destructible {
         }
     }
 
-    _monitor (ephemeral, vargs) {
+    _monitor (ephemeral, key, vargs) {
         // Ephemeral destructible children can set a scram timeout.
-        const key = vargs.shift()
         const operation = vargs.shift()
         if (operation instanceof Promise) {
             this._awaitPromise(ephemeral, 'promise', key, operation)
@@ -332,8 +331,8 @@ class Destructible {
     // `Destructible`.
 
     //
-    durable (...vargs) {
-        return this._monitor(false, vargs)
+    durable (key, ...vargs) {
+        return this._monitor(false, key, vargs)
     }
 
     // Monitor an operation that does not  last the lifetime of the
@@ -341,8 +340,8 @@ class Destructible {
     // shutdown of the `Destructible`.
 
     //
-    ephemeral (...vargs) {
-        return this._monitor(true, vargs)
+    ephemeral (key, ...vargs) {
+        return this._monitor(true, key, vargs)
     }
 }
 
