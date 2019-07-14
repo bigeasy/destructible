@@ -293,7 +293,7 @@ class Destructible {
             if (vargs.length != 0) {
                 return this.destruct(vargs.shift())
             }
-        } else {
+        } else if (typeof operation == 'function') {
             const timeout = ephemeral && typeof vargs[0] == 'number' ? vargs.shift() : Infinity
             // Create the child destructible.
             const destructible = new Destructible(timeout, key)
@@ -323,6 +323,8 @@ class Destructible {
                 this._awaitBlock(destructible, ephemeral, key, result)
             }
             return result
+        } else {
+            return this._monitor(ephemeral, key, [ destructible => destructible, operation ])
         }
     }
 

@@ -177,4 +177,11 @@ describe('destructible', () => {
         }
         assert.deepStrictEqual(test, [ true ], 'catch')
     })
+    it('can return a sub-destructible', async () => {
+        const test = []
+        const destructible = new Destructible('main')
+        const subDestructible = destructible.durable('child')
+        subDestructible.destroy()
+        assert.deepStrictEqual(await destructible.promise, { child: {} }, 'child')
+    })
 })
