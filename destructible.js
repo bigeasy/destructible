@@ -3,22 +3,68 @@ const Latch = require('prospective/latch')
 const Future = require('prospective/future')
 const Interrupt = require('interrupt')
 
+// A helper class that will create a destructor object that will gather items
+// that require destruction during an operation, but clear the items if the
+// operation successfully completes.
+
+//
 class Destructor {
+    // Constructor called internally with the parent `Destructible`.
     constructor (destructible) {
         this._destructors = []
         this._destructible = destructible
     }
 
+    // Invoke the given destructor `f` if the parent `Destructible` is
+    // destroyed.
     destruct (f) {
         this._destructors.push(this._destructible.destruct(() => f()))
     }
 
+    // Clear all the destructors registered by this `Destructor` instance.
     clear () {
         this._destructors.splice(0).forEach(f => this._destructible.clear(f))
     }
 }
 
+// `Destructible` manages multiple concurrent `async` JavaScript functions and
+// registers functions for cancellation. It creates a dependency tree for
+// destructors. A root `Destructible` instance can be used to create
+// sub-`Destructible` instances that will destruct when the root destructs.
+// sub-`Destructible` instances can create further sub-`Destructible` instances
+// and so on.
+//
+// `async` functions are monitored by passing their `Promise`s to either
+// `Destructible.durable()` if the end of the function should indicate the end
+// of the program or `Destructible.ephemeral()` if the end of the function
+// should not indicate the end of the program. `Destructible.ephemeral()` acts
+// as a boundary. Any sub-`Destructible`s that are durable will trigger the
+// destruction of the sub-tree that is rooted at the first ancestor that is
+// ephemeral or at the top most `Destructible` if none exist.
+//
+// For example, you can use an ephemeral `Destructible` to monitor an open
+// socket and shut down all `async` functions that are participating in the
+// processing of that socket. An `async` function may return because it has
+// reached the end-of-stream while reading the socket and then trigger the
+// shutdown of the writing end of the socket and any other functions
+// participating in the processing of the socket input. It will not shutdown any
+// other ephemeral trees processing other sockets.
+//
+// However, in this example, if you destroy the root `Destructible` it will
+// trigger the shutdown of all sub-`Destructible`s thereby destroying all the
+// ephemeral sub-`Destructible`s that are processing sockets.
+//
+// To cancel your `async` functions you register destructors using the
+// `Destructible.destruct()` function. Destructors are run when you call
+// `Destructible.destroy()`.
+
+//
 class Destructible {
+    // `new Destructible([ scram ], key, ...context)` constructs a new
+    // `Destructible` that will scram after the given `scram` timeout or the
+    // default `1000` milliseconds if not given. The key is used to report the
+    // `Destructible` in the stack trace on error or scram. The `context` is
+    // used to provide further context to the error stack trace for debugging.
     constructor (...vargs) {
         this._timeout = typeof vargs[0] == 'number' ? vargs.shift() : 1000
         this.key = vargs.shift()
@@ -36,15 +82,24 @@ class Destructible {
 
         this._results = {}
 
-        this._scramTimer = null
+        this._scramTimer = { clear: () => {} }
     }
 
+    // `destructible.destruct(f)` &mdash; Register a destructor `f` that will be
+    // called when this `Destructible` is destroyed.
+
+    //
     destruct (f) {
         const destructor = () => f()
         this._destructors.push(destructor)
         return destructor
     }
 
+    // `destructible.destruct(f)` &mdash; Remove the registered destructor `f`
+    // from the list of destructors to call when this `Destructible` is
+    // destroyed.
+
+    //
     clear (f) {
         const index = this._destructors.indexOf(f)
         if (~index) {
@@ -53,10 +108,21 @@ class Destructible {
         return null
     }
 
+    // `const destructor = destructible.destructor()` &mdash; Create a
+    // `Destructor` class that can be used to register a group of destructors
+    // and clear them all at once. Great for working with `try`/`finally` blocks
+    // &mdash; syntactically easier than creating named functions.
+
+    //
     destructor () {
         return new Destructor(this)
     }
 
+    //
+
+    // Internal method for processing the return value when either all monitored
+    // promises have resolved or the shutdown failed to complete before the
+    // scram timeout.
     _return () {
         if (this.waiting.length != 0) {
             this._completed.resolve(new Destructible.Error('scrammed', this._errors, {
@@ -76,6 +142,10 @@ class Destructible {
     }
 
     async _fireAndForgetDestroy (context, error) {
+        // We're going to say that the first error reported is a root cause of
+        // the end of the `Destructible` but I don't see where I'm actually ever
+        // using this. TODO Might be better to report an error with the order in
+        // which it was reported.
         if (this.cause == null) {
             this.cause = {
                 module: 'destructible',
@@ -85,11 +155,14 @@ class Destructible {
                 monitorKey: context.key || null
             }
         }
+        // If there is an error, push the error onto the list of errors.
         if (error != null) {
             this._errors.push([ error, context ])
         }
+        // If we've not yet been destroyed, let's start the shutdown.
         if (!this.destroyed) {
             this.destroyed = true
+            // Run our destructors.
             while (this._destructors.length != 0) {
                 try {
                     await this._destructors.shift().call(null)
@@ -99,6 +172,8 @@ class Destructible {
                     } ])
                 }
             }
+            // If we're complete, we can resolve the `Destructible.promise`,
+            // otherwise we need to start and wait for the scram timer.
             if (this._complete()) {
                 this._return()
             } else {
@@ -118,14 +193,29 @@ class Destructible {
        }
     }
 
+    //
+
+    // Internal destroy launches the `async` fire and forget destroy. Called
+    // from some arrow functions so we wrap to swallow the promise.
     _destroy (context, error) {
         this._fireAndForgetDestroy(context, error)
     }
 
+    // `destructible.destroy()` &mdash; Destroy the `Destructible` and
+    // ultimately destroy every `Destructible` in the tree rooted by the upper
+    // most ephemeral `Destructible` or the root Destructible if no ephemeral
+    // `Destructible` exists.
+
+    //
     destroy () {
         this._fireAndForgetDestroy({ method: 'destroy' })
     }
 
+    //
+
+    // Check to see if this `Destructible` has completed its shutdown
+    // if it is destroyed. If the destructible has completed shutdown stop the
+    // scram timer and toggle the scram timer latch.
     _complete () {
         if (this.destroyed && this.waiting.length == 0) {
             this._expired.unlatch()
@@ -175,7 +265,7 @@ class Destructible {
 
     async _awaitBlock (destructible, ephemeral, key, promise) {
         // Add a waiting entry for the initialization block. If we expire
-        // before the block completes the blcok wait will be reported in a
+        // before the block completes the block wait will be reported in a
         // scram type error.
         const wait = {
             module: 'destructible',
@@ -214,7 +304,7 @@ class Destructible {
             destructible.destruct(() => this.clear(destruct))
 
             const method = 'block'
-            // If the child is ephemeral, only destory the parent on error,
+            // If the child is ephemeral, only destroy the parent on error,
             // otherwise, destroy the parent when the child is destroyed.
             if (!ephemeral) {
                 destructible.destruct(() => this._destroy({ method, key, ephemeral }))
@@ -240,6 +330,8 @@ class Destructible {
     // Monitor an operation that lasts the lifetime of the `Destructible`. When
     // the promise resolves or rejects we perform an orderly shutdown of the
     // `Destructible`.
+
+    //
     durable (...vargs) {
         return this._monitor(false, vargs)
     }
@@ -247,6 +339,8 @@ class Destructible {
     // Monitor an operation that does not  last the lifetime of the
     // `Destructible`. Only when the promise rejects do we perform an orderly
     // shutdown of the `Destructible`.
+
+    //
     ephemeral (...vargs) {
         return this._monitor(true, vargs)
     }
