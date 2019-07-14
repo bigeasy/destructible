@@ -294,7 +294,18 @@ class Destructible {
                 return this.destruct(vargs.shift())
             }
         } else if (typeof operation == 'function') {
-            const timeout = ephemeral && typeof vargs[0] == 'number' ? vargs.shift() : Infinity
+            const destructible = this._monitor(ephemeral, key, vargs)
+            // Run the initialization block and then remove our waiting entry
+            // and check for completion.
+            const result = operation.call(null, destructible)
+            if (result instanceof Promise) {
+                this._awaitBlock(destructible, ephemeral, key, result)
+            }
+            return result
+        } else {
+            // Ephemeral sub-destructibles can have their own timeout and scram
+            // timer, durable sub-destructibles are scrammed by their root.
+            const timeout = ephemeral && typeof operation == 'number' ? operation : Infinity
             // Create the child destructible.
             const destructible = new Destructible(timeout, key)
 
@@ -316,15 +327,7 @@ class Destructible {
             // Monitor our new destructible as child of this destructible.
             this._awaitPromise(ephemeral, 'block', key, destructible.promise)
 
-            // Run the initialization block and then remove our waiting entry
-            // and check for completion.
-            const result = operation.call(null, destructible)
-            if (result instanceof Promise) {
-                this._awaitBlock(destructible, ephemeral, key, result)
-            }
-            return result
-        } else {
-            return this._monitor(ephemeral, key, [ destructible => destructible, operation ])
+            return destructible
         }
     }
 
