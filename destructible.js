@@ -82,7 +82,7 @@ class Destructible {
 
         this._results = {}
 
-        this._scramTimer = { clear: () => {} }
+        this._scramTimer = null
     }
 
     // `destructible.destruct(f)` &mdash; Register a destructor `f` that will be
