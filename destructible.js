@@ -294,6 +294,7 @@ class Destructible {
                 return this.destruct(vargs.shift())
             }
         } else if (typeof operation == 'function') {
+            throw new Error('called')
             const destructible = this._monitor(ephemeral, key, vargs)
             // Run the initialization block and then remove our waiting entry
             // and check for completion.
