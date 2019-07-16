@@ -190,9 +190,7 @@ class Destructible {
                     this._expired.unlatch()
                     await new Promise(resolve => setImmediate(resolve))
                 } else {
-                    const future = new Future
-                    this._expired.await(future.resolve.bind(future))
-                    await future.promise
+                    await new Promise(resolve => this._expired.await(resolve))
                 }
                 this._return()
             }
@@ -297,6 +295,8 @@ class Destructible {
 
             // Scram the child destructible if we are scrammed.
             const scram = this._expired.await(() => destructible._expired.unlatch())
+            // Note that upon expired we are about to set the promise, but we
+            // don't wait on the promise itself because it might reject.
             destructible._expired.await(() => this._expired.cancel(scram))
 
             // Monitor our new destructible as child of this destructible.
