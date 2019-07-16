@@ -184,9 +184,9 @@ class Destructible {
                 this._return()
             } else {
                 if (this._timeout != Infinity) {
-                    const timer = (this._scramTimer = delay(this._timeout))
+                    this._scramTimer = delay(this._timeout)
                     this._expired.await(() => this._scramTimer.clear())
-                    await timer
+                    await this._scramTimer
                     this._expired.unlatch()
                     await new Promise(resolve => setImmediate(resolve))
                 } else {
