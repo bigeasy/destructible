@@ -1,4 +1,10 @@
+// Node.js API.
+const assert = require('assert')
+
+// Timers wrapped in promises.
 const delay = require('delay')
+
+// `async`/`await` utilities, although `Latch` isn't really.
 const Latch = require('prospective/latch')
 const Future = require('prospective/future')
 const Interrupt = require('interrupt')
@@ -263,50 +269,18 @@ class Destructible {
         }
     }
 
-    async _awaitBlock (destructible, ephemeral, key, promise) {
-        // Add a waiting entry for the initialization block. If we expire
-        // before the block completes the block wait will be reported in a
-        // scram type error.
-        const wait = {
-            module: 'destructible',
-            method: 'block',
-            ephemeral: ephemeral,
-            parentKey: this.key,
-            key: key
-        }
-        destructible.waiting.push(wait)
-        try {
-            await promise
-        } catch (error) {
-            // User will have a copy.
-        } finally {
-            destructible.waiting.splice(destructible.waiting.indexOf(wait), 1)
-            destructible._complete()
-        }
-    }
-
     _monitor (ephemeral, key, vargs) {
         // Ephemeral destructible children can set a scram timeout.
-        const operation = vargs.shift()
-        if (operation instanceof Promise) {
-            this._awaitPromise(ephemeral, 'promise', key, operation)
+        assert(typeof vargs[0] != 'function')
+        if (vargs[0] instanceof Promise) {
+            this._awaitPromise(ephemeral, 'promise', key, vargs.shift())
             if (vargs.length != 0) {
                 return this.destruct(vargs.shift())
             }
-        } else if (typeof operation == 'function') {
-            throw new Error('called')
-            const destructible = this._monitor(ephemeral, key, vargs)
-            // Run the initialization block and then remove our waiting entry
-            // and check for completion.
-            const result = operation.call(null, destructible)
-            if (result instanceof Promise) {
-                this._awaitBlock(destructible, ephemeral, key, result)
-            }
-            return result
         } else {
             // Ephemeral sub-destructibles can have their own timeout and scram
             // timer, durable sub-destructibles are scrammed by their root.
-            const timeout = ephemeral && typeof operation == 'number' ? operation : Infinity
+            const timeout = ephemeral && typeof vargs[0] == 'number' ? vargs.shift() : Infinity
             // Create the child destructible.
             const destructible = new Destructible(timeout, key)
 
