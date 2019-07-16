@@ -150,7 +150,14 @@ class Destructible {
         }
     }
 
-    async _fireAndForgetDestroy (context, error) {
+    // This is our internal destroy. We run it as an async function which
+    // creates a new strand of execution. Nowhere do we wait on the promise
+    // returned by executing this function nor should we. It is fire and forget.
+    // Hung or rejected child promises are reported through an `Interrupt`
+    // generated error through the `Destructible.promise`.
+
+    //
+    async _destroy (context, error) {
         // We're going to say that the first error reported is a root cause of
         // the end of the `Destructible` but I don't see where I'm actually ever
         // using this. TODO Might be better to report an error with the order in
@@ -200,14 +207,6 @@ class Destructible {
        }
     }
 
-    //
-
-    // Internal destroy launches the `async` fire and forget destroy. Called
-    // from some arrow functions so we wrap to swallow the promise.
-    _destroy (context, error) {
-        this._fireAndForgetDestroy(context, error)
-    }
-
     // `destructible.destroy()` &mdash; Destroy the `Destructible` and
     // ultimately destroy every `Destructible` in the tree rooted by the upper
     // most ephemeral `Destructible` or the root Destructible if no ephemeral
@@ -215,7 +214,7 @@ class Destructible {
 
     //
     destroy () {
-        this._fireAndForgetDestroy({ method: 'destroy' })
+        this._destroy({ method: 'destroy' })
     }
 
     //
@@ -291,9 +290,13 @@ class Destructible {
 
             const method = 'block'
             // If the child is ephemeral, only destroy the parent on error,
-            // otherwise, destroy the parent when the child is destroyed.
+            // otherwise, destroy the parent when the child is destroyed. Do not
+            // remove the curly braces. We do not want `destruct` to wait on the
+            // `Promise` returned by `_destroy`.
             if (!ephemeral) {
-                destructible.destruct(() => this._destroy({ method, key, ephemeral }))
+                destructible.destruct(() => {
+                    this._destroy({ method, key, ephemeral })
+                })
             }
 
             // Scram the child destructible if we are scrammed.
