@@ -4,9 +4,12 @@ const assert = require('assert')
 // Timers wrapped in promises.
 const delay = require('delay')
 
-// `async`/`await` utilities, although `Latch` isn't really.
+// `async`/`await` utilities, although `Latch` isn't really. `Latch` is a
+// callback list that can be canceled. Should just convert Signal to ES6 and use
+// that instead.
 const Latch = require('prospective/latch')
 const Future = require('prospective/future')
+
 const Interrupt = require('interrupt')
 
 // A helper class that will create a destructor object that will gather items
