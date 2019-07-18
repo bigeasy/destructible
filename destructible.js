@@ -4,11 +4,10 @@ const assert = require('assert')
 // Timers wrapped in promises.
 const delay = require('delay')
 
-// `async`/`await` utilities, although `Latch` isn't really. `Latch` is a
-// callback list that can be canceled. Should just convert Signal to ES6 and use
-// that instead.
-const Latch = require('prospective/latch')
+// `async`/`await` utilities.
 const Future = require('prospective/future')
+
+const Signal = require('signal')
 
 const Interrupt = require('interrupt')
 
@@ -85,7 +84,7 @@ class Destructible {
         this._errors = []
 
         this._destructors = []
-        this._expired = new Latch
+        this._expired = new Signal
         this._completed = new Future
         this.promise = this._completed.promise
 
@@ -195,12 +194,12 @@ class Destructible {
             } else {
                 if (this._timeout != Infinity) {
                     this._scramTimer = delay(this._timeout)
-                    this._expired.await(() => this._scramTimer.clear())
+                    this._expired.wait(() => this._scramTimer.clear())
                     await this._scramTimer
                     this._expired.unlatch()
                     await new Promise(resolve => setImmediate(resolve))
                 } else {
-                    await new Promise(resolve => this._expired.await(resolve))
+                    await new Promise(resolve => this._expired.wait(resolve))
                 }
                 this._return()
             }
@@ -300,10 +299,10 @@ class Destructible {
             }
 
             // Scram the child destructible if we are scrammed.
-            const scram = this._expired.await(() => destructible._expired.unlatch())
+            const scram = this._expired.wait(() => destructible._expired.unlatch())
             // Note that upon expired we are about to set the promise, but we
             // don't wait on the promise itself because it might reject.
-            destructible._expired.await(() => this._expired.cancel(scram))
+            destructible._expired.wait(() => this._expired.cancel(scram))
 
             // Monitor our new destructible as child of this destructible.
             this._awaitPromise(ephemeral, 'block', key, destructible.promise)
@@ -329,8 +328,8 @@ class Destructible {
     ephemeral (key, ...vargs) {
         return this._monitor(true, key, vargs)
     }
-}
 
-Destructible.Error = Interrupt.create('Destructible.Error')
+    static Error = Interrupt.create('Destructible.Error')
+}
 
 module.exports = Destructible
