@@ -7,7 +7,7 @@
 
     "keywords":
     [
-                            "cadence", "evented"
+                            "async", "promises", "cancellation"
     ],
     "author":               "Alan Gutierrez <alan@prettyrobots.com>",
     "homepage":             "http://bigeasy.github.com/destructible",
