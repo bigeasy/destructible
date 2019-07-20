@@ -7,8 +7,10 @@ const delay = require('delay')
 // `async`/`await` utilities.
 const Future = require('prospective/future')
 
+// Cancelable evented semaphore.
 const Signal = require('signal')
 
+// Exceptions that you can catch by type.
 const Interrupt = require('interrupt')
 
 // A helper class that will create a destructor object that will gather items
@@ -35,12 +37,43 @@ class Destructor {
     }
 }
 
-// `Destructible` manages multiple concurrent `async` JavaScript functions and
-// registers functions for cancellation. It creates a dependency tree for
-// destructors. A root `Destructible` instance can be used to create
-// sub-`Destructible` instances that will destruct when the root destructs.
-// sub-`Destructible` instances can create further sub-`Destructible` instances
-// and so on.
+// `Destructible` awaits multiple concurrent JavaScript `Promise`s as
+// implemented by the JavaScript `Promise` class. Additionally, `Destructible`
+// registers destructor functions that will cancel the `Promise`s it is
+// awaiting. `Destructible` will allow you to stop all the awaited `Promise`s at
+// once and return. Unlike `Promise.all`, `Destructible` will ensure that all
+// the promises return when any `Promise` rejects.
+//
+// TODO Introduce the term "`Promise` group."
+//
+// When you cancel a `Destructible` it will fire all the destructor functions
+// you registered to cancel all the `Promises`s you registered. You can use
+// cancellation to ensure that all your `Promise`s resolve when you exit your
+// application.
+//
+// Cancellation can also occur automatically when a `Promise` in the group
+// resolves. This is done by registering the `Promise` as a durable `Promise`,
+// meaning that it should run for the duration of the `Promise` group. If it
+// resolve it means that the `Promise` group has finished it's task and all the
+// other `Promises` should resolve shortly.
+//
+// You await the resolution of the collected `Promise`s in a `Destructible` by
+// awaiting the resolution of the `Destructible.promise` property which itself a
+// `Promise`. If one or more of the the awaited promises rejects,
+// `Destructible.promise` will reject with an `Error` that collects the
+// rejections as causes and reports them in a nested heirarchy with their stack
+// traces so you can see all the errors that interrupted your application, not
+// just the first one raised.
+//
+// You can group your `Promise`s by a specific application task &mdash; like
+// reading and writing to an open socket &mdash; by creating
+// sub-`Destructible`s. You can then cancel a sub-`Destructible` without
+// cancelling it's parent.
+//
+// It creates a dependency tree for destructors. A root `Destructible` instance
+// can be used to create sub-`Destructible` instances that will destruct when
+// the root destructs. sub-`Destructible` instances can create further
+// sub-`Destructible` instances and so on.
 //
 // `async` functions are monitored by passing their `Promise`s to either
 // `Destructible.durable()` if the end of the function should indicate the end
