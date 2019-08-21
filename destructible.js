@@ -167,15 +167,15 @@ class Destructible {
     _return () {
         if (this.waiting.length != 0) {
             this._completed.resolve(new Destructible.Error('scrammed', this._errors, {
-                destructible: this.key,
-                waiting: this.waiting.slice(),
-                context: this.context
+                key: this.key,
+                context: this.context,
+                waiting: this.waiting.slice()
             }))
         } else if (this._errors.length != 0) {
             this._completed.resolve(new Destructible.Error('error', this._errors, {
                 key: this.key,
-                waiting: this.waiting.slice(),
-                context: this.context
+                context: this.context,
+                waiting: this.waiting.slice()
             }))
         } else {
             this._completed.resolve(null, this._results)
@@ -196,8 +196,7 @@ class Destructible {
         // which it was reported.
         if (this.cause == null) {
             this.cause = {
-                module: 'destructible',
-                method: context.method,
+                method: 'await',
                 ephemeral: context.ephemeral || null,
                 key: this.key,
                 monitorKey: context.key || null
@@ -205,7 +204,7 @@ class Destructible {
         }
         // If there is an error, push the error onto the list of errors.
         if (error != null) {
-            this._errors.push([ error, context ])
+            this._errors.push([ error, { method: 'await', ...context } ])
         }
         // If we've not yet been destroyed, let's start the shutdown.
         if (!this.destroyed) {
@@ -215,9 +214,7 @@ class Destructible {
                 try {
                     await this._destructors.shift().call(null)
                 } catch (error) {
-                    this._errors.push([ error, {
-                        method: 'destruct', key: this.key
-                    } ])
+                    this._errors.push([ error, { method: 'destruct', key: this.key } ])
                 }
             }
             // If we're complete, we can resolve the `Destructible.promise`,
@@ -246,7 +243,7 @@ class Destructible {
 
     //
     destroy () {
-        this._destroy({ method: 'destroy' })
+        this._destroy({})
     }
 
     //
@@ -282,8 +279,8 @@ class Destructible {
         }
     }
 
-    async _awaitPromise (ephemeral, method, key, operation) {
-        const wait = { module: 'destructible', method, ephemeral, key }
+    async _awaitPromise (ephemeral, key, operation) {
+        const wait = { ephemeral, key }
         this.waiting.push(wait)
         try {
             try {
@@ -292,10 +289,10 @@ class Destructible {
                 this.waiting.splice(this.waiting.indexOf(wait), 1)
             }
             if (!ephemeral) {
-                this._destroy({ method, key, ephemeral })
+                this._destroy({ key, ephemeral })
             }
         } catch (error) {
-            this._destroy({ method, key, ephemeral }, error)
+            this._destroy({ key, ephemeral }, error)
         } finally {
             this._complete()
         }
@@ -305,7 +302,7 @@ class Destructible {
         // Ephemeral destructible children can set a scram timeout.
         assert(typeof vargs[0] != 'function')
         if (vargs[0] instanceof Promise) {
-            this._awaitPromise(ephemeral, 'promise', key, vargs.shift())
+            this._awaitPromise(ephemeral, key, vargs.shift())
             if (vargs.length != 0) {
                 return this.destruct(vargs.shift())
             }
@@ -320,14 +317,13 @@ class Destructible {
             const destruct = this.destruct(() => destructible.destroy())
             destructible.destruct(() => this.clear(destruct))
 
-            const method = 'block'
             // If the child is ephemeral, only destroy the parent on error,
             // otherwise, destroy the parent when the child is destroyed. Do not
             // remove the curly braces. We do not want `destruct` to wait on the
             // `Promise` returned by `_destroy`.
             if (!ephemeral) {
                 destructible.destruct(() => {
-                    this._destroy({ method, key, ephemeral })
+                    this._destroy({ key, ephemeral })
                 })
             }
 
@@ -338,7 +334,7 @@ class Destructible {
             destructible._expired.wait(() => this._expired.cancel(scram))
 
             // Monitor our new destructible as child of this destructible.
-            this._awaitPromise(ephemeral, 'block', key, destructible.promise)
+            this._awaitPromise(ephemeral, key, destructible.promise)
 
             return destructible
         }
