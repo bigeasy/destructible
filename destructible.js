@@ -222,14 +222,53 @@ class Destructible {
             if (this._complete()) {
                 this._return()
             } else {
+                // When this was an error-first callback library, scram was
+                // synchronous and the chain of scrams implemented as callbacks
+                // stored in a Signal object, which we can just imagine is an
+                // array of callbacks all waiting for a common response. Here
+                // we'd add ourselves to the end of our own array of callbacks
+                // knowing that all our children will get the scram before we
+                // do. When a child reports a scrammed exception on a waiting
+                // callback, the parent of that child get that exception as a
+                // resolution of the child &mdash; instead of reporting the
+                // child as waiting, it will report an error, the cause of that
+                // error will be the child's scram exception.
+                //
+                // Now that we're using Promises we can't just fire scram and
+                // expect all children to either raise scram exception or
+                // propagate a scram exception because the destory operations
+                // waiting on the child's resolution will not execute until the
+                // next tick. Now we need to wake from our scram timer or else
+                // wake from waiting on the expired message to and then wait
+                // again for the parents of our grand children to respond to the
+                // resolution of their children's promises.
+                //
+                // Because the order is next tick, promises, immediate, if we
+                // wait on a promise we're just going to have everyone hop in a
+                // queue and hop out again in the same order before resolving
+                // their promises. When we wait on immediate we create a new
+                // queue where we run in the same order, so that our greatest
+                // grand child will resolve its promise, then its parent will
+                // run later. In the mean time, the child's promise will invoke
+                // the destroy logic because promises preceed immediates.
+                //
+                // As for the double immediate of the root, I can't really wrap
+                // my head around why that is necessary, but it is, and the
+                // point of it all is that this is way to much event-loop magic
+                // for this library. It could be the case that we need three
+                // immediates for a tree of exceptions that is deeper than the
+                // one that exposed the necessity of this logic. We need to make
+                // the waiting on scrammable promises explicit.
                 if (this._timeout != Infinity) {
                     this._scramTimer = delay(this._timeout)
                     this._expired.wait(() => this._scramTimer.clear())
                     await this._scramTimer
                     this._expired.unlatch()
                     await new Promise(resolve => setImmediate(resolve))
+                    await new Promise(resolve => setImmediate(resolve))
                 } else {
                     await new Promise(resolve => this._expired.wait(resolve))
+                    await new Promise(resolve => setImmediate(resolve))
                 }
                 this._return()
             }
@@ -334,7 +373,7 @@ class Destructible {
             destructible._expired.wait(() => this._expired.cancel(scram))
 
             // Monitor our new destructible as child of this destructible.
-            this._awaitPromise(ephemeral, key, destructible.promise)
+            this._awaitPromise(ephemeral, key, destructible.promise, new Future)
 
             return destructible
         }
