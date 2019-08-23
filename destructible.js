@@ -438,7 +438,8 @@ class Destructible {
         return this._monitor(true, key, vargs)
     }
 
-    static Error = Interrupt.create('Destructible.Error')
 }
+
+Destructible.Error = Interrupt.create('Destructible.Error')
 
 module.exports = Destructible
