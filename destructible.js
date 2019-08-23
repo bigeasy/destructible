@@ -354,6 +354,12 @@ class Destructible {
         }
     }
 
+    // Await the promise of a sub-destructible. We know that a sub-destructible
+    // will always resolve due to our scram logic, so we maintain a list of
+    // scrammable futures for the parent to wait for after it has been notified
+    // of a scram timeout. See scram logic above for more details.
+
+    //
     async _awaitScrammable (ephemeral, key, operation) {
         const scrammable = new Future
         this._scrammable.push(scrammable)
@@ -398,7 +404,12 @@ class Destructible {
             // forwarding if the child's `_scram` unlatches. (A `Destructible`
             // will  unlatch`_scram` when it completes normally and no scram is
             // necessary.) Note that we can't use `Promise`s because `then` is
-            // not cancellable, but `Signal.wait()` is.
+            // not cancellable, but `Signal.wait()` is. If we used
+            // `Promise.then`, then a long-running, like a server, would have an
+            // ever growing list of callbacks for a short-term child, like a
+            // socket connection.
+
+            // Propagate scram cancelling propagation if child exits.
             const scram = this._scram.wait(() => destructible._scram.unlatch())
             destructible._scram.wait(() => this._scram.cancel(scram))
 
