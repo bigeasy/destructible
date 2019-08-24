@@ -1,3 +1,14 @@
+## Sat Aug 24 14:14:05 CDT 2019
+
+Otherwise you get an unhandled rejection. That will have a stack trace,
+sometimes, and that's nice, but in those cases where the stack trace is
+truncated, as in a response to a socket becoming ready to read, you're not
+likely to know where in your code this track trace arises.
+
+You'll at least known the strand in which it arose with `Destructible` and that
+is often more than enough to know where to look, since each strand tends to deal
+with one asynchronous object.
+
 ## Wed Dec 19 15:35:26 CST 2018
 
 Diary procedure is to re-read your diary when you return to the project. When
