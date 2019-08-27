@@ -340,7 +340,10 @@ class Destructible {
         this.waiting.push(wait)
         try {
             try {
-                this._setResult(key, await operation)
+                const result = await operation
+                if (!ephemeral) {
+                    this._setResult(key, await result)
+                }
             } finally {
                 this.waiting.splice(this.waiting.indexOf(wait), 1)
             }

@@ -48,7 +48,7 @@ describe('destructible', () => {
         const future = new Future
         sub.durable('future', future.promise, () => future.resolve(null, 1))
         destructible.destroy()
-        assert.deepStrictEqual(await destructible.promise, { child: { future: 1 } }, 'block init')
+        assert.deepStrictEqual(await destructible.promise, {}, 'block init')
     })
     it('can catch an error from a monitored promise', async () => {
         const test = []
