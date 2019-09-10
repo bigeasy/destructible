@@ -375,6 +375,10 @@ class Destructible {
         }
     }
 
+    // **TODO** To implement scrammable, it seems that we want to make the last
+    // argument the scram function instead of a destructor, which is never all
+    // that pleasant to look at anyway, but then we need to have a major version
+    // bump because it breaks the interface in a way that is hard to see.
     _monitor (ephemeral, key, vargs) {
         // Ephemeral destructible children can set a scram timeout.
         assert(typeof vargs[0] != 'function')
@@ -398,6 +402,7 @@ class Destructible {
             // otherwise, destroy the parent when the child is destroyed. Do not
             // remove the curly braces. We do not want `destruct` to wait on the
             // `Promise` returned by `_destroy`.
+            // **TODO** This is a duplicate, it will also fire in `_awaitPromise`.
             if (!ephemeral) {
                 destructible.destruct(() => {
                     this._destroy({ key, ephemeral })
