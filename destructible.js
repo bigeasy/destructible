@@ -119,7 +119,7 @@ class Destructible {
 
         this._destructors = []
         // Yes, we still need `Signal` because `Promise`s are not cancelable.
-        this._scram = new Signal
+        this._scrams = new Signal
         this._completed = new Future
         this.promise = this._completed.promise
 
@@ -273,11 +273,11 @@ class Destructible {
                 // wait for the scram timer of our parent root or ephemeral.
                 if (this._timeout != Infinity) {
                     this._scramTimer = delay(this._timeout)
-                    this._scram.wait(() => this._scramTimer.clear())
+                    this._scrams.wait(() => this._scramTimer.clear())
                     await this._scramTimer
-                    this._scram.unlatch()
+                    this._scrams.unlatch()
                 } else {
-                    await new Promise(resolve => this._scram.wait(resolve))
+                    await new Promise(resolve => this._scrams.wait(resolve))
                 }
 
                 // Wait for any scrammable promises. Reducing the list is
@@ -309,7 +309,7 @@ class Destructible {
     // scram timer and toggle the scram timer latch.
     _complete () {
         if (this.destroyed && this.waiting.length == 0) {
-            this._scram.unlatch()
+            this._scrams.unlatch()
             return true
         } else {
             return false
@@ -369,7 +369,7 @@ class Destructible {
         try {
             await this._awaitPromise(ephemeral, key, operation)
         } finally {
-            this._scram.cancel(scram)
+            this._scrams.cancel(scram)
             this._scrammable.splice(this._scrammable.indexOf(scrammable), 1)
             scrammable.resolve()
         }
@@ -410,8 +410,8 @@ class Destructible {
             }
 
             // Scram the child destructible if we are scrammed. Cancel our scram
-            // forwarding if the child's `_scram` unlatches. (A `Destructible`
-            // will  unlatch`_scram` when it completes normally and no scram is
+            // forwarding if the child's `_scrams` unlatches. (A `Destructible`
+            // will  unlatch`_scrams` when it completes normally and no scram is
             // necessary.) Note that we can't use `Promise`s because `then` is
             // not cancellable, but `Signal.wait()` is. If we used
             // `Promise.then`, then a long-running, like a server, would have an
@@ -419,7 +419,7 @@ class Destructible {
             // socket connection.
 
             // Propagate scram cancelling propagation if child exits.
-            const scram = this._scram.wait(() => destructible._scram.unlatch())
+            const scram = this._scrams.wait(() => destructible._scrams.unlatch())
 
             // Monitor our new destructible as child of this destructible.
             this._awaitScrammable(ephemeral, key, destructible.promise, scram)
