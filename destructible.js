@@ -363,12 +363,13 @@ class Destructible {
     // of a scram timeout. See scram logic above for more details.
 
     //
-    async _awaitScrammable (ephemeral, key, operation) {
+    async _awaitScrammable (ephemeral, key, operation, scram) {
         const scrammable = new Future
         this._scrammable.push(scrammable)
         try {
             await this._awaitPromise(ephemeral, key, operation)
         } finally {
+            this._scram.cancel(scram)
             this._scrammable.splice(this._scrammable.indexOf(scrammable), 1)
             scrammable.resolve()
         }
@@ -414,10 +415,9 @@ class Destructible {
 
             // Propagate scram cancelling propagation if child exits.
             const scram = this._scram.wait(() => destructible._scram.unlatch())
-            destructible._scram.wait(() => this._scram.cancel(scram))
 
             // Monitor our new destructible as child of this destructible.
-            this._awaitScrammable(ephemeral, key, destructible.promise)
+            this._awaitScrammable(ephemeral, key, destructible.promise, scram)
 
             return destructible
         }
