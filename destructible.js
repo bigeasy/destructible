@@ -7,9 +7,6 @@ const delay = require('delay')
 // `async`/`await` utilities.
 const Future = require('prospective/future')
 
-// Cancelable evented semaphore.
-const Signal = require('signal')
-
 // Exceptions that you can catch by type.
 const Interrupt = require('interrupt')
 
@@ -119,7 +116,7 @@ class Destructible {
 
         this._destructors = []
         // Yes, we still need `Signal` because `Promise`s are not cancelable.
-        this._scrams = new Signal
+        this._scrams = []
         this._completed = new Future
         this.promise = this._completed.promise
 
@@ -273,11 +270,11 @@ class Destructible {
                 // wait for the scram timer of our parent root or ephemeral.
                 if (this._timeout != Infinity) {
                     this._scramTimer = delay(this._timeout)
-                    this._scrams.wait(() => this._scramTimer.clear())
+                    this._scrams.push(() => this._scramTimer.clear())
                     await this._scramTimer
-                    this._scrams.unlatch()
+                    this._scram()
                 } else {
-                    await new Promise(resolve => this._scrams.wait(resolve))
+                    await new Promise(resolve => this._scrams.push(resolve))
                 }
 
                 // Wait for any scrammable promises. Reducing the list is
@@ -302,6 +299,14 @@ class Destructible {
         this._destroy({})
     }
 
+    _scram () {
+        while (this._scrams.length != 0) {
+            console.log('scram', this._scrams.length)
+            const scram = this._scrams.shift()
+            scram()
+        }
+    }
+
     //
 
     // Check to see if this `Destructible` has completed its shutdown
@@ -309,7 +314,7 @@ class Destructible {
     // scram timer and toggle the scram timer latch.
     _complete () {
         if (this.destroyed && this.waiting.length == 0) {
-            this._scrams.unlatch()
+            this._scram()
             return true
         } else {
             return false
@@ -335,7 +340,7 @@ class Destructible {
         }
     }
 
-    async _awaitPromise (ephemeral, key, operation) {
+    async _awaitPromise (ephemeral, key, operation, scram) {
         const wait = { ephemeral, key }
         this.waiting.push(wait)
         try {
@@ -346,6 +351,10 @@ class Destructible {
                 }
             } finally {
                 this.waiting.splice(this.waiting.indexOf(wait), 1)
+                const index = this._scrams.indexOf(scram)
+                if (~index) {
+                    this._scrams.splice(index, 1)
+                }
             }
             if (!ephemeral) {
                 this._destroy({ key, ephemeral })
@@ -367,9 +376,8 @@ class Destructible {
         const scrammable = new Future
         this._scrammable.push(scrammable)
         try {
-            await this._awaitPromise(ephemeral, key, operation)
+            await this._awaitPromise(ephemeral, key, operation, scram)
         } finally {
-            this._scrams.cancel(scram)
             this._scrammable.splice(this._scrammable.indexOf(scrammable), 1)
             scrammable.resolve()
         }
@@ -383,7 +391,7 @@ class Destructible {
         // Ephemeral destructible children can set a scram timeout.
         assert(typeof vargs[0] != 'function')
         if (vargs[0] instanceof Promise) {
-            this._awaitPromise(ephemeral, key, vargs.shift())
+            this._awaitPromise(ephemeral, key, vargs.shift(), null)
             if (vargs.length != 0) {
                 return this.destruct(vargs.shift())
             }
@@ -398,17 +406,6 @@ class Destructible {
             const destruct = this.destruct(() => destructible.destroy())
             destructible.destruct(() => this.clear(destruct))
 
-            // If the child is ephemeral, only destroy the parent on error,
-            // otherwise, destroy the parent when the child is destroyed. Do not
-            // remove the curly braces. We do not want `destruct` to wait on the
-            // `Promise` returned by `_destroy`.
-            // **TODO** This is a duplicate, it will also fire in `_awaitPromise`.
-            if (!ephemeral) {
-                destructible.destruct(() => {
-                    this._destroy({ key, ephemeral })
-                })
-            }
-
             // Scram the child destructible if we are scrammed. Cancel our scram
             // forwarding if the child's `_scrams` unlatches. (A `Destructible`
             // will  unlatch`_scrams` when it completes normally and no scram is
@@ -419,7 +416,8 @@ class Destructible {
             // socket connection.
 
             // Propagate scram cancelling propagation if child exits.
-            const scram = this._scrams.wait(() => destructible._scrams.unlatch())
+            const scram = () => destructible._scram()
+            this._scrams.push(scram)
 
             // Monitor our new destructible as child of this destructible.
             this._awaitScrammable(ephemeral, key, destructible.promise, scram)

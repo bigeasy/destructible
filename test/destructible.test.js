@@ -50,6 +50,14 @@ describe('destructible', () => {
         destructible.destroy()
         assert.deepStrictEqual(await destructible.promise, {}, 'block init')
     })
+    it('can wait for a sub-destructible to complete', async () => {
+        const destructible = new Destructible('main')
+        const sub = destructible.ephemeral('child')
+        sub.destroy()
+        await sub.promise
+        destructible.destroy()
+        assert.deepStrictEqual(await destructible.promise, {}, 'block init')
+    })
     it('can catch an error from a monitored promise', async () => {
         const test = []
         const destructible = new Destructible('main')

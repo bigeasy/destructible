@@ -22,8 +22,7 @@
     {
                             "delay":                        "4.3.0",
                             "interrupt":                    "8.0.x",
-                            "prospective":                  "^0.1.0-alpha.1",
-                            "signal":                       "8.0.x"
+                            "prospective":                  "^0.1.0-alpha.1"
     },
     "devDependencies":
     {
