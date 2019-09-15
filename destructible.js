@@ -301,7 +301,6 @@ class Destructible {
 
     _scram () {
         while (this._scrams.length != 0) {
-            console.log('scram', this._scrams.length)
             const scram = this._scrams.shift()
             scram()
         }
