@@ -382,17 +382,25 @@ class Destructible {
         }
     }
 
-    // **TODO** To implement scrammable, it seems that we want to make the last
-    // argument the scram function instead of a destructor, which is never all
-    // that pleasant to look at anyway, but then we need to have a major version
-    // bump because it breaks the interface in a way that is hard to see.
-    _monitor (ephemeral, key, vargs) {
+    // To implement scrammable, it seemed that we want to make the last argument
+    // the scram function instead of a destructor, which is never all that
+    // pleasant to look at anyway, but then we need to have a major version bump
+    // because it breaks the interface in a way that is hard to see.
+    //
+    // The scramability of a `Promise` is a property of the promise, while the
+    // destructibility is more a property of the desctructible. The
+    // implementation as it stands points in this direction and I'm not going
+    // back to rethink it all. Software as Plinko.
+    //
+    _await (ephemeral, key, vargs) {
         // Ephemeral destructible children can set a scram timeout.
         assert(typeof vargs[0] != 'function')
         if (vargs[0] instanceof Promise) {
-            this._awaitPromise(ephemeral, key, vargs.shift(), null)
-            if (vargs.length != 0) {
-                return this.destruct(vargs.shift())
+            const promise = vargs.shift()
+            if (vargs.length == 0) {
+                this._awaitPromise(ephemeral, key, promise, null)
+            } else {
+                this._awaitScrammable(ephemeral, key, promise, vargs.shift())
             }
         } else {
             // Ephemeral sub-destructibles can have their own timeout and scram
@@ -419,28 +427,28 @@ class Destructible {
             this._scrams.push(scram)
 
             // Monitor our new destructible as child of this destructible.
-            this._awaitScrammable(ephemeral, key, destructible.promise, scram)
+            this._await(ephemeral, key, [ destructible.promise, scram ])
 
             return destructible
         }
     }
 
-    // Monitor an operation that lasts the lifetime of the `Destructible`. When
+    // Await an operation that lasts the lifetime of the `Destructible`. When
     // the promise resolves or rejects we perform an orderly shutdown of the
     // `Destructible`.
 
     //
     durable (key, ...vargs) {
-        return this._monitor(false, key, vargs)
+        return this._await(false, key, vargs)
     }
 
-    // Monitor an operation that does not  last the lifetime of the
-    // `Destructible`. Only when the promise rejects do we perform an orderly
-    // shutdown of the `Destructible`.
+    // Await an operation that does not last the lifetime of the `Destructible`.
+    // Only when the promise rejects do we perform an orderly shutdown of the
+    // `Destructible`.
 
     //
     ephemeral (key, ...vargs) {
-        return this._monitor(true, key, vargs)
+        return this._await(true, key, vargs)
     }
 
 }

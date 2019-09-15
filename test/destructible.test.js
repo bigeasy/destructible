@@ -46,7 +46,8 @@ describe('destructible', () => {
         const destructible = new Destructible('main')
         const sub = destructible.ephemeral('child')
         const future = new Future
-        sub.durable('future', future.promise, () => future.resolve(null, 1))
+        sub.durable('future', future.promise)
+        sub.destruct(() => future.resolve(null, 1))
         destructible.destroy()
         assert.deepStrictEqual(await destructible.promise, {}, 'block init')
     })
