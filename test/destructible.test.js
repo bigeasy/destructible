@@ -150,4 +150,14 @@ describe('destructible', () => {
         }
         assert.deepStrictEqual(test, [ true ], 'catch')
     })
+
+    it('can maintain a countdown to destruction', async () => {
+        const test = []
+        const destructible = new Destructible('main')
+        destructible.increment()
+        destructible.increment(2)
+        destructible.decrement()
+        destructible.decrement(2)
+        await destructible.promise
+    })
 })

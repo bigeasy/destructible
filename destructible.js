@@ -110,6 +110,9 @@ class Destructible {
 
         this.destroyed = false
         this.waiting = []
+
+        this._increment = 0
+
         this._scrammable = []
 
         this._errors = []
@@ -288,6 +291,27 @@ class Destructible {
                 this._return()
             }
        }
+    }
+
+    // Increment a countdown to destruction. Calling `increment()` increments an
+    // internal counter. Calling `decrement()` decrements the internal counter.
+    // When the counter reaches zero, the `Destructible` is destroyed. If you do
+    // not call `increment` or `decrement` it has no effect on the
+    // `Destructible`. After calling `increment` you can still call `destroy()`
+    // to explicit and immediately destroy the `Destructible`. The completion of
+    // a durable `Promise` will also explicitly and immediately destroy the
+    // `Destructible`.
+
+    //
+    increment (increment = 1) {
+        this._increment += increment
+    }
+
+    decrement (decrement = 1) {
+        this._increment -= decrement
+        if (this._increment == 0) {
+            this._destroy({})
+        }
     }
 
     // `destructible.destroy()` &mdash; Destroy the `Destructible` and
