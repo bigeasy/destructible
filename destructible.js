@@ -209,6 +209,7 @@ class Destructible {
         if (!this.destroyed) {
             this.destroyed = true
             // Run our destructors.
+            this._destructors.reverse()
             while (this._destructors.length != 0) {
                 try {
                     await this._destructors.shift().call(null)
