@@ -1,26 +1,25 @@
-describe('destructible', () => {
-    const assert = require('assert')
+require('proof')(15, async (okay) => {
     const Destructible = require('..')
     const Future = require('prospective/future')
-    it('can be constructed', async () => {
+    {
         const destructible = new Destructible('main')
         destructible.destroy()
-        assert.deepStrictEqual(await destructible.promise, {}, 'nothing')
-    })
-    it('can wait for a durable promise', async () => {
+        okay(await destructible.promise, {}, 'constructed')
+    }
+    {
         const destructible = new Destructible('main')
         destructible.durable('immediate', new Promise(resolve => setImmediate(resolve)))
         await destructible.promise
-        assert(destructible.destroyed, 'destroyed')
-    })
-    it('can set a destructor', async () => {
+        okay(destructible.destroyed, 'wait for durable promise')
+    }
+    {
         const destructible = new Destructible('main')
         destructible.durable('destructs', new Promise(resolve => destructible.destruct(resolve)))
         destructible.destroy()
         await destructible.promise
-        assert(destructible.destroyed, 'destroyed')
-    })
-    it('cat create a destructor group', async () => {
+        okay(destructible.destroyed, 'set destructor')
+    }
+    {
         const test = []
         const destructible = new Destructible('main')
         const cleared = destructible.destructor()
@@ -30,9 +29,9 @@ describe('destructible', () => {
         cleared.destruct(() => test.push('destructed'))
         destructible.destroy()
         await destructible.promise
-        assert.deepStrictEqual(test, [ 'destructed' ], 'destructed')
-    })
-    it('can gather return values', async () => {
+        okay(test, [ 'destructed' ], 'create a destructor group')
+    }
+    {
         const destructible = new Destructible('main')
         const one = new Future
         destructible.durable([ 'path', 1 ], one.promise)
@@ -40,26 +39,26 @@ describe('destructible', () => {
         const two = new Future
         destructible.durable([ 'path', 2 ], two.promise)
         two.resolve(null, 2)
-        assert.deepStrictEqual(await destructible.promise, { path: { 1: 1, 2: 2 } }, 'gathered')
-    })
-    it('can create a sub-destructible', async () => {
+        okay(await destructible.promise, { path: { 1: 1, 2: 2 } }, 'gather retrurn values')
+    }
+    {
         const destructible = new Destructible('main')
         const sub = destructible.ephemeral('child')
         const future = new Future
         sub.durable('future', future.promise)
         sub.destruct(() => future.resolve(null, 1))
         destructible.destroy()
-        assert.deepStrictEqual(await destructible.promise, {}, 'block init')
-    })
-    it('can wait for a sub-destructible to complete', async () => {
+        okay(await destructible.promise, {}, 'create sub-destructible')
+    }
+    {
         const destructible = new Destructible('main')
         const sub = destructible.ephemeral('child')
         sub.destroy()
         await sub.promise
         destructible.destroy()
-        assert.deepStrictEqual(await destructible.promise, {}, 'block init')
-    })
-    it('can catch an error from a monitored promise', async () => {
+        okay(await destructible.promise, {}, 'wait for sub-destructible to complete')
+    }
+    {
         const test = []
         const destructible = new Destructible('main')
         destructible.durable('error', (async () => { throw new Error('thrown') })())
@@ -71,15 +70,16 @@ describe('destructible', () => {
         } finally {
             destructible.destroy()
         }
-        assert.deepStrictEqual(test, [ 'thrown' ], 'catch')
-    })
-    it('can destroy a destructible when a durable sub-destructible completes', async () => {
+        okay(test, [ 'thrown' ], 'catch error from monitored promise')
+    }
+    {
         const destructible = new Destructible(10000, 'main')
         const sub = destructible.durable('parent')
         sub.durable('child', Promise.resolve(true))
         await destructible.promise
-    })
-    it('can destroy a destructible when an ephemeral sub-destructible errors', async () => {
+        okay(destructible.destroyed, 'destroy a destructible when a durable sub-destructible completes')
+    }
+    {
         const test = []
         const destructible = new Destructible(10000, 'main')
         const sub = destructible.durable('parent')
@@ -90,9 +90,9 @@ describe('destructible', () => {
             console.log(error.stack)
             test.push(error.causes[0].causes[0].message)
         }
-        assert.deepStrictEqual(test, [ 'thrown' ], 'catch')
-    })
-    it('can catch destructor errors', async () => {
+        okay(test, [ 'thrown' ], 'destroy a destructible when an ephemeral sub-destructible errors')
+    }
+    {
         const test = []
         const destructible = new Destructible(10000, 'main')
         destructible.destruct(() => { throw new Error('thrown') })
@@ -103,13 +103,13 @@ describe('destructible', () => {
             console.log(error.stack)
             test.push(error.causes[0].message)
         }
-        assert.deepStrictEqual(test, [ 'thrown' ], 'catch')
-    })
-    it('can scram', async () => {
+        okay(test, [ 'thrown' ], 'catch destructor error')
+    }
+    {
         const test = []
         const destructible = new Destructible(50, 'main')
-        let _resolve = null
-        destructible.durable('unresolved', new Promise(resolve => _resolve = resolve))
+        const latch = {}
+        destructible.durable('unresolved', new Promise(resolve => latch.resolve = resolve))
         destructible.destroy()
         try {
             await destructible.promise
@@ -117,10 +117,10 @@ describe('destructible', () => {
             console.log(error.stack)
             test.push(error.label)
         }
-        assert.deepStrictEqual(test, [ 'scrammed' ], 'catch')
-        _resolve()
-    })
-    it('can scram a sub-destructible', async () => {
+        okay(test, [ 'scrammed' ], 'scram')
+        latch.resolve.call()
+    }
+    {
         const test = []
         const destructible = new Destructible(50, 'main')
         let _resolve = null
@@ -133,9 +133,9 @@ describe('destructible', () => {
             console.log(error.stack)
             test.push(/^scrammed$/m.test(error.causes[0].message))
         }
-        assert.deepStrictEqual(test, [ true ], 'catch')
-    })
-    it('can set a timeout for an ephemeral block', async () => {
+        okay(test, [ true ], 'scram sub-destructible')
+    }
+    {
         const test = []
         const destructible = new Destructible('main')
         let _resolve = null
@@ -148,10 +148,9 @@ describe('destructible', () => {
             console.log(error.stack)
             test.push(/^scrammed$/m.test(error.causes[0].message))
         }
-        assert.deepStrictEqual(test, [ true ], 'catch')
-    })
-
-    it('can maintain a countdown to destruction', async () => {
+        okay(test, [ true ], 'set timeout for an ephemeral block')
+    }
+    {
         const test = []
         const destructible = new Destructible('main')
         destructible.increment()
@@ -159,5 +158,6 @@ describe('destructible', () => {
         destructible.decrement()
         destructible.decrement(2)
         await destructible.promise
-    })
+        okay(test, [], 'countdown to destruction')
+    }
 })
