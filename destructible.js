@@ -435,7 +435,12 @@ class Destructible {
 
             // Destroy the child destructible when we are destroyed.
             const destruct = this.destruct(() => destructible.destroy())
-            destructible.destruct(() => this.clear(destruct))
+            destructible.destruct(() => {
+                this.clear(destruct)
+                if (!ephemeral) {
+                    this.destroy()
+                }
+            })
 
             // Scram the child destructible if we are scrammed. Cancel our scram
             // forwarding if the child's `_scrams` unlatches. (A `Destructible`
