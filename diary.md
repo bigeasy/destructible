@@ -1,3 +1,14 @@
+## Sun Oct  6 01:51:50 CDT 2019
+
+Having added `scrammable` as a final argument to the destructible construction
+functions I now see that what I wanted to accomplish, a destructible that will
+not fire destructors when destruct is called can be accomplished by not
+registering any constructors. This is no more or less fiddly that introducing
+the concept of a scrammable promise. Now I want to remove this exposure and
+return scrammable to an internal property.
+
+See #146.
+
 ## Sat Aug 24 14:14:05 CDT 2019
 
 Otherwise you get an unhandled rejection. That will have a stack trace,
