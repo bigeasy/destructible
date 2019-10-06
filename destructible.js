@@ -4,9 +4,6 @@ const assert = require('assert')
 // Timers wrapped in promises.
 const delay = require('delay')
 
-// `async`/`await` utilities.
-const Future = require('prospective/future')
-
 // Exceptions that you can catch by type.
 const Interrupt = require('interrupt')
 
@@ -109,6 +106,9 @@ class Destructible {
         this.context = vargs
 
         this.destroyed = false
+
+        this.destructed = new Promise((...vargs) => this._destructed = vargs)
+
         this.waiting = []
 
         this._increment = 0
@@ -120,8 +120,6 @@ class Destructible {
         this._destructors = []
         // Yes, we still need `Signal` because `Promise`s are not cancelable.
         this._scrams = []
-        this._completed = new Future
-        this.promise = this._completed.promise
 
         this._results = {}
 
@@ -168,19 +166,19 @@ class Destructible {
     // scram timeout.
     _return () {
         if (this.waiting.length != 0) {
-            this._completed.resolve(new Destructible.Error('scrammed', this._errors, {
+            this._destructed[1].call(null, new Destructible.Error('scrammed', this._errors, {
                 key: this.key,
                 context: this.context,
                 waiting: this.waiting.slice()
             }))
         } else if (this._errors.length != 0) {
-            this._completed.resolve(new Destructible.Error('error', this._errors, {
+            this._destructed[1].call(null, new Destructible.Error('error', this._errors, {
                 key: this.key,
                 context: this.context,
                 waiting: this.waiting.slice()
             }))
         } else {
-            this._completed.resolve(null, this._results)
+            this._destructed[0].call(null, this._results)
         }
     }
 
@@ -456,7 +454,7 @@ class Destructible {
             this._scrams.push(scram)
 
             // Monitor our new destructible as child of this destructible.
-            this._await(ephemeral, key, [ destructible.promise, scram ])
+            this._await(ephemeral, key, [ destructible.destructed, scram ])
 
             return destructible
         }
