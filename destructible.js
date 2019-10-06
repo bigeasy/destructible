@@ -283,7 +283,7 @@ class Destructible {
                 // Wait for any scrammable promises. Reducing the list is
                 // performed on the resolution side.
                 while (this._scrammable.length) {
-                    await this._scrammable[0].promise
+                    await this._scrammable[0]
                 }
 
                 // Calcuate the resolution of this `Destructible`.
@@ -396,13 +396,13 @@ class Destructible {
 
     //
     async _awaitScrammable (ephemeral, key, operation, scram) {
-        const scrammable = new Future
-        this._scrammable.push(scrammable)
+        const scrammable = {}
+        this._scrammable.push(new Promise(resolve => scrammable.resolve = resolve))
         try {
             await this._awaitPromise(ephemeral, key, operation, scram)
         } finally {
             this._scrammable.splice(this._scrammable.indexOf(scrammable), 1)
-            scrammable.resolve()
+            scrammable.resolve.call()
         }
     }
 
