@@ -1,4 +1,4 @@
-require('proof')(15, async (okay) => {
+require('proof')(16, async (okay) => {
     const Destructible = require('..')
     {
         const destructible = new Destructible('main')
@@ -159,5 +159,11 @@ require('proof')(15, async (okay) => {
         destructible.decrement(2)
         await destructible.destructed
         okay(test, [], 'countdown to destruction')
+    }
+    {
+        const test = []
+        const destructible = new Destructible('function')
+        destructible.durable('f', async () => 1)
+        okay(await destructible.destructed, { f: 1 }, 'function')
     }
 })
