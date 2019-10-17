@@ -131,7 +131,7 @@ class Destructible {
 
     //
     destruct (f) {
-        const destructor = () => f()
+        const destructor = errored => f(errored)
         this._destructors.push(destructor)
         return destructor
     }
@@ -212,7 +212,7 @@ class Destructible {
             // Run our destructors.
             while (this._destructors.length != 0) {
                 try {
-                    await this._destructors.shift().call(null)
+                    await this._destructors.shift().call(null, error != null)
                 } catch (error) {
                     this._errors.push([ error, { method: 'destruct', key: this.key } ])
                 }
@@ -435,9 +435,9 @@ class Destructible {
 
             // Destroy the child destructible when we are destroyed.
             const destruct = this.destruct(() => destructible.destroy())
-            destructible.destruct(() => {
+            destructible.destruct((errored) => {
                 this.clear(destruct)
-                if (!ephemeral) {
+                if (!ephemeral || errored) {
                     this.destroy()
                 }
             })
