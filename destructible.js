@@ -131,7 +131,7 @@ class Destructible {
 
     //
     destruct (f) {
-        const destructor = errored => f(errored)
+        const destructor = () => f()
         this._destructors.push(destructor)
         return destructor
     }
@@ -194,6 +194,10 @@ class Destructible {
         // the end of the `Destructible` but I don't see where I'm actually ever
         // using this. TODO Might be better to report an error with the order in
         // which it was reported.
+
+        // TODO Sat Jan 25 12:36:55 CST 2020 Extremely dubious. Maybe have a
+        // getter and raise if `destructible.cause` is called anywhere in your
+        // code, and leave this here commented out for now.
         if (this.cause == null) {
             this.cause = {
                 method: 'await',
@@ -203,6 +207,13 @@ class Destructible {
             }
         }
         // If there is an error, push the error onto the list of errors.
+
+        // TODO Sat Jan 25 12:37:45 CST 2020 We only catch errors in once place,
+        // so maybe we should push the error there instead of here. We would not
+        // need to pass in a context nor an error, and then we can get rid of
+        // the underscored function, have only the one true `destroy()`.
+
+        // But, publish something and come back and clean up.
         if (error != null) {
             this._errors.push([ error, { method: 'await', ...context } ])
         }
@@ -212,7 +223,7 @@ class Destructible {
             // Run our destructors.
             while (this._destructors.length != 0) {
                 try {
-                    await this._destructors.shift().call(null, error != null)
+                    await this._destructors.shift().call()
                 } catch (error) {
                     this._errors.push([ error, { method: 'destruct', key: this.key } ])
                 }
@@ -435,9 +446,9 @@ class Destructible {
 
             // Destroy the child destructible when we are destroyed.
             const destruct = this.destruct(() => destructible.destroy())
-            destructible.destruct((errored) => {
+            destructible.destruct(() => {
                 this.clear(destruct)
-                if (!ephemeral || errored) {
+                if (!ephemeral || destructible._errors.length != 0) {
                     this.destroy()
                 }
             })
