@@ -182,6 +182,10 @@ class Destructible {
         }
     }
 
+    get cause () {
+        throw new Error
+    }
+
     // This is our internal destroy. We run it as an async function which
     // creates a new strand of execution. Nowhere do we wait on the promise
     // returned by executing this function nor should we. It is fire and forget.
@@ -190,22 +194,6 @@ class Destructible {
 
     //
     async _destroy (context, error) {
-        // We're going to say that the first error reported is a root cause of
-        // the end of the `Destructible` but I don't see where I'm actually ever
-        // using this. TODO Might be better to report an error with the order in
-        // which it was reported.
-
-        // TODO Sat Jan 25 12:36:55 CST 2020 Extremely dubious. Maybe have a
-        // getter and raise if `destructible.cause` is called anywhere in your
-        // code, and leave this here commented out for now.
-        if (this.cause == null) {
-            this.cause = {
-                method: 'await',
-                ephemeral: context.ephemeral || null,
-                key: this.key,
-                monitorKey: context.key || null
-            }
-        }
         // If there is an error, push the error onto the list of errors.
 
         // TODO Sat Jan 25 12:37:45 CST 2020 We only catch errors in once place,
