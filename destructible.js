@@ -193,18 +193,7 @@ class Destructible {
     // generated error through the `Destructible.promise`.
 
     //
-    async _destroy (context, error) {
-        // If there is an error, push the error onto the list of errors.
-
-        // TODO Sat Jan 25 12:37:45 CST 2020 We only catch errors in once place,
-        // so maybe we should push the error there instead of here. We would not
-        // need to pass in a context nor an error, and then we can get rid of
-        // the underscored function, have only the one true `destroy()`.
-
-        // But, publish something and come back and clean up.
-        if (error != null) {
-            this._errors.push([ error, { method: 'await', ...context } ])
-        }
+    async _destroy () {
         // If we've not yet been destroyed, let's start the shutdown.
         if (!this.destroyed) {
             this.destroyed = true
@@ -377,9 +366,10 @@ class Destructible {
                 }
             }
             if (!ephemeral) {
-                this._destroy({ key, ephemeral })
+                this._destroy({})
             }
         } catch (error) {
+            this._errors.push([ error, { method: 'await', key, ephemeral } ])
             this._destroy({ key, ephemeral }, error)
         } finally {
             this._complete()
