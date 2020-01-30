@@ -182,6 +182,7 @@ class Destructible {
         }
     }
 
+    // Temporary function to ensure noone is using the cause property.
     get cause () {
         throw new Error
     }
@@ -202,7 +203,7 @@ class Destructible {
                 try {
                     await this._destructors.shift().call()
                 } catch (error) {
-                    this._errors.push([ error, { method: 'destruct', key: this.key } ])
+                    this._errors.push([ error, { method: 'destroy' } ])
                 }
             }
             // If we're complete, we can resolve the `Destructible.promise`,
@@ -295,7 +296,7 @@ class Destructible {
     decrement (decrement = 1) {
         this._increment -= decrement
         if (this._increment == 0) {
-            this._destroy({})
+            this._destroy()
         }
     }
 
@@ -303,10 +304,13 @@ class Destructible {
     // ultimately destroy every `Destructible` in the tree rooted by the upper
     // most ephemeral `Destructible` or the root Destructible if no ephemeral
     // `Destructible` exists.
+    //
+    // We kept this wrapper function because we do not want to return the
+    // promise that is returned by `_destroy()`.
 
     //
     destroy () {
-        this._destroy({})
+        this._destroy()
     }
 
     _scram () {
@@ -366,11 +370,11 @@ class Destructible {
                 }
             }
             if (!ephemeral) {
-                this._destroy({})
+                this._destroy()
             }
         } catch (error) {
-            this._errors.push([ error, { method: 'await', key, ephemeral } ])
-            this._destroy({ key, ephemeral }, error)
+            this._errors.push([ error, { method: ephemeral ? 'ephemeral' : 'durable', key } ])
+            this._destroy()
         } finally {
             this._complete()
         }
