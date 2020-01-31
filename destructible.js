@@ -353,6 +353,13 @@ class Destructible {
         }
     }
 
+    // The `_scrams` array is an array of functions that call the `_scram` of a
+    // destructible, while the `_scrammable` array is an array of semaphores
+    // that blocks a parent `Destructible` from resolving a scram timeout.
+    //
+    // We need to remove the scram function from `_scrams` immediately, before
+    // we call destroy, which is why we don't have it in our wrapper.
+
     async _awaitPromise (ephemeral, key, operation, scram) {
         const wait = { ephemeral, key }
         this.waiting.push(wait)
@@ -385,6 +392,15 @@ class Destructible {
     // scrammable futures for the parent to wait for after it has been notified
     // of a scram timeout. See scram logic above for more details.
 
+    // Here we are creating a block that is protected by a `Promise`. We want to
+    // wait for the `operation`, but we don't want to wait on the `operation`
+    // because it's not ours and it may reject, so we create a tracking
+    // `Promise`. We should probably rename `_scrams` to `_children`.
+    //
+    // Separate function because the promise is fire and forget, we don't wait
+    // for it in `_await` and `_await` needs to return the `Destructible` it
+    // creates.
+
     //
     async _awaitScrammable (ephemeral, key, operation, scram) {
         const scrammable = {}
@@ -414,11 +430,8 @@ class Destructible {
             this._await(ephemeral, key, vargs)
         } else if (vargs[0] instanceof Promise) {
             const promise = vargs.shift()
-            if (vargs.length == 0) {
-                this._awaitPromise(ephemeral, key, promise, null)
-            } else {
-                this._awaitScrammable(ephemeral, key, promise, vargs.shift())
-            }
+            assert(vargs.length == 0, 'no more user scrammable')
+            this._awaitPromise(ephemeral, key, promise, null)
         } else {
             // Ephemeral sub-destructibles can have their own timeout and scram
             // timer, durable sub-destructibles are scrammed by their root.
@@ -449,7 +462,7 @@ class Destructible {
             this._scrams.push(scram)
 
             // Monitor our new destructible as child of this destructible.
-            this._await(ephemeral, key, [ destructible.destructed, scram ])
+            this._awaitScrammable(ephemeral, key, destructible.destructed, scram)
 
             return destructible
         }
