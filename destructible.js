@@ -313,10 +313,20 @@ class Destructible {
         this._destroy()
     }
 
+    // We keep this as an array of functions, as opposed to an array of
+    // children, because we push a scram timer canceller or forever waiter onto
+    // the end of the array of scrams. Seems like we could just keep the
+    // canceller/waiter as a separate variable, for when we `_complete`, but it
+    // may also be the case that we're an ephemeral destructible waiting on a
+    // our own scram, when our parent, with a shorter timeout scrams. Now
+    // `_scram` will scram all our children and tell us to to stop waiting.
+    // `_complete` will only ever tell us to stop waiting because all our
+    // children will have completed.
+
+    //
     _scram () {
         while (this._scrams.length != 0) {
-            const scram = this._scrams.shift()
-            scram()
+            this._scrams.shift()()
         }
     }
 
@@ -358,7 +368,10 @@ class Destructible {
     // that blocks a parent `Destructible` from resolving a scram timeout.
     //
     // We need to remove the scram function from `_scrams` immediately, before
-    // we call destroy, which is why we don't have it in our wrapper.
+    // we call destroy, which is why have it crowded in here instead of our our
+    // `_awaitScrammable` wrapper. We don't have `_scammable` management in here
+    // because it would just mean two extra `if` statements when we already
+    // know.
 
     async _awaitPromise (ephemeral, key, operation, scram) {
         const wait = { ephemeral, key }
