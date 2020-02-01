@@ -1,9 +1,6 @@
 // Node.js API.
 const assert = require('assert')
 
-// Timers wrapped in promises.
-const delay = require('delay')
-
 // Exceptions that you can catch by type.
 const Interrupt = require('interrupt')
 
@@ -122,8 +119,6 @@ class Destructible {
         this._scrams = []
 
         this._results = {}
-
-        this._scramTimer = null
     }
 
     // `destructible.destruct(f)` &mdash; Register a destructor `f` that will be
@@ -259,9 +254,15 @@ class Destructible {
                 // If we are the root or ephemeral, set a scram timer. Otherwise
                 // wait for the scram timer of our parent root or ephemeral.
                 if (this._timeout != Infinity) {
-                    this._scramTimer = delay(this._timeout)
-                    this._scrams.push(() => this._scramTimer.clear())
-                    await this._scramTimer
+                    const timer = { timeout: null, resolve: null }
+                    this._scrams.push(() => {
+                        clearTimeout(timer.timeout)
+                        timer.resolve.call()
+                    })
+                    await new Promise(resolve => {
+                        timer.resolve = resolve
+                        timer.timeout = setTimeout(resolve, this._timeout)
+                    })
                     this._scram()
                 } else {
                     await new Promise(resolve => this._scrams.push(resolve))

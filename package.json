@@ -20,7 +20,6 @@
     },
     "dependencies":
     {
-                            "delay":                        "4.3.0",
                             "interrupt":                    "^9.0.0-alpha.1",
                             "prospective":                  "^0.1.0-alpha.1"
     },
