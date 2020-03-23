@@ -454,11 +454,13 @@ class Destructible {
             const destructible = new Destructible(timeout, key)
 
             // Destroy the child destructible when we are destroyed.
-            const destruct = this.destruct(() => destructible.destroy())
+            const destruct = this.destruct(() => {
+                destructible._destroy()
+            })
             destructible.destruct(() => {
                 this.clear(destruct)
                 if (!ephemeral || destructible._errors.length != 0) {
-                    this.destroy()
+                    this._destroy()
                 }
             })
 
