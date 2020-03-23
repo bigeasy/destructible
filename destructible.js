@@ -114,6 +114,8 @@ class Destructible {
 
         this._errors = []
 
+        this._errored = false
+
         this._destructors = []
         // Yes, we still need `Signal` because `Promise`s are not cancelable.
         this._scrams = []
@@ -394,6 +396,7 @@ class Destructible {
                 this._destroy()
             }
         } catch (error) {
+            this._errored = true
             this._errors.push([ error, { method: ephemeral ? 'ephemeral' : 'durable', key } ])
             this._destroy()
         } finally {
@@ -457,9 +460,22 @@ class Destructible {
             const destruct = this.destruct(() => {
                 destructible._destroy()
             })
+
+            // Propagate destruction on error. Recall that we need to send this
+            // message up though our alternate route, we can't wait on the
+            // promise of a sub-destructible to complete and propagate the
+            // returned error. Why do we have scram if we can rely on that
+            // return? We need a separate `_errored` boolean, we can't just
+            // check `_errored.length` because of scram, and because we have
+            // some objects that only shutdown from a user function (Conduit,
+            // Turnstile, Fracture) so they're going to need to be scrammed, we
+            // kind of want them to be scrammed, or else the user has to think
+            // hard about the difference between ordered shutdown and abnormal
+            // shutdown.
             destructible.destruct(() => {
                 this.clear(destruct)
-                if (!ephemeral || destructible._errors.length != 0) {
+                if (!ephemeral || destructible._errored) {
+                    this._errored = true
                     this._destroy()
                 }
             })
