@@ -21,7 +21,7 @@
     "dependencies":
     {
                             "interrupt":                    "^10.0.1",
-                            "prospective":                  "^0.1.0-alpha.1"
+                            "prospective":                  "^0.2.0"
     },
     "devDependencies":
     {
