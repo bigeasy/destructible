@@ -376,13 +376,13 @@ class Destructible {
     // because it would just mean two extra `if` statements when we already
     // know.
 
-    async _awaitPromise (ephemeral, key, operation, scram) {
-        const wait = { ephemeral, key }
+    async _awaitPromise (method, key, operation, scram) {
+        const wait = { method, key }
         this.waiting.push(wait)
         try {
             try {
                 const result = await operation
-                if (!ephemeral) {
+                if (method == 'durable') {
                     this._setResult(key, await result)
                 }
             } finally {
@@ -392,12 +392,12 @@ class Destructible {
                     this._scrams.splice(index, 1)
                 }
             }
-            if (!ephemeral) {
+            if (method == 'durable') {
                 this._destroy()
             }
         } catch (error) {
             this._errored = true
-            this._errors.push([ error, { method: ephemeral ? 'ephemeral' : 'durable', key } ])
+            this._errors.push([ error, { method, key } ])
             this._destroy()
         } finally {
             this._complete()
@@ -419,11 +419,11 @@ class Destructible {
     // creates.
 
     //
-    async _awaitScrammable (ephemeral, key, operation, scram) {
+    async _awaitScrammable (method, key, operation, scram) {
         const scrammable = {}
         this._scrammable.push(new Promise(resolve => scrammable.resolve = resolve))
         try {
-            await this._awaitPromise(ephemeral, key, operation, scram)
+            await this._awaitPromise(method, key, operation, scram)
         } finally {
             this._scrammable.splice(this._scrammable.indexOf(scrammable), 1)
             scrammable.resolve.call()
@@ -440,18 +440,20 @@ class Destructible {
     // implementation as it stands points in this direction and I'm not going
     // back to rethink it all. Software as Plinko.
     //
-    _await (ephemeral, key, vargs) {
+    _await (method, key, vargs) {
         // Ephemeral destructible children can set a scram timeout.
         if (typeof vargs[0] == 'function') {
-            this._await(ephemeral, key, [ vargs[0].call() ])
+            this._await(method, key, [ vargs[0].call() ])
         } else if (vargs[0] instanceof Promise) {
             const promise = vargs.shift()
             assert(vargs.length == 0, 'no more user scrammable')
-            this._awaitPromise(ephemeral, key, promise, null)
+            this._awaitPromise(method, key, promise, null)
         } else {
             // Ephemeral sub-destructibles can have their own timeout and scram
             // timer, durable sub-destructibles are scrammed by their root.
-            const timeout = ephemeral && typeof vargs[0] == 'number' ? vargs.shift() : Infinity
+            const timeout = method != 'durable' && typeof vargs[0] == 'number'
+                          ? vargs.shift()
+                          : Infinity
             // Create the child destructible.
             const destructible = new Destructible(timeout, key)
 
@@ -473,7 +475,7 @@ class Destructible {
             // shutdown.
             destructible.destruct(() => {
                 this.clear(destruct)
-                if (!ephemeral || destructible._errored) {
+                if (method == 'durable' || destructible._errored) {
                     this._errored = true
                     this._destroy()
                 }
@@ -493,32 +495,52 @@ class Destructible {
             this._scrams.push(scram)
 
             // Monitor our new destructible as child of this destructible.
-            this._awaitScrammable(ephemeral, key, destructible.destructed, scram)
+            this._awaitScrammable(method, key, destructible.destructed, scram)
 
             return destructible
         }
     }
 
-    // Await an operation that lasts the lifetime of the `Destructible`. When
+    // Launch an operation that lasts the lifetime of the `Destructible`. When
     // the promise resolves or rejects we perform an orderly shutdown of the
     // `Destructible`.
 
     //
     durable (key, ...vargs) {
-        return this._await(false, key, vargs)
+        return this._await('durable', key, vargs)
     }
 
-    // Await an operation that does not last the lifetime of the `Destructible`.
-    // Only when the promise rejects do we perform an orderly shutdown of the
-    // `Destructible`.
+    // Launch an operation that does not last the lifetime of the
+    // `Destructible`. Only when the promise rejects do we perform an orderly
+    // shutdown of the `Destructible`.
 
     //
     ephemeral (key, ...vargs) {
-        return this._await(true, key, vargs)
+        return this._await('ephemeral', key, vargs)
     }
 
+    async awaitable (key, arg) {
+        if (typeof arg == 'function') {
+            return await this.awaitable(key, arg())
+        } else {
+            assert(arg instanceof Promise)
+            this._await('awaitable', key, [ arg ])
+            try {
+                return await arg
+            } catch (error) {
+                throw new Destructible.Rescuable
+            }
+        }
+    }
+
+    static rescue (error) {
+        if (!(error instanceof Destructible.Rescuable)) {
+            throw error
+        }
+    }
 }
 
 Destructible.Error = Interrupt.create('Destructible.Error')
+Destructible.Rescuable = Interrupt.create('Destructible.Rescuable')
 
 module.exports = Destructible
