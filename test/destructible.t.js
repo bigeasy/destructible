@@ -1,9 +1,14 @@
-require('proof')(16, async (okay) => {
+require('proof')(17, async (okay) => {
     const Destructible = require('..')
     {
         const destructible = new Destructible('main')
         destructible.destroy()
         okay(await destructible.destructed, {}, 'constructed')
+        try {
+            destructible.cause
+        } catch (error) {
+            okay('cause throws an error')
+        }
     }
     {
         const destructible = new Destructible('main')
