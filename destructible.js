@@ -538,6 +538,17 @@ class Destructible {
             throw error
         }
     }
+
+    async attempt (f) {
+        try {
+            await f()
+        } catch (error) {
+            this.destroy()
+            Destructible.rescue(error)
+        } finally {
+            await this.destructed
+        }
+    }
 }
 
 Destructible.Error = Interrupt.create('Destructible.Error')
