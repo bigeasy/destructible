@@ -539,15 +539,15 @@ class Destructible {
         }
     }
 
-    async attempt (f) {
-        try {
-            await f()
-        } catch (error) {
-            this.destroy()
-            Destructible.rescue(error)
-        } finally {
-            await this.destructed
-        }
+    async attemptable (key, f) {
+        this.ephemeral(key, async function () {
+            try {
+                await f()
+            } catch (error) {
+                Destructible.rescue(error)
+            }
+        })
+        return this.destructed
     }
 }
 

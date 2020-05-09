@@ -1,4 +1,4 @@
-require('proof')(24, async (okay) => {
+require('proof')(25, async (okay) => {
     const Destructible = require('..')
     {
         const destructible = new Destructible('main')
@@ -200,7 +200,7 @@ require('proof')(24, async (okay) => {
     {
         const destructible = new Destructible('attempt')
         try {
-            await destructible.attempt(async function () {
+            await destructible.attemptable('init', async function () {
                 await destructible.awaitable('init', async function () {
                     throw new Error('init')
                 })
@@ -213,11 +213,12 @@ require('proof')(24, async (okay) => {
     {
         const destructible = new Destructible('attempt')
         try {
-            await destructible.attempt(async function () {
+            await destructible.attemptable('errored', async function () {
                 throw new Error('error')
             })
         } catch (error) {
-            okay(error.message, 'error', 'attempt did not rescue')
+            okay(error instanceof Destructible.Error, 'attempt did init error')
+            okay(error.causes[0].message, 'error', 'attempt nested init error')
         }
     }
 })
