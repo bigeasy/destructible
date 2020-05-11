@@ -443,7 +443,7 @@ class Destructible {
     _await (method, key, vargs) {
         // Ephemeral destructible children can set a scram timeout.
         if (typeof vargs[0] == 'function') {
-            this._await(method, key, [ vargs[0].call() ])
+            this._await(method, key, [ async function () { return await vargs[0].call() } () ])
         } else if (vargs[0] instanceof Promise) {
             const promise = vargs.shift()
             assert(vargs.length == 0, 'no more user scrammable')
