@@ -476,7 +476,7 @@ class Destructible {
             destructible.destruct(() => {
                 this.clear(destruct)
                 if (method == 'durable' || destructible._errored) {
-                    this._errored = this._errored
+                    this._errored = this._errored || destructible._errored
                     this._destroy()
                 }
             })
