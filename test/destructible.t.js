@@ -1,4 +1,4 @@
-require('proof')(25, async (okay) => {
+require('proof')(26, async (okay) => {
     const Destructible = require('..')
     {
         const destructible = new Destructible('main')
@@ -58,8 +58,10 @@ require('proof')(25, async (okay) => {
     {
         const destructible = new Destructible('main')
         const sub = destructible.ephemeral('child')
-        sub.destroy()
+        const subsub = sub.durable('child')
+        subsub.destroy()
         await sub.destructed
+        okay(!destructible.destroyed, 'not destroyed')
         destructible.destroy()
         okay(await destructible.destructed, {}, 'wait for sub-destructible to complete')
     }
