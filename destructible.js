@@ -411,7 +411,7 @@ class Destructible {
     // because it would just mean two extra `if` statements when we already
     // know.
 
-    async _awaitPromise (method, key, operation, scram) {
+    async _awaitPromise (method, key, operation, scram, vargs) {
         const wait = { method, key }
         this.waiting.push(wait)
         try {
@@ -428,6 +428,10 @@ class Destructible {
             this._errored = true
             this._errors.push([ error, { method, key } ])
             this._destroy()
+            if (vargs.length != 0) {
+                const [ Exception, message = 'error' ] = vargs
+                throw new Exception(message, error)
+            }
         } finally {
             if (method == 'durable') {
                 this._destroy()
@@ -455,7 +459,7 @@ class Destructible {
         const scrammable = {}
         this._scrammable.push(new Promise(resolve => scrammable.resolve = resolve))
         try {
-            await this._awaitPromise(method, key, operation, scram)
+            await this._awaitPromise(method, key, operation, scram, [])
         } finally {
             this._scrammable.splice(this._scrammable.indexOf(scrammable), 1)
             scrammable.resolve.call()
@@ -475,17 +479,17 @@ class Destructible {
     _await (method, key, vargs) {
         // Ephemeral destructible children can set a scram timeout.
         if (typeof vargs[0] == 'function') {
-            return this._await(method, key, [ async function () { return await vargs[0].call() } () ])
+            vargs.unshift(async function () { return await vargs.shift()() } ())
+            return this._await(method, key, vargs)
         } else if (vargs[0] instanceof Promise) {
-            const promise = vargs.shift()
-            assert(vargs.length == 0, 'no more user scrammable')
-            return this._awaitPromise(method, key, promise, null)
+            return this._awaitPromise(method, key, vargs.shift(), null, vargs)
         } else {
             // Ephemeral sub-destructibles can have their own timeout and scram
             // timer, durable sub-destructibles are scrammed by their root.
             assert(typeof vargs[0] != 'number')
             // Create the child destructible.
             assert(typeof this._timeout == 'number' && this._timeout != Infinity)
+
             const destructible = new Destructible(this._timeout, key)
 
             // Destroy the child destructible when we are destroyed.
@@ -595,32 +599,37 @@ class Destructible {
         }
     }
 
-    static rescue (error) {
+    // Used the configuration problem I keep encountering. The problem is that
+    // we're trying to setup a bunch of sub-destructibles, but we encounter an
+    // error that means we have to stop before setup is completed. We'd like to
+    // stop making progress on our setup, but we also want to report the error,
+    // and it would be nice if it was all wrapped up in
+    // `Destructible.destructed`. So, we run setup function in `attemptable` and
+    // we run the possibly abortive configuration step in `awaitable`.
+    //
+    // Actually a more general problem. With Destructible I tend to run
+    // background strands with work queues and the like. The work queue will
+    // report the real error, but somewhere someone is waiting and they need an
+    // exception to prevent progress. I don't want both exceptions reported. The
+    // caller should get an exception to indicate that the system is shutdown,
+    // but not the details of the shutdown, that would be reported through
+    // `Destructible.destructed`.
+
+    //
+    static rescuable (error) {
         if (!(error instanceof Destructible.Rescuable)) {
             throw error
         }
     }
 
-    // Used in combination with `awaitable` for the configuration problem I keep
-    // encountering. The problem is that we're trying to setup a bunch of
-    // sub-destructibles, but we encounter an error that means we have to stop
-    // before setup is completed. We'd like to stop making progress on our
-    // setup, but we also want to report the error, and it would be nice if it
-    // was all wrapped up in `Destructible.destructed`. So, we run setup
-    // function in `attemptable` and we run the possibly abortive configuration
-    // step in `awaitable`.
-
-    //
-    async attemptable (key, f) {
-        this.ephemeral(key, async function () {
-            try {
-                await f()
-            } catch (error) {
-                Destructible.rescue(error)
-            }
-        })
-        return this.destructed
+    static async rescue (f) {
+        try {
+            await f()
+        } catch (error) {
+            Destructible.rescuable(error)
+        }
     }
+
 }
 
 Destructible.Error = Interrupt.create('Destructible.Error')

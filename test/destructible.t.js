@@ -1,4 +1,4 @@
-require('proof')(27, async (okay) => {
+require('proof')(25, async (okay) => {
     const Destructible = require('..')
     {
         const destructible = new Destructible('main')
@@ -189,7 +189,7 @@ require('proof')(27, async (okay) => {
                 throw new Error('init')
             })
         } catch (error) {
-            Destructible.rescue(error)
+            Destructible.rescuable(error)
         } finally {
             try {
                 await destructible.destructed
@@ -199,7 +199,7 @@ require('proof')(27, async (okay) => {
             }
         }
         try {
-            Destructible.rescue(new Error('error'))
+            Destructible.rescuable(new Error('error'))
         } catch (error) {
             okay(error.message, 'error', 'did not rescue')
         }
@@ -207,25 +207,31 @@ require('proof')(27, async (okay) => {
     {
         const destructible = new Destructible('attempt')
         try {
-            await destructible.attemptable('init', async function () {
-                await destructible.awaitable('init', async function () {
-                    throw new Error('init')
-                })
-            })
+            await destructible.ephemeral('name', async function () {
+                throw new Error('error')
+            }, Destructible.Rescuable, 'open')
         } catch (error) {
-            okay(error instanceof Destructible.Error, 'attempt did init error')
-            okay(error.causes[0].message, 'init', 'attempt nested init error')
+            okay(error instanceof Destructible.Rescuable, 'attempt did init error')
+            console.log(error.stack)
+            okay(error.causes[0].message, 'error', 'attempt nested init error')
+        }
+        try {
+            await destructible.destructed
+        } catch (error) {
+            console.log(error.stack)
         }
     }
     {
         const destructible = new Destructible('attempt')
-        try {
-            await destructible.attemptable('errored', async function () {
+        Destructible.rescue(async function () {
+            await destructible.ephemeral('name', async function () {
                 throw new Error('error')
-            })
+            }, Destructible.Rescuable)
+        })
+        try {
+            await destructible.destructed
         } catch (error) {
-            okay(error instanceof Destructible.Error, 'attempt did init error')
-            okay(error.causes[0].message, 'error', 'attempt nested init error')
+            console.log(error.stack)
         }
     }
     {
