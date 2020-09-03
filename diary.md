@@ -1,3 +1,26 @@
+## Wed Sep  2 06:26:58 CDT 2020
+
+Trying to shutdown a database. Want to use Destructible's mechanics to do so,
+but they are not fit for purpose. I do want to timeout a shutdown, but not if
+the shutdown is making progress. Say the database is in the middle of an
+operation and we're trying to do a soft shutdown. Programs crash, it's true, and
+we could give it an amount of time, and the user could adjust that time, but if
+the database is chugging along, saving files, indexing employee ids and the
+like, then why bother?
+
+Wouldn't it be nice to push some more time onto the scram clock so that the
+database can ask for a few more seconds if it is onto another page?
+
+At the same time, shutdown is something that you want to have happen, so maybe
+applications should try to shutdown as quickly as possible, recoring what it had
+hoped to do, then doing that when it starts up again, especially this database
+where these actions are background actions. They could run in a future
+background.
+
+In this specific example, we do not want to shut down before we finish writing
+pages to file, but if we need to rebalance the tree or vacuum pages, that can
+wait for a future background.
+
 ## Sun Oct  6 01:51:50 CDT 2019
 
 Having added `scrammable` as a final argument to the destructible construction

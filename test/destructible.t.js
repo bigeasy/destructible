@@ -1,4 +1,4 @@
-require('proof')(26, async (okay) => {
+require('proof')(27, async (okay) => {
     const Destructible = require('..')
     {
         const destructible = new Destructible('main')
@@ -222,5 +222,24 @@ require('proof')(26, async (okay) => {
             okay(error instanceof Destructible.Error, 'attempt did init error')
             okay(error.causes[0].message, 'error', 'attempt nested init error')
         }
+    }
+    {
+        const destructible = new Destructible(250, 'working')
+        const child = destructible.ephemeral('child')
+        child.working()
+        child.durable('working', async function () {
+            let count = 7
+            while (--count != 0) {
+                await new Promise(resolve => setTimeout(resolve, 100))
+                if (count % 2 == 0) {
+                    destructible.working()
+                } else {
+                    child.working()
+                }
+            }
+        })
+        destructible.destroy()
+        await destructible.destructed
+        okay('cleanup')
     }
 })

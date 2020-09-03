@@ -106,6 +106,8 @@ class Destructible {
 
         this.destructed = new Promise((...vargs) => this._destructed = vargs)
 
+        this._parent = null
+
         this.waiting = []
 
         this._increment = 0
@@ -255,19 +257,52 @@ class Destructible {
 
                 // If we are the root or ephemeral, set a scram timer. Otherwise
                 // wait for the scram timer of our parent root or ephemeral.
-                if (this._timeout != Infinity) {
+                //
+                // `Infinity` means that this is either a root destructible or
+                // an ephemeral child. An ephemeral child is a sub-destructible
+                // that does not last the lifetime of the parent, therefore when
+                // it shuts down, it ought to set its own scram timer and scram
+                // itself if it does not shutdown in a reasonable amount of
+                // time.
+                //
+                // At the time of writing this comment, we've just added the
+                // `working()` function to indicate that we're making progress
+                // on shutdown.
+                //
+                // Prior to this, the reasoning was that the ephemerals would
+                // always run their own timers, and it would be up to the user
+                // to determine how long it should take to shut down, then to
+                // somehow account for a plethora of epehermals in an
+                // application like a server, where you may have an ephemeral
+                // per socket connection and thousands of sockets. A socket
+                // should take a second to shut down during normal operation, to
+                // send a final handshake of some sort, and if you have
+                // thousands of sockets then the root destructible should
+                // account for the shutdown of each socket, hmm... is five
+                // minutes enough? Where's my calculator?
+                //
+                // With the `working()` function a timeout is based on progress,
+                // or not if you never call `working()`. Each socket will call
+                // working as it performs the steps in its handshake indicating
+                // that it making progress, so now the concept of a separate
+                // timeout for the ephemerals is dubious (so **TODO** remove
+                // it.)
+                if (this._timeout == Infinity) {
+                    await new Promise(resolve => this._scrams.push(resolve))
+                } else {
                     const timer = { timeout: null, resolve: null }
                     this._scrams.push(() => {
                         clearTimeout(timer.timeout)
                         timer.resolve.call()
                     })
-                    await new Promise(resolve => {
-                        timer.resolve = resolve
-                        timer.timeout = setTimeout(resolve, this._timeout)
-                    })
+                    do {
+                        this._working = false
+                        await new Promise(resolve => {
+                            timer.resolve = resolve
+                            timer.timeout = setTimeout(resolve, this._timeout)
+                        })
+                    } while (this._working)
                     this._scram()
-                } else {
-                    await new Promise(resolve => this._scrams.push(resolve))
                 }
 
                 // Wait for any scrammable promises. Reducing the list is
@@ -347,6 +382,23 @@ class Destructible {
         }
     }
 
+    // This is becoming increasingly dubious. I've never used it. Might be
+    // better to just return the result of `durable` or `ephemeral` if that's
+    // what you want, but uh, no. That doesn't make sense, oh, no it does, it's
+    // pretty much the same thing, this is the result of `durable`.
+    //
+    // ```
+    // const result = {
+    //     first: await destructble('first', this._first()),
+    //     second: await destructible('second', this._second()),
+    // }
+    // await destructible.destructed
+    // return result
+    // ```
+    //
+    // How is that any different? Not the result of `destructed`, but still.
+
+    //
     _setResult (key, result) {
         if (result !== (void(0))) {
             if (Array.isArray(key)) {
@@ -392,14 +444,14 @@ class Destructible {
                     this._scrams.splice(index, 1)
                 }
             }
-            if (method == 'durable') {
-                this._destroy()
-            }
         } catch (error) {
             this._errored = true
             this._errors.push([ error, { method, key } ])
             this._destroy()
         } finally {
+            if (method == 'durable') {
+                this._destroy()
+            }
             this._complete()
         }
     }
@@ -459,6 +511,7 @@ class Destructible {
 
             // Destroy the child destructible when we are destroyed.
             const destruct = this.destruct(() => {
+                destructible._timeout = Infinity
                 destructible._destroy()
             })
 
@@ -494,10 +547,29 @@ class Destructible {
             const scram = () => destructible._scram()
             this._scrams.push(scram)
 
+            // This is added at a late date to propagate the working flag. Until
+            // now, all parent/child communication was done through generalized
+            // structures so that the parent or child was just another consumer
+            // of child or parent services respectively. Temptation is to
+            // rethink whether this should be the case or if more parent/child
+            // interation should be explicit, but rather than give it a lof
+            // thought, I'm going to assume that if I did, I'd realize that this
+            // is the way it's supposed to be.
+            destructible._parent = this
+
             // Monitor our new destructible as child of this destructible.
             this._awaitScrammable(method, key, destructible.destructed, scram)
 
             return destructible
+        }
+    }
+
+    working () {
+        if (this.destroyed) {
+            this._working = true
+            if (this._parent != null) {
+                this._parent.working()
+            }
         }
     }
 
@@ -511,7 +583,7 @@ class Destructible {
     }
 
     // Launch an operation that does not last the lifetime of the
-    // `Destructible`. Only when the promise rejects do we perform an orderly
+    // `Destructible`. Only if the promise rejects do we perform an orderly
     // shutdown of the `Destructible`.
 
     //
@@ -519,6 +591,13 @@ class Destructible {
         return this._await('ephemeral', key, vargs)
     }
 
+    // Can't remember what this was about.
+    // Something about how we've already caught it somehow, so there's no need
+    // to report it twice.
+
+    // See the problem description below. Hmm... maybe rename `attempt`.
+
+    //
     async awaitable (key, arg) {
         if (typeof arg == 'function') {
             return await this.awaitable(key, arg())
@@ -539,6 +618,16 @@ class Destructible {
         }
     }
 
+    // Used in combination with `awaitable` for the configuration problem I keep
+    // encountering. The problem is that we're trying to setup a bunch of
+    // sub-destructibles, but we encounter an error that means we have to stop
+    // before setup is completed. We'd like to stop making progress on our
+    // setup, but we also want to report the error, and it would be nice if it
+    // was all wrapped up in `Destructible.destructed`. So, we run setup
+    // function in `attemptable` and we run the possibly abortive configuration
+    // step in `awaitable`.
+
+    //
     async attemptable (key, f) {
         this.ephemeral(key, async function () {
             try {
