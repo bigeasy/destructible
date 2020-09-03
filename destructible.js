@@ -99,6 +99,7 @@ class Destructible {
     // used to provide further context to the error stack trace for debugging.
     constructor (...vargs) {
         this._timeout = typeof vargs[0] == 'number' ? vargs.shift() : 1000
+        this._ephemeral = true
         this.key = vargs.shift()
         this.context = vargs
 
@@ -287,9 +288,7 @@ class Destructible {
                 // that it making progress, so now the concept of a separate
                 // timeout for the ephemerals is dubious (so **TODO** remove
                 // it.)
-                if (this._timeout == Infinity) {
-                    await new Promise(resolve => this._scrams.push(resolve))
-                } else {
+                if (this._ephemeral) {
                     const timer = { timeout: null, resolve: null }
                     this._scrams.push(() => {
                         clearTimeout(timer.timeout)
@@ -303,6 +302,8 @@ class Destructible {
                         })
                     } while (this._working)
                     this._scram()
+                } else {
+                    await new Promise(resolve => this._scrams.push(resolve))
                 }
 
                 // Wait for any scrammable promises. Reducing the list is
@@ -482,17 +483,20 @@ class Destructible {
         } else {
             // Ephemeral sub-destructibles can have their own timeout and scram
             // timer, durable sub-destructibles are scrammed by their root.
-            const timeout = method != 'durable' && typeof vargs[0] == 'number'
-                          ? vargs.shift()
-                          : Infinity
+            assert(typeof vargs[0] != 'number')
             // Create the child destructible.
-            const destructible = new Destructible(timeout, key)
+            assert(typeof this._timeout == 'number' && this._timeout != Infinity)
+            const destructible = new Destructible(this._timeout, key)
 
             // Destroy the child destructible when we are destroyed.
             const destruct = this.destruct(() => {
-                destructible._timeout = Infinity
+                destructible._ephemeral = false
                 destructible._destroy()
             })
+
+            if (method == 'ephemeral') {
+                destructible._ephemeral = true
+            }
 
             // Propagate destruction on error. Recall that we need to send this
             // message up though our alternate route, we can't wait on the

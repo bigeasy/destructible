@@ -149,9 +149,9 @@ require('proof')(27, async (okay) => {
     }
     {
         const test = []
-        const destructible = new Destructible('main')
+        const destructible = new Destructible(50, 'main')
         let _resolve = null
-        const sub = destructible.ephemeral('parent', 50)
+        const sub = destructible.ephemeral('parent')
         sub.durable('unresolved', new Promise(resolve => _resolve = resolve))
         sub.destroy()
         try {
