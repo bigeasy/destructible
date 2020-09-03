@@ -1,4 +1,4 @@
-require('proof')(25, async (okay) => {
+require('proof')(26, async (okay) => {
     const Destructible = require('..')
     {
         const destructible = new Destructible('main')
@@ -40,14 +40,19 @@ require('proof')(25, async (okay) => {
         const future = {}
         const one = new Promise(resolve => future.one = resolve)
         const two = new Promise(resolve => future.two = resolve)
-        const results = async function () {
-            return {
-                one: await destructible.durable([ 'path', 1 ], one),
-                two: await destructible.durable([ 'path', 2 ], two),
+        async function get (object) {
+            for (const name in object) {
+                object[name] = await object[name]
             }
-        } ()
-        future.one.call(null, 1)
+            return object
+        }
+        const results = get({
+            one: destructible.durable([ 'path', 1 ], one),
+            two: destructible.durable([ 'path', 2 ], two),
+        })
+        await new Promise(resolve => setTimeout(resolve, 50))
         future.two.call(null, 2)
+        future.one.call(null, 1)
         await destructible.destructed
         okay(await results, { one: 1, two: 2 }, 'gather retrurn values')
     }
@@ -252,5 +257,27 @@ require('proof')(25, async (okay) => {
         destructible.destroy()
         await destructible.destructed
         okay('cleanup')
+    }
+    {
+        const test = []
+        const destructible = new Destructible('destroyed')
+        destructible.destroy()
+        try {
+            destructible.ephemeral('destroyed')
+        } catch (error) {
+            test.push(error instanceof Destructible.Rescuable)
+        }
+        okay(test, [ true ], 'destroyed')
+    }
+    {
+        const destructible = new Destructible('remove scram')
+        const one = {}
+        one.promise = new Promise(resolve => one.resolve = resolve)
+        const durable = destructible.durable('one', one.promise)
+        const ephemeral = destructible.ephemeral('two')
+        ephemeral.destroy()
+        await new Promise(resolve => setImmediate(resolve))
+        one.resolve()
+        await destructible.destructed
     }
 })

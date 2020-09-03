@@ -411,29 +411,24 @@ class Destructible {
     // because it would just mean two extra `if` statements when we already
     // know.
 
-    async _awaitPromise (method, key, operation, scram, vargs) {
-        const wait = { method, key }
-        this.waiting.push(wait)
+    async _awaitPromise (operation, wait, vargs) {
         try {
             try {
                 return await operation
             } finally {
                 this.waiting.splice(this.waiting.indexOf(wait), 1)
-                const index = this._scrams.indexOf(scram)
-                if (~index) {
-                    this._scrams.splice(index, 1)
-                }
             }
         } catch (error) {
             this._errored = true
-            this._errors.push([ error, { method, key } ])
+            this._errors.push([ error, wait ])
             this._destroy()
             if (vargs.length != 0) {
-                const [ Exception, message = 'error' ] = vargs
+                // const [ Exception, message = typeof wait.key == 'string' ? wait.key : 'error' ] = vargs
+                const [ Exception, message = 'destroyed' ] = vargs
                 throw new Exception(message, error)
             }
         } finally {
-            if (method == 'durable') {
+            if (wait.method == 'durable') {
                 this._destroy()
             }
             this._complete()
@@ -455,12 +450,25 @@ class Destructible {
     // creates.
 
     //
-    async _awaitScrammable (method, key, operation, scram) {
+    // TODO We're going to have race conditions if we do not push the scrammable
+    // in the same synchronous run in which we check destroyed.
+    async _awaitScrammable (destructible, wait, scram) {
+        // Monitor our new destructible as child of this destructible.
         const scrammable = {}
         this._scrammable.push(new Promise(resolve => scrammable.resolve = resolve))
         try {
-            await this._awaitPromise(method, key, operation, scram, [])
+            await this._awaitPromise(destructible.destructed, wait, [])
         } finally {
+            // TODO Much better as a linked list, right? `_scrame` may have
+            // shifted scram, maybe it should just `for` over them? No, bad
+            // because here we're splicing. A linked list is so much better.
+            //
+            // TODO Convince yourself that it doens't matter if you call a
+            // scrammable before you call `_complete`.
+            const index = this._scrams.indexOf(scram)
+            if (~index) {
+                this._scrams.splice(index, 1)
+            }
             this._scrammable.splice(this._scrammable.indexOf(scrammable), 1)
             scrammable.resolve.call()
         }
@@ -477,12 +485,17 @@ class Destructible {
     // back to rethink it all. Software as Plinko.
     //
     _await (method, key, vargs) {
+        if (this.destroyed) {
+            throw new Destructible.Rescuable('destroyed')
+        }
+        const wait = { method, key }
+        this.waiting.push(wait)
         // Ephemeral destructible children can set a scram timeout.
         if (typeof vargs[0] == 'function') {
-            vargs.unshift(async function () { return await vargs.shift()() } ())
-            return this._await(method, key, vargs)
+            const promise = async function () { return await vargs.shift()() } ()
+            return this._awaitPromise(promise, wait, vargs)
         } else if (vargs[0] instanceof Promise) {
-            return this._awaitPromise(method, key, vargs.shift(), null, vargs)
+            return this._awaitPromise(vargs.shift(), wait, vargs)
         } else {
             // Ephemeral sub-destructibles can have their own timeout and scram
             // timer, durable sub-destructibles are scrammed by their root.
@@ -544,8 +557,7 @@ class Destructible {
             // is the way it's supposed to be.
             destructible._parent = this
 
-            // Monitor our new destructible as child of this destructible.
-            this._awaitScrammable(method, key, destructible.destructed, scram)
+            this._awaitScrammable(destructible, wait, scram)
 
             return destructible
         }
@@ -629,7 +641,6 @@ class Destructible {
             Destructible.rescuable(error)
         }
     }
-
 }
 
 Destructible.Error = Interrupt.create('Destructible.Error')
