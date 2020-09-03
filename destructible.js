@@ -177,7 +177,7 @@ class Destructible {
                 waiting: this.waiting.slice()
             }))
         } else {
-            this._destructed[0].call(null, this._results)
+            this._destructed[0].call(null, true)
         }
     }
 
@@ -399,24 +399,6 @@ class Destructible {
     // How is that any different? Not the result of `destructed`, but still.
 
     //
-    _setResult (key, result) {
-        if (result !== (void(0))) {
-            if (Array.isArray(key)) {
-                let iterator = this._results
-                const path = key.slice()
-                while (path.length != 1) {
-                    if (!(path[0] in iterator)) {
-                        iterator[path[0]] = {}
-                    }
-                    iterator = iterator[path[0]]
-                    path.shift()
-                }
-                iterator[path[0]] = result
-            } else {
-                this._results[key] = result
-            }
-        }
-    }
 
     // The `_scrams` array is an array of functions that call the `_scram` of a
     // destructible, while the `_scrammable` array is an array of semaphores
@@ -433,10 +415,7 @@ class Destructible {
         this.waiting.push(wait)
         try {
             try {
-                const result = await operation
-                if (method == 'durable') {
-                    this._setResult(key, await result)
-                }
+                return await operation
             } finally {
                 this.waiting.splice(this.waiting.indexOf(wait), 1)
                 const index = this._scrams.indexOf(scram)
@@ -495,11 +474,11 @@ class Destructible {
     _await (method, key, vargs) {
         // Ephemeral destructible children can set a scram timeout.
         if (typeof vargs[0] == 'function') {
-            this._await(method, key, [ async function () { return await vargs[0].call() } () ])
+            return this._await(method, key, [ async function () { return await vargs[0].call() } () ])
         } else if (vargs[0] instanceof Promise) {
             const promise = vargs.shift()
             assert(vargs.length == 0, 'no more user scrammable')
-            this._awaitPromise(method, key, promise, null)
+            return this._awaitPromise(method, key, promise, null)
         } else {
             // Ephemeral sub-destructibles can have their own timeout and scram
             // timer, durable sub-destructibles are scrammed by their root.

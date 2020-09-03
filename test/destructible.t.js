@@ -3,7 +3,7 @@ require('proof')(27, async (okay) => {
     {
         const destructible = new Destructible('main')
         destructible.destroy()
-        okay(await destructible.destructed, {}, 'constructed')
+        okay(await destructible.destructed, 'constructed')
         try {
             destructible.cause
         } catch (error) {
@@ -39,12 +39,17 @@ require('proof')(27, async (okay) => {
         const destructible = new Destructible('main')
         const future = {}
         const one = new Promise(resolve => future.one = resolve)
-        destructible.durable([ 'path', 1 ], one)
-        future.one.call(null, 1)
         const two = new Promise(resolve => future.two = resolve)
-        destructible.durable([ 'path', 2 ], two)
+        const results = async function () {
+            return {
+                one: await destructible.durable([ 'path', 1 ], one),
+                two: await destructible.durable([ 'path', 2 ], two),
+            }
+        } ()
+        future.one.call(null, 1)
         future.two.call(null, 2)
-        okay(await destructible.destructed, { path: { 1: 1, 2: 2 } }, 'gather retrurn values')
+        await destructible.destructed
+        okay(await results, { one: 1, two: 2 }, 'gather retrurn values')
     }
     {
         const destructible = new Destructible('main')
@@ -53,7 +58,7 @@ require('proof')(27, async (okay) => {
         sub.durable('future', new Promise(resolve => future.resolve = resolve))
         sub.destruct(() => future.resolve.call(null, 1))
         destructible.destroy()
-        okay(await destructible.destructed, {}, 'create sub-destructible')
+        okay(await destructible.destructed, 'create sub-destructible')
     }
     {
         const destructible = new Destructible('main')
@@ -63,7 +68,7 @@ require('proof')(27, async (okay) => {
         await sub.destructed
         okay(!destructible.destroyed, 'not destroyed')
         destructible.destroy()
-        okay(await destructible.destructed, {}, 'wait for sub-destructible to complete')
+        okay(await destructible.destructed, 'wait for sub-destructible to complete')
     }
     {
         const test = []
@@ -170,8 +175,8 @@ require('proof')(27, async (okay) => {
     {
         const test = []
         const destructible = new Destructible('function')
-        destructible.durable('f', async () => 1)
-        okay(await destructible.destructed, { f: 1 }, 'function')
+        const result = await destructible.durable('f', async () => 1)
+        okay(result, 1, 'function')
     }
     {
         const destructible = new Destructible('awaitable')
