@@ -431,7 +431,9 @@ class Destructible {
             if (wait.method == 'durable') {
                 this._destroy()
             }
-            this._complete()
+            if (this.destroyed) {
+                this._complete()
+            }
         }
     }
 
@@ -492,16 +494,14 @@ class Destructible {
         this.waiting.push(wait)
         // Ephemeral destructible children can set a scram timeout.
         if (typeof vargs[0] == 'function') {
-            const promise = async function () { return await vargs.shift()() } ()
-            return this._awaitPromise(promise, wait, vargs)
-        } else if (vargs[0] instanceof Promise) {
-            return this._awaitPromise(vargs.shift(), wait, vargs)
-        } else {
+            //const promise = async function () { return await vargs.shift()() } ()
+            return this._awaitPromise(vargs.shift()(), wait, vargs)
+        } else if (vargs.length == 0) {
             // Ephemeral sub-destructibles can have their own timeout and scram
             // timer, durable sub-destructibles are scrammed by their root.
-            assert(typeof vargs[0] != 'number')
+            //assert(typeof vargs[0] != 'number')
             // Create the child destructible.
-            assert(typeof this._timeout == 'number' && this._timeout != Infinity)
+            //assert(typeof this._timeout == 'number' && this._timeout != Infinity)
 
             const destructible = new Destructible(this._timeout, key)
 
@@ -560,6 +560,8 @@ class Destructible {
             this._awaitScrammable(destructible, wait, scram)
 
             return destructible
+        } else {
+            return this._awaitPromise(vargs.shift(), wait, vargs)
         }
     }
 
