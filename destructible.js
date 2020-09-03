@@ -592,27 +592,6 @@ class Destructible {
         return this._await('ephemeral', key, vargs)
     }
 
-    // Can't remember what this was about.
-    // Something about how we've already caught it somehow, so there's no need
-    // to report it twice.
-
-    // See the problem description below. Hmm... maybe rename `attempt`.
-
-    //
-    async awaitable (key, arg) {
-        if (typeof arg == 'function') {
-            return await this.awaitable(key, arg())
-        } else {
-            assert(arg instanceof Promise)
-            this._await('awaitable', key, [ arg ])
-            try {
-                return await arg
-            } catch (error) {
-                throw new Destructible.Rescuable
-            }
-        }
-    }
-
     // Used the configuration problem I keep encountering. The problem is that
     // we're trying to setup a bunch of sub-destructibles, but we encounter an
     // error that means we have to stop before setup is completed. We'd like to
