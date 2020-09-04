@@ -427,7 +427,7 @@ class Destructible {
             if (vargs.length != 0) {
                 // const [ Exception, message = typeof wait.key == 'string' ? wait.key : 'error' ] = vargs
                 const [ Exception, message = 'destroyed' ] = vargs
-                throw new Exception(message, error)
+                throw new Exception(message)
             }
         } finally {
             if (wait.value.method == 'durable') {

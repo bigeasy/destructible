@@ -1,4 +1,4 @@
-require('proof')(22, async (okay) => {
+require('proof')(21, async (okay) => {
     const Destructible = require('..')
     {
         const destructible = new Destructible('main')
@@ -194,7 +194,6 @@ require('proof')(22, async (okay) => {
         } catch (error) {
             okay(error instanceof Destructible.Rescuable, 'attempt did init error')
             console.log(error.stack)
-            okay(error.causes[0].message, 'error', 'attempt nested init error')
         }
         try {
             await destructible.destructed
