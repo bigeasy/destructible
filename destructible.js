@@ -171,13 +171,15 @@ class Destructible {
             this._destructed[1].call(null, new Destructible.Error('scrammed', this._errors, {
                 key: this.key,
                 context: this.context,
-                waiting: this._waiting.slice()
+                waiting: this._waiting.slice(),
+                code: 'scrammed'
             }))
         } else if (this._errors.length != 0) {
             this._destructed[1].call(null, new Destructible.Error('error', this._errors, {
                 key: this.key,
                 context: this.context,
-                waiting: this._waiting.slice()
+                waiting: this._waiting.slice(),
+                code: 'errored'
             }))
         } else {
             this._destructed[0].call(null, true)
@@ -187,6 +189,12 @@ class Destructible {
     // Temporary function to ensure noone is using the cause property.
     get cause () {
         throw new Error
+    }
+
+    operational () {
+        if (this.destroyed) {
+            throw new Destructible.Error('destroyed', { code: 'destroyed' })
+        }
     }
 
     // This is our internal destroy. We run it as an async function which
@@ -424,15 +432,8 @@ class Destructible {
             this._errored = true
             this._errors.push([ error, wait.value ])
             this._destroy()
-            if (vargs.length != 0) {
-                // const [ Exception, message = typeof wait.key == 'string' ? wait.key : 'error' ] = vargs
-                let [ Exception, message = 'destroyed' ] = vargs
-                if (Exception === true) {
-                    Exception = Destructible.Rescuable
-                }
-                const exception = new Exception(message)
-                exception.destroyed = true
-                throw exception
+            if (vargs.length != 0 && vargs[0] === true) {
+                throw new Destructible.Error('destroyed', { code: 'destroyed' })
             }
         } finally {
             if (wait.value.method == 'durable') {
@@ -491,9 +492,7 @@ class Destructible {
     // back to rethink it all. Software as Plinko.
     //
     _await (method, key, vargs) {
-        if (this.destroyed) {
-            throw new Destructible.Rescuable('destroyed')
-        }
+        this.operational()
         const wait = this._waiting.push({ method, key })
         // Ephemeral destructible children can set a scram timeout.
         if (typeof vargs[0] == 'function') {
@@ -611,8 +610,8 @@ class Destructible {
     // `Destructible.destructed`.
 
     //
-    static rescuable (error) {
-        if (!(error instanceof Destructible.Rescuable)) {
+    static destroyed (error) {
+        if (!(error instanceof Destructible.Error) || error.code != 'destroyed') {
             throw error
         }
     }
@@ -621,12 +620,11 @@ class Destructible {
         try {
             await f()
         } catch (error) {
-            Destructible.rescuable(error)
+            Destructible.destroyed(error)
         }
     }
 }
 
 Destructible.Error = Interrupt.create('Destructible.Error')
-Destructible.Rescuable = Interrupt.create('Destructible.Rescuable')
 
 module.exports = Destructible

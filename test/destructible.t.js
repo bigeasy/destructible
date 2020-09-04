@@ -190,9 +190,9 @@ require('proof')(22, async (okay) => {
         try {
             await destructible.ephemeral('name', async function () {
                 throw new Error('error')
-            }, Destructible.Rescuable, 'open')
+            }, true)
         } catch (error) {
-            okay(error instanceof Destructible.Rescuable, 'attempt did init error')
+            okay(error instanceof Destructible.Error, 'attempt did init error')
             console.log(error.stack)
         }
         try {
@@ -253,7 +253,7 @@ require('proof')(22, async (okay) => {
         try {
             destructible.ephemeral('destroyed')
         } catch (error) {
-            test.push(error instanceof Destructible.Rescuable)
+            test.push(error instanceof Destructible.Error)
         }
         okay(test, [ true ], 'destroyed')
     }
@@ -271,7 +271,7 @@ require('proof')(22, async (okay) => {
     {
         const test = []
         try {
-            Destructible.rescuable(new Error('error'))
+            Destructible.destroyed(new Error('error'))
         } catch (error) {
             test.push(error.message)
         }
