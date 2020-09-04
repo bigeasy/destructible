@@ -1,4 +1,4 @@
-require('proof')(21, async (okay) => {
+require('proof')(22, async (okay) => {
     const Destructible = require('..')
     {
         const destructible = new Destructible('main')
@@ -215,6 +215,19 @@ require('proof')(21, async (okay) => {
         }
     }
     {
+        const destructible = new Destructible('attempt')
+        Destructible.rescue(async function () {
+            await destructible.ephemeral('name', async function () {
+                throw new Error('error')
+            }, true)
+        })
+        try {
+            await destructible.destructed
+        } catch (error) {
+            console.log(error.stack)
+        }
+    }
+    {
         const destructible = new Destructible(250, 'working')
         const child = destructible.ephemeral('child')
         child.working()
@@ -254,5 +267,14 @@ require('proof')(21, async (okay) => {
         await new Promise(resolve => setImmediate(resolve))
         one.resolve()
         await destructible.destructed
+    }
+    {
+        const test = []
+        try {
+            Destructible.rescuable(new Error('error'))
+        } catch (error) {
+            test.push(error.message)
+        }
+        okay(test, [ 'error' ], 'unrescuable')
     }
 })

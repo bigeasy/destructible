@@ -426,8 +426,13 @@ class Destructible {
             this._destroy()
             if (vargs.length != 0) {
                 // const [ Exception, message = typeof wait.key == 'string' ? wait.key : 'error' ] = vargs
-                const [ Exception, message = 'destroyed' ] = vargs
-                throw new Exception(message)
+                let [ Exception, message = 'destroyed' ] = vargs
+                if (Exception === true) {
+                    Exception = Destructible.Rescuable
+                }
+                const exception = new Exception(message)
+                exception.destroyed = true
+                throw exception
             }
         } finally {
             if (wait.value.method == 'durable') {
