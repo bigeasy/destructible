@@ -13,7 +13,9 @@ require('proof')(22, async (okay) => {
     {
         const destructible = new Destructible('main')
         destructible.durable('immediate', new Promise(resolve => setImmediate(resolve)))
+        console.log('here')
         await destructible.destructed
+        console.log('there')
         okay(destructible.destroyed, 'wait for durable promise')
     }
     {

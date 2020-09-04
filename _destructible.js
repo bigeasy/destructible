@@ -4,8 +4,6 @@ const assert = require('assert')
 // Exceptions that you can catch by type.
 const Interrupt = require('interrupt')
 
-const List = require('./list')
-
 // A helper class that will create a destructor object that will gather items
 // that require destruction during an operation, but clear the items if the
 // operation successfully completes.
@@ -111,11 +109,11 @@ class Destructible {
 
         this._parent = null
 
-        this._waiting = new List
+        this.waiting = []
 
         this._increment = 0
 
-        this._scrammable = new List
+        this._scrammable = []
 
         this._errors = []
 
@@ -123,7 +121,7 @@ class Destructible {
 
         this._destructors = []
         // Yes, we still need `Signal` because `Promise`s are not cancelable.
-        this._scrams = new List
+        this._scrams = []
 
         this._results = {}
     }
@@ -167,17 +165,17 @@ class Destructible {
     // promises have resolved or the shutdown failed to complete before the
     // scram timeout.
     _return () {
-        if (!this._waiting.empty) {
+        if (this.waiting.length != 0) {
             this._destructed[1].call(null, new Destructible.Error('scrammed', this._errors, {
                 key: this.key,
                 context: this.context,
-                waiting: this._waiting.slice()
+                waiting: this.waiting.slice()
             }))
         } else if (this._errors.length != 0) {
             this._destructed[1].call(null, new Destructible.Error('error', this._errors, {
                 key: this.key,
                 context: this.context,
-                waiting: this._waiting.slice()
+                waiting: this.waiting.slice()
             }))
         } else {
             this._destructed[0].call(null, true)
@@ -310,8 +308,8 @@ class Destructible {
 
                 // Wait for any scrammable promises. Reducing the list is
                 // performed on the resolution side.
-                while (!this._scrammable.empty) {
-                    await this._scrammable.peek()
+                while (this._scrammable.length) {
+                    await this._scrammable[0]
                 }
 
                 // Calcuate the resolution of this `Destructible`.
@@ -366,7 +364,7 @@ class Destructible {
 
     //
     _scram () {
-        while (!this._scrams.empty) {
+        while (this._scrams.length != 0) {
             this._scrams.shift()()
         }
     }
@@ -377,7 +375,7 @@ class Destructible {
     // if it is destroyed. If the destructible has completed shutdown stop the
     // scram timer and toggle the scram timer latch.
     _complete () {
-        if (this.destroyed && this._waiting.empty) {
+        if (this.destroyed && this.waiting.length == 0) {
             this._scram()
             return true
         } else {
@@ -418,11 +416,11 @@ class Destructible {
             try {
                 return await operation
             } finally {
-                this._waiting.unlink(wait)
+                this.waiting.splice(this.waiting.indexOf(wait), 1)
             }
         } catch (error) {
             this._errored = true
-            this._errors.push([ error, wait.value ])
+            this._errors.push([ error, wait ])
             this._destroy()
             if (vargs.length != 0) {
                 // const [ Exception, message = typeof wait.key == 'string' ? wait.key : 'error' ] = vargs
@@ -430,7 +428,7 @@ class Destructible {
                 throw new Exception(message, error)
             }
         } finally {
-            if (wait.value.method == 'durable') {
+            if (wait.method == 'durable') {
                 this._destroy()
             }
             if (this.destroyed) {
@@ -459,7 +457,7 @@ class Destructible {
     async _awaitScrammable (destructible, wait, scram) {
         // Monitor our new destructible as child of this destructible.
         const scrammable = {}
-        const node = this._scrammable.push(new Promise(resolve => scrammable.resolve = resolve))
+        this._scrammable.push(new Promise(resolve => scrammable.resolve = resolve))
         try {
             await this._awaitPromise(destructible.destructed, wait, [])
         } finally {
@@ -469,8 +467,11 @@ class Destructible {
             //
             // TODO Convince yourself that it doens't matter if you call a
             // scrammable before you call `_complete`.
-            this._scrams.unlink(scram)
-            this._scrammable.unlink(node)
+            const index = this._scrams.indexOf(scram)
+            if (~index) {
+                this._scrams.splice(index, 1)
+            }
+            this._scrammable.splice(this._scrammable.indexOf(scrammable), 1)
             scrammable.resolve.call()
         }
     }
@@ -489,7 +490,8 @@ class Destructible {
         if (this.destroyed) {
             throw new Destructible.Rescuable('destroyed')
         }
-        const wait = this._waiting.push({ method, key })
+        const wait = { method, key }
+        this.waiting.push(wait)
         // Ephemeral destructible children can set a scram timeout.
         if (typeof vargs[0] == 'function') {
             //const promise = async function () { return await vargs.shift()() } ()
@@ -542,7 +544,8 @@ class Destructible {
             // socket connection.
 
             // Propagate scram cancelling propagation if child exits.
-            const scram = this._scrams.push(() => destructible._scram())
+            const scram = () => destructible._scram()
+            this._scrams.push(scram)
 
             // This is added at a late date to propagate the working flag. Until
             // now, all parent/child communication was done through generalized
