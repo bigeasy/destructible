@@ -4,6 +4,7 @@ const assert = require('assert')
 // Exceptions that you can catch by type.
 const Interrupt = require('interrupt')
 
+// A linked-list to track promises, scrams.
 const List = require('./list')
 
 // A helper class that will create a destructor object that will gather items
@@ -121,6 +122,8 @@ class Destructible {
 
         this._errored = false
 
+        this._destructing = false
+
         this._destructors = []
         // Yes, we still need `Signal` because `Promise`s are not cancelable.
         this._scrams = new List
@@ -197,6 +200,101 @@ class Destructible {
         }
     }
 
+    // When this was an error-first callback library, scram was synchronous and
+    // the chain of scrams implemented as callbacks stored in a Signal object,
+    // which we can just imagine is an array of callbacks all waiting for a
+    // common response. Here we'd add ourselves to the end of our own array of
+    // callbacks knowing that all our children will get the scram before we do.
+    // When a child reports a scrammed exception on a waiting callback, the
+    // parent of that child get that exception as a resolution of the child
+    // &mdash; instead of reporting the child as waiting, it will report an
+    // error, the cause of that error will be the child's scram exception.
+    //
+    // Now that we're using Promises we can't just fire scram and expect all
+    // children to either raise scram exception or propagate a scram exception
+    // because the destroy operations waiting on the child's resolution will not
+    // execute until the next tick. Now we need to wake from our scram timer or
+    // else wake from waiting on the expired message to and then wait again for
+    // the parents of our grand children to respond to the resolution of their
+    // children's promises.
+    //
+    // For a moment there, we where using the event-loop order to resolve this.
+    // Because the order is next tick, promises, immediate, if we wait on a
+    // promise we're just going to have everyone hop in a queue and hop out
+    // again in the same order before resolving their promises. When we wait on
+    // immediate we create a new queue where we run in the same order, so that
+    // our greatest grand child will resolve its promise, then its parent will
+    // run later. In the mean time, the child's promise will invoke the destroy
+    // logic because promises precede immediates.
+    //
+    // And then there was a need to have more than one immediate after to the
+    // root timer. I wasn't certain if two did the trick or if the number of
+    // immediates needed was dependent on the depth of the sub-destructible
+    // tree. I didn't take bother to take the time to reason about it. The
+    // event-loop trickery was too opaque and I'd already resolved to make the
+    // wait for scrammable promises explicit.
+    //
+    // Now when we create a sub-destructible, because we know that the promise
+    // we'll await is scrammable, we add it to a list of scrammable promises. We
+    // await any promises in the list while there are promises in the list.
+
+    // If we are the root or ephemeral, set a scram timer. Otherwise wait for
+    // the scram timer of our parent root or ephemeral.
+    //
+    // `Infinity` means that this is either a root destructible or an ephemeral
+    // child. An ephemeral child is a sub-destructible that does not last the
+    // lifetime of the parent, therefore when it shuts down, it ought to set its
+    // own scram timer and scram itself if it does not shutdown in a reasonable
+    // amount of time.
+    //
+    // At the time of writing this comment, we've just added the `working()`
+    // function to indicate that we're making progress on shutdown.
+    //
+    // Prior to this, the reasoning was that the ephemerals would always run
+    // their own timers, and it would be up to the user to determine how long it
+    // should take to shut down, then to somehow account for a plethora of
+    // epehermals in an application like a server, where you may have an
+    // ephemeral per socket connection and thousands of sockets. A socket should
+    // take a second to shut down during normal operation, to send a final
+    // handshake of some sort, and if you have thousands of sockets then the
+    // root destructible should account for the shutdown of each socket, hmm...
+    // is five minutes enough? Where's my calculator?
+    //
+    // With the `working()` function a timeout is based on progress, or not if
+    // you never call `working()`. Each socket will call working as it performs
+    // the steps in its handshake indicating that it making progress.
+
+    //
+    async _scrammed () {
+        if (this._ephemeral) {
+            const scram = { timeout: null, resolve: null }
+            this._scrams.push(() => {
+                clearTimeout(scram.timeout)
+                scram.resolve.call()
+            })
+            this._working = true
+            while (this._working) {
+                this._working = false
+                await new Promise(resolve => {
+                    scram.resolve = resolve
+                    scram.timeout = setTimeout(resolve, this._timeout)
+                })
+            }
+            this._scram()
+        } else {
+            await new Promise(resolve => this._scrams.push(resolve))
+        }
+
+        // Wait for any scrammable promises. Reducing the list is
+        // performed on the resolution side.
+        while (!this._scrammable.empty) {
+            await this._scrammable.peek()
+        }
+
+        // Calcuate the resolution of this `Destructible`.
+        this._return()
+    }
+
     // This is our internal destroy. We run it as an async function which
     // creates a new strand of execution. Nowhere do we wait on the promise
     // returned by executing this function nor should we. It is fire and forget.
@@ -204,126 +302,37 @@ class Destructible {
     // generated error through the `Destructible.promise`.
 
     //
-    async _destroy () {
+    _destroy () {
         // If we've not yet been destroyed, let's start the shutdown.
         if (!this.destroyed) {
             this.destroyed = true
             // Run our destructors.
+            //
+            // We may want to make `Destructors` synchronous, however, and
+            // insist that if they must do something async that they use an
+            // ephemeral, since we are not going to actually get to the scram
+            // part until the destructors are done. We set `_destructing` flag
+            // that allows us to create an `ephemeral`, but only for the
+            // synchronous duration of the destructor function.
+            this._destructing = true
             while (this._destructors.length != 0) {
                 try {
-                    await this._destructors.shift().call()
+                    this._destructors.shift().call()
                 } catch (error) {
                     this._errors.push([ error, { method: 'destroy' } ])
                 }
             }
+            this._destructing = false
             // If we're complete, we can resolve the `Destructible.promise`,
             // otherwise we need to start and wait for the scram timer.
             if (this._complete()) {
                 this._return()
             } else {
-                // When this was an error-first callback library, scram was
-                // synchronous and the chain of scrams implemented as callbacks
-                // stored in a Signal object, which we can just imagine is an
-                // array of callbacks all waiting for a common response. Here
-                // we'd add ourselves to the end of our own array of callbacks
-                // knowing that all our children will get the scram before we
-                // do. When a child reports a scrammed exception on a waiting
-                // callback, the parent of that child get that exception as a
-                // resolution of the child &mdash; instead of reporting the
-                // child as waiting, it will report an error, the cause of that
-                // error will be the child's scram exception.
-                //
-                // Now that we're using Promises we can't just fire scram and
-                // expect all children to either raise scram exception or
-                // propagate a scram exception because the destroy operations
-                // waiting on the child's resolution will not execute until the
-                // next tick. Now we need to wake from our scram timer or else
-                // wake from waiting on the expired message to and then wait
-                // again for the parents of our grand children to respond to the
-                // resolution of their children's promises.
-                //
-                // For a moment there, we where using the event-loop order to
-                // resolve this. Because the order is next tick, promises,
-                // immediate, if we wait on a promise we're just going to have
-                // everyone hop in a queue and hop out again in the same order
-                // before resolving their promises. When we wait on immediate we
-                // create a new queue where we run in the same order, so that
-                // our greatest grand child will resolve its promise, then its
-                // parent will run later. In the mean time, the child's promise
-                // will invoke the destroy logic because promises precede
-                // immediates.
-                //
-                // And then there was a need to have more than one immediate
-                // after to the root timer. I wasn't certain if two did the
-                // trick or if the number of immediates needed was dependent on
-                // the depth of the sub-destructible tree. I didn't take bother
-                // to take the time to reason about it. The event-loop trickery
-                // was too opaque and I'd already resolved to make the wait for
-                // scrammable promises explicit.
-                //
-                // Now when we create a sub-destructible, because we know that
-                // the promise we'll await is scrammable, we add it to a list of
-                // scrammable promises. We await any promises in the list while
-                // there are promises in the list.
-
-                // If we are the root or ephemeral, set a scram timer. Otherwise
-                // wait for the scram timer of our parent root or ephemeral.
-                //
-                // `Infinity` means that this is either a root destructible or
-                // an ephemeral child. An ephemeral child is a sub-destructible
-                // that does not last the lifetime of the parent, therefore when
-                // it shuts down, it ought to set its own scram timer and scram
-                // itself if it does not shutdown in a reasonable amount of
-                // time.
-                //
-                // At the time of writing this comment, we've just added the
-                // `working()` function to indicate that we're making progress
-                // on shutdown.
-                //
-                // Prior to this, the reasoning was that the ephemerals would
-                // always run their own timers, and it would be up to the user
-                // to determine how long it should take to shut down, then to
-                // somehow account for a plethora of epehermals in an
-                // application like a server, where you may have an ephemeral
-                // per socket connection and thousands of sockets. A socket
-                // should take a second to shut down during normal operation, to
-                // send a final handshake of some sort, and if you have
-                // thousands of sockets then the root destructible should
-                // account for the shutdown of each socket, hmm... is five
-                // minutes enough? Where's my calculator?
-                //
-                // With the `working()` function a timeout is based on progress,
-                // or not if you never call `working()`. Each socket will call
-                // working as it performs the steps in its handshake indicating
-                // that it making progress, so now the concept of a separate
-                // timeout for the ephemerals is dubious (so **TODO** remove
-                // it.)
-                if (this._ephemeral) {
-                    const timer = { timeout: null, resolve: null }
-                    this._scrams.push(() => {
-                        clearTimeout(timer.timeout)
-                        timer.resolve.call()
-                    })
-                    do {
-                        this._working = false
-                        await new Promise(resolve => {
-                            timer.resolve = resolve
-                            timer.timeout = setTimeout(resolve, this._timeout)
-                        })
-                    } while (this._working)
-                    this._scram()
-                } else {
-                    await new Promise(resolve => this._scrams.push(resolve))
-                }
-
-                // Wait for any scrammable promises. Reducing the list is
-                // performed on the resolution side.
-                while (!this._scrammable.empty) {
-                    await this._scrammable.peek()
-                }
-
-                // Calcuate the resolution of this `Destructible`.
-                this._return()
+                // Push something into the scram list immediately, but it
+                // shouldn't matter because the async call should run
+                // synchronously until it awaits, but I'm too lazy to go and
+                // confirm this and this is fine.
+                this._scrammed()
             }
        }
     }
@@ -374,7 +383,20 @@ class Destructible {
 
     //
     _scram () {
+        // TODO New stuff, come back and rewrite when it's old stuff. We get
+        // told to scram, but we've not destroyed. That means that someone
+        // created a child destructible that they needed to stay alive after the
+        // parent is destroyed — the parent can write to services in the child
+        // that would attempt to create a new `ephemeral` and error.
+        //
+        // Now that `_destroy` is synchronous, when we call it, it will call
+        // destroy on all children and it will synchronously build a scram chain
+        // so that the next call to run our scrams will propagate scrams.
+        if (!this.destroyed) {
+            this._destroy()
+        }
         while (!this._scrams.empty) {
+            console.log(this._scrams.peek())
             this._scrams.shift()()
         }
     }
@@ -492,7 +514,9 @@ class Destructible {
     // back to rethink it all. Software as Plinko.
     //
     _await (method, key, vargs) {
-        this.operational()
+        if (!(method == 'ephemeral' && this._destructing)) {
+            this.operational()
+        }
         const wait = this._waiting.push({ method, key })
         // Ephemeral destructible children can set a scram timeout.
         if (typeof vargs[0] == 'function') {
@@ -546,7 +570,11 @@ class Destructible {
             // socket connection.
 
             // Propagate scram cancelling propagation if child exits.
-            const scram = this._scrams.push(() => destructible._scram())
+            console.log('create scram for', destructible.key)
+            const scram = this._scrams.push(() => {
+                console.log('scram sub', this.key)
+                destructible._scram()
+            })
 
             // This is added at a late date to propagate the working flag. Until
             // now, all parent/child communication was done through generalized

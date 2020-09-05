@@ -12,7 +12,6 @@ class List {
                     return { done: true, value: null }
                 }
                 iterator = iterator.next
-                console.log(iterator)
                 return { done: false, value: iterator.value }
             }
         }

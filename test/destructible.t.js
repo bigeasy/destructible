@@ -1,4 +1,4 @@
-require('proof')(22, async (okay) => {
+require('proof')(24, async (okay) => {
     const Destructible = require('..')
     {
         const destructible = new Destructible('main')
@@ -13,14 +13,15 @@ require('proof')(22, async (okay) => {
     {
         const destructible = new Destructible('main')
         destructible.durable('immediate', new Promise(resolve => setImmediate(resolve)))
-        console.log('here')
         await destructible.destructed
-        console.log('there')
         okay(destructible.destroyed, 'wait for durable promise')
     }
     {
         const destructible = new Destructible('main')
-        destructible.durable('destructs', new Promise(resolve => destructible.destruct(resolve)))
+        destructible.durable('destructs', new Promise(resolve => {
+            console.log('called!!!')
+            destructible.destruct(resolve)
+        }))
         destructible.destroy()
         await destructible.destructed
         okay(destructible.destroyed, 'set destructor')
@@ -141,18 +142,21 @@ require('proof')(22, async (okay) => {
     }
     {
         const test = []
-        const destructible = new Destructible(50, 'main')
+        const destructible = new Destructible(50, 'parent')
         let _resolve = null
-        const sub = destructible.durable('parent')
+        const sub = destructible.durable('child')
         sub.durable('unresolved', new Promise(resolve => _resolve = resolve))
         destructible.destroy()
         try {
+            console.log('here')
             await destructible.destructed
+            console.log('there')
         } catch (error) {
             console.log(error.stack)
             test.push(/^scrammed$/m.test(error.causes[0].message))
         }
         okay(test, [ true ], 'scram sub-destructible')
+        _resolve()
     }
     {
         const test = []
@@ -276,5 +280,23 @@ require('proof')(22, async (okay) => {
             test.push(error.message)
         }
         okay(test, [ 'error' ], 'unrescuable')
+    }
+    {
+        const test = []
+        const destructible = new Destructible(50, 'main')
+        const child = destructible.ephemeral('child')
+        child.increment()
+        destructible.destroy()
+        await destructible.destructed
+        okay('delayed child scrammed')
+    }
+    {
+        const destructible = new Destructible('main')
+        destructible.destruct(() => {
+            destructible.ephemeral('shutdown', () => {})
+        })
+        destructible.destroy()
+        await destructible.destroyed
+        okay('async destroyed')
     }
 })
