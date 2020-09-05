@@ -7,30 +7,6 @@ const Interrupt = require('interrupt')
 // A linked-list to track promises, scrams.
 const List = require('./list')
 
-// A helper class that will create a destructor object that will gather items
-// that require destruction during an operation, but clear the items if the
-// operation successfully completes.
-
-//
-class Destructor {
-    // Constructor called internally with the parent `Destructible`.
-    constructor (destructible) {
-        this._destructors = []
-        this._destructible = destructible
-    }
-
-    // Invoke the given destructor `f` if the parent `Destructible` is
-    // destroyed.
-    destruct (f) {
-        this._destructors.push(this._destructible.destruct(f))
-    }
-
-    // Clear all the destructors registered by this `Destructor` instance.
-    clear () {
-        this._destructors.splice(0).forEach(f => this._destructible.clear(f))
-    }
-}
-
 // `Destructible` awaits multiple concurrent JavaScript `Promise`s as
 // implemented by the JavaScript `Promise` class. Additionally, `Destructible`
 // registers destructor functions that will cancel the `Promise`s it is
@@ -146,22 +122,17 @@ class Destructible {
     // destroyed.
 
     //
-    clear (f) {
-        const index = this._destructors.indexOf(f)
-        if (~index) {
-            return this._destructors.splice(index, 1).shift()
+    clear (handle) {
+        if (typeof handle[Symbol.iterator] == 'function') {
+            for (const _handle of handle) {
+                this.clear(_handle)
+            }
+        } else {
+            const index = this._destructors.indexOf(handle)
+            if (~index) {
+                return this._destructors.splice(index, 1).shift()
+            }
         }
-        return null
-    }
-
-    // `const destructor = destructible.destructor()` &mdash; Create a
-    // `Destructor` class that can be used to register a group of destructors
-    // and clear them all at once. Great for working with `try`/`finally` blocks
-    // &mdash; syntactically easier than creating named functions.
-
-    //
-    destructor () {
-        return new Destructor(this)
     }
 
     //

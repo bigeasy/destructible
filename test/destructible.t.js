@@ -29,11 +29,11 @@ require('proof')(27, async (okay) => {
     {
         const test = []
         const destructible = new Destructible('main')
-        const cleared = destructible.destructor()
-        cleared.destruct(() => { throw new Error })
-        cleared.clear()
-        const destructor = destructible.destructor()
-        cleared.destruct(() => test.push('destructed'))
+        const destructors = []
+        destructors.push(destructible.destruct(() => { throw new Error }))
+        destructible.destruct(() => test.push('destructed'))
+        destructors.push(destructible.destruct(() => { throw new Error }))
+        destructible.clear(destructors)
         destructible.destroy()
         await destructible.destructed
         okay(test, [ 'destructed' ], 'create a destructor group')
