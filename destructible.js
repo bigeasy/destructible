@@ -98,13 +98,15 @@ class Destructible {
 
         this._scrammable = new List
 
+        // TODO Maybe have a limit, like a stack limit. Bonus, reduce duplicated
+        // errors, or eliminate `Destructible.Destroyed` originated errors.
         this._errors = []
 
         this._errored = false
 
         this._destructing = false
 
-        this._destructors = []
+        this._destructors = new List
         // Yes, we still need `Signal` because `Promise`s are not cancelable.
         this._scrams = new List
 
@@ -116,9 +118,7 @@ class Destructible {
 
     //
     destruct (f) {
-        const destructor = () => f()
-        this._destructors.push(destructor)
-        return destructor
+        return this._destructors.push(f)
     }
 
     // `destructible.destruct(f)` &mdash; Remove the registered destructor `f`
@@ -132,10 +132,7 @@ class Destructible {
                 this.clear(_handle)
             }
         } else {
-            const index = this._destructors.indexOf(handle)
-            if (~index) {
-                return this._destructors.splice(index, 1).shift()
-            }
+            List.unlink(handle)
         }
     }
 
@@ -290,7 +287,7 @@ class Destructible {
             // that allows us to create an `ephemeral`, but only for the
             // synchronous duration of the destructor function.
             this._destructing = true
-            while (this._destructors.length != 0) {
+            while (!this._destructors.empty) {
                 try {
                     this._destructors.shift().call()
                 } catch (error) {
@@ -422,7 +419,7 @@ class Destructible {
             try {
                 return await operation
             } finally {
-                this._waiting.unlink(wait)
+                List.unlink(wait)
             }
         } catch (error) {
             this._errored = true
@@ -471,8 +468,8 @@ class Destructible {
             //
             // TODO Convince yourself that it doens't matter if you call a
             // scrammable before you call `_complete`.
-            this._scrams.unlink(scram)
-            this._scrammable.unlink(node)
+            List.unlink(scram)
+            List.unlink(node)
             scrammable.resolve.call()
         }
     }

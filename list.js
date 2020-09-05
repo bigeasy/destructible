@@ -45,7 +45,7 @@ class List {
     }
 
     // Point to self so that future calls to unlink are a no-op.
-    unlink (node) {
+    static unlink (node) {
         node.next.previous = node.previous
         node.previous.next = node.next
         node.next = node.previous = node
@@ -53,7 +53,7 @@ class List {
     }
 
     shift () {
-        return this.unlink(this._head.next)
+        return List.unlink(this._head.next)
     }
 }
 
