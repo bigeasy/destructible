@@ -196,6 +196,7 @@ require('proof')(27, async (okay) => {
                 throw new Error('error')
             }, true)
         } catch (error) {
+            console.log(error)
             okay(error instanceof Destructible.Error, 'attempt did init error')
             console.log(error.stack)
         }
@@ -221,9 +222,13 @@ require('proof')(27, async (okay) => {
     {
         const destructible = new Destructible('attempt')
         Destructible.rescue(async function () {
+            try {
             await destructible.ephemeral('name', async function () {
                 throw new Error('error')
             }, true)
+            } catch (error) {
+                console.log(error)
+            }
         })
         try {
             await destructible.destructed

@@ -71,6 +71,10 @@ const List = require('./list')
 
 //
 class Destructible {
+    static Error = Interrupt.create('Destructible.Error')
+
+    static Destroyed = Interrupt.create('Destructible.Destroyed', Destructible.Error)
+
     // `new Destructible([ scram ], key, ...context)` constructs a new
     // `Destructible` that will scram after the given `scram` timeout or the
     // default `1000` milliseconds if not given. The key is used to report the
@@ -167,7 +171,7 @@ class Destructible {
 
     operational () {
         if (this.destroyed) {
-            throw new Destructible.Error('destroyed', { code: 'destroyed' })
+            throw new Destructible.Destroyed('destroyed', { code: 'destroyed' })
         }
     }
 
@@ -425,7 +429,7 @@ class Destructible {
             this._errors.push([ error, wait.value ])
             this._destroy()
             if (vargs.length != 0 && vargs[0] === true) {
-                throw new Destructible.Error('destroyed', { code: 'destroyed' })
+                throw new Destructible.Destroyed('destroyed', { code: 'destroyed' })
             }
         } finally {
             if (wait.value.method == 'durable') {
@@ -609,7 +613,7 @@ class Destructible {
 
     //
     static destroyed (error) {
-        if (!(error instanceof Destructible.Error) || error.code != 'destroyed') {
+        if (!(error instanceof Destructible.Destroyed)) {
             throw error
         }
     }
@@ -622,7 +626,5 @@ class Destructible {
         }
     }
 }
-
-Destructible.Error = Interrupt.create('Destructible.Error')
 
 module.exports = Destructible
