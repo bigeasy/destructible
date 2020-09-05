@@ -1,4 +1,4 @@
-require('proof')(24, async (okay) => {
+require('proof')(27, async (okay) => {
     const Destructible = require('..')
     {
         const destructible = new Destructible('main')
@@ -270,6 +270,17 @@ require('proof')(24, async (okay) => {
         ephemeral.destroy()
         await new Promise(resolve => setImmediate(resolve))
         one.resolve()
+        await destructible.destructed
+    }
+    {
+        const destructible = new Destructible('main')
+        const child = destructible.durable('child')
+        child.increment()
+        destructible.destroy()
+        okay(destructible.destroyed, 'parent destroyed')
+        okay(!child.destroyed, 'child not yet destroyed')
+        child.decrement()
+        okay(child.destroyed, 'child destroyed')
         await destructible.destructed
     }
     {

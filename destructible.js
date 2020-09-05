@@ -396,7 +396,6 @@ class Destructible {
             this._destroy()
         }
         while (!this._scrams.empty) {
-            console.log(this._scrams.peek())
             this._scrams.shift()()
         }
     }
@@ -531,10 +530,12 @@ class Destructible {
 
             const destructible = new Destructible(this._timeout, key)
 
+            destructible.increment()
+
             // Destroy the child destructible when we are destroyed.
             const destruct = this.destruct(() => {
                 destructible._ephemeral = false
-                destructible._destroy()
+                destructible.decrement()
             })
 
             if (method == 'ephemeral') {
@@ -570,9 +571,7 @@ class Destructible {
             // socket connection.
 
             // Propagate scram cancelling propagation if child exits.
-            console.log('create scram for', destructible.key)
             const scram = this._scrams.push(() => {
-                console.log('scram sub', this.key)
                 destructible._scram()
             })
 
