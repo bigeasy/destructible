@@ -465,10 +465,6 @@ class Destructible {
         try {
             await this._awaitPromise(destructible.rejected, wait, [])
         } finally {
-            // TODO Much better as a linked list, right? `_scrame` may have
-            // shifted scram, maybe it should just `for` over them? No, bad
-            // because here we're splicing. A linked list is so much better.
-            //
             // TODO Convince yourself that it doens't matter if you call a
             // scrammable before you call `_complete`.
             List.unlink(scram)
