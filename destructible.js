@@ -88,7 +88,9 @@ class Destructible {
 
         this.destroyed = false
 
-        this.destructed = new Promise((...vargs) => this._destructed = vargs)
+        this.rejected = new Promise((...vargs) => this._rejected = vargs)
+
+        this.destructed = new Promise(resolve => this._destructed = resolve)
 
         this._parent = null
 
@@ -143,22 +145,23 @@ class Destructible {
     // scram timeout.
     _return () {
         if (!this._waiting.empty) {
-            this._destructed[1].call(null, new Destructible.Error('scrammed', this._errors, {
+            this._rejected[1].call(null, new Destructible.Error('scrammed', this._errors, {
                 key: this.key,
                 context: this.context,
                 waiting: this._waiting.slice(),
                 code: 'scrammed'
             }))
         } else if (this._errors.length != 0) {
-            this._destructed[1].call(null, new Destructible.Error('error', this._errors, {
+            this._rejected[1].call(null, new Destructible.Error('error', this._errors, {
                 key: this.key,
                 context: this.context,
                 waiting: this._waiting.slice(),
                 code: 'errored'
             }))
         } else {
-            this._destructed[0].call(null, true)
+            this._rejected[0].call(null, false)
         }
+        this._destructed.call(null, true)
     }
 
     // Temporary function to ensure noone is using the cause property.
@@ -396,11 +399,11 @@ class Destructible {
     //     first: await destructble('first', this._first()),
     //     second: await destructible('second', this._second()),
     // }
-    // await destructible.destructed
+    // await destructible.rejected
     // return result
     // ```
     //
-    // How is that any different? Not the result of `destructed`, but still.
+    // How is that any different? Not the result of `rejected`, but still.
 
     //
 
@@ -460,7 +463,7 @@ class Destructible {
         const scrammable = {}
         const node = this._scrammable.push(new Promise(resolve => scrammable.resolve = resolve))
         try {
-            await this._awaitPromise(destructible.destructed, wait, [])
+            await this._awaitPromise(destructible.rejected, wait, [])
         } finally {
             // TODO Much better as a linked list, right? `_scrame` may have
             // shifted scram, maybe it should just `for` over them? No, bad
@@ -596,9 +599,9 @@ class Destructible {
     // we're trying to setup a bunch of sub-destructibles, but we encounter an
     // error that means we have to stop before setup is completed. We'd like to
     // stop making progress on our setup, but we also want to report the error,
-    // and it would be nice if it was all wrapped up in
-    // `Destructible.destructed`. So, we run setup function in `attemptable` and
-    // we run the possibly abortive configuration step in `awaitable`.
+    // and it would be nice if it was all wrapped up in `Destructible.rejected`.
+    // So, we run setup function in `attemptable` and we run the possibly
+    // abortive configuration step in `awaitable`.
     //
     // Actually a more general problem. With Destructible I tend to run
     // background strands with work queues and the like. The work queue will
@@ -606,7 +609,7 @@ class Destructible {
     // exception to prevent progress. I don't want both exceptions reported. The
     // caller should get an exception to indicate that the system is shutdown,
     // but not the details of the shutdown, that would be reported through
-    // `Destructible.destructed`.
+    // `Destructible.rejected`.
 
     //
     static destroyed (error) {
