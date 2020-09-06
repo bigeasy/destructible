@@ -245,7 +245,7 @@ class Destructible {
                 scram.resolve.call()
             })
             this._working = true
-            while (this._working) {
+            while (! this._waiting.empty && this._working) {
                 this._working = false
                 await new Promise(resolve => {
                     scram.resolve = resolve
