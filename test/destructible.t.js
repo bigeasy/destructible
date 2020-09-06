@@ -211,7 +211,7 @@ require('proof')(27, async (okay) => {
         Destructible.rescue(async function () {
             await destructible.ephemeral('name', async function () {
                 throw new Error('error')
-            }, Destructible.Rescuable)
+            }, true)
         })
         try {
             await destructible.destructed
