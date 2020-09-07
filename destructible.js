@@ -340,10 +340,14 @@ class Destructible {
     //
     // We kept this wrapper function because we do not want to return the
     // promise that is returned by `_destroy()`.
+    //
+    //  We return `this` so we can call `destroy()` and await on `destructed` or
+    //  `rejected` in one line.
 
     //
     destroy () {
         this._destroy()
+        return this
     }
 
     // We keep this as an array of functions, as opposed to an array of
