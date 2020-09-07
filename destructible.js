@@ -244,6 +244,7 @@ class Destructible {
         if (this._ephemeral) {
             const scram = { timeout: null, resolve: null }
             this._scrams.push(() => {
+                this._working = false
                 clearTimeout(scram.timeout)
                 scram.resolve.call()
             })
