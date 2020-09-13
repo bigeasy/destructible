@@ -1,4 +1,4 @@
-require('proof')(28, async (okay) => {
+require('proof')(29, async (okay) => {
     const Destructible = require('..')
     {
         const destructible = new Destructible('main')
@@ -315,5 +315,22 @@ require('proof')(28, async (okay) => {
         destructible.destroy()
         await destructible.destroyed
         okay('async destroyed')
+    }
+    {
+        const destructible = new Destructible('main')
+        await destructible.drain()
+        const latch = { resolve: null }
+        destructible.durable('first', new Promise(resolve => latch.resolve = resolve))
+        destructible.ephemeral('second', new Promise(resolve => setTimeout(resolve, 150)))
+        destructible.ephemeral('third', new Promise(resolve => setTimeout(resolve, 150)))
+        const promises = []
+        promises.push(destructible.drain())
+        promises.push(destructible.drain())
+        for (const promise of promises) {
+            await promise
+        }
+        latch.resolve()
+        await destructible.rejected
+        okay('drain')
     }
 })

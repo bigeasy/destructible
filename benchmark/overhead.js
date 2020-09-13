@@ -12,8 +12,6 @@ async function main () {
     const Destructible = require('..')
     const destructible = new Destructible('benchmark')
 
-    console.log('called')
-
     let start = 0
 
     for (const [ f, count ] of [[ loaded, 30000 ], [ unloaded, 10000000 ]]) {
@@ -21,22 +19,20 @@ async function main () {
         for (let i = 0; i < count; i++) {
             await f()
         }
-        console.log(Date.now() - start)
+        console.log(f.name, 'direct', Date.now() - start)
 
         start = Date.now()
         for (let i = 0; i < count; i++) {
             await destructible.ephemeral('foo', f())
         }
-        console.log(Date.now() - start)
+        console.log(f.name, 'promise', Date.now() - start)
 
         start = Date.now()
         for (let i = 0; i < count; i++) {
             await destructible.ephemeral('foo', f)
         }
-        console.log(Date.now() - start)
+        console.log(f.name, 'function', Date.now() - start)
     }
-
-    console.log('done')
 }
 
 main()

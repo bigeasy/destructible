@@ -94,7 +94,13 @@ class Destructible {
 
         this._parent = null
 
+        this.durables = 0
+
+        this.ephemerals = 0
+
         this._waiting = new List
+
+        this._drain = null
 
         this._increment = 0
 
@@ -313,6 +319,21 @@ class Destructible {
        }
     }
 
+    drain () {
+        if (this._drain != null) {
+            return this._drain.promise
+        }
+        for (const wait of this._waiting) {
+            if (wait.method == 'ephemeral') {
+                this._drain = { promise: null, resolve: null }
+                return this._drain.promise = new Promise(resolve => {
+                    this._drain.resolve = resolve
+                })
+            }
+        }
+        return true
+    }
+
     // Increment a countdown to destruction. Calling `increment()` increments an
     // internal counter. Calling `decrement()` decrements the internal counter.
     // When the counter reaches zero, the `Destructible` is destroyed. If you do
@@ -438,7 +459,23 @@ class Destructible {
             }
         } finally {
             if (wait.value.method == 'durable') {
+                this.durables--
                 this._destroy()
+            } else {
+                this.ephemerals--
+                if (this._drain != null) {
+                    if ((() => {
+                        for (const wait of this._waiting) {
+                            if (wait.method == 'ephemeral') {
+                                return false
+                            }
+                        }
+                        return true
+                    }) ()) {
+                        this._drain.resolve(true)
+                        this._drain = null
+                    }
+                }
             }
             if (this.destroyed) {
                 this._complete()
@@ -584,6 +621,7 @@ class Destructible {
 
     //
     durable (key, ...vargs) {
+        this.durables++
         return this._await('durable', key, vargs)
     }
 
@@ -593,6 +631,7 @@ class Destructible {
 
     //
     ephemeral (key, ...vargs) {
+        this.ephemerals++
         return this._await('ephemeral', key, vargs)
     }
 
