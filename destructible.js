@@ -721,10 +721,15 @@ class Destructible {
 
     static async rescue (f) {
         try {
-            await (typeof f == 'function' ? f() : f)
+            return await (typeof f == 'function' ? f() : f)
         } catch (error) {
             Destructible.destroyed(error)
         }
+    }
+
+    // `Destructible.rescue()` won
+    rescue (key, f) {
+        return this.ephemeral(key, Destructible.rescue(f))
     }
 }
 
