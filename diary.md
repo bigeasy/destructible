@@ -1,3 +1,10 @@
+## Sat Sep 26 22:49:14 CDT 2020
+
+Realizing that `rescue` needs an `ephemeral` so that we can `await` on
+`rejected` before it rejects. We can't wait for `Destructible.rescue` to return
+because if it raises a `Destructible.Destroyed` and that Destructible shuts down
+fast enough, we're going to get an unhandled rejection.
+
 ## Sat Sep  5 04:23:06 CDT 2020
 
 Shutting things down is hard. Convinced that > 90% of Node.js code in production
