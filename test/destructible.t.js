@@ -353,11 +353,11 @@ require('proof')(37, async (okay) => {
     {
         const test = []
         const destructible = new Destructible('main')
-        destructible.operable++
+        destructible.operative++
         const child = destructible.durable('child')
-        okay(child.operable, 1, 'child inherits operable')
-        destructible.operable++
-        okay(child.operable, 2, 'child operable set')
+        okay(child.operative, 1, 'child inherits operative')
+        destructible.operative++
+        okay(child.operative, 2, 'child operative set')
         destructible.destruct(() => test.push('destroyed'))
         destructible.close(() => test.push('closed'))
         const handle = destructible.close(() => test.push('should not see'))
@@ -365,14 +365,14 @@ require('proof')(37, async (okay) => {
         destructible.operational()
         destructible.destroy()
         okay(test, [ 'destroyed' ], 'only destroyed')
-        okay(!destructible.inoperable, 'still operable')
+        okay(!destructible.inoperative, 'still operative')
         destructible.operational()
         destructible.clear(handle)
-        destructible.operable--
-        destructible.operable--
+        destructible.operative--
+        destructible.operative--
         okay(test, [ 'destroyed', 'closed' ], 'destroyed and closed')
-        destructible.operable++
-        okay(destructible.inoperable, 'inoperable')
+        destructible.operative++
+        okay(destructible.inoperative, 'inoperative')
         try {
             await destructible.rejected
         } catch (error) {

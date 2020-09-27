@@ -88,9 +88,9 @@ class Destructible {
 
         this.destroyed = false
 
-        this._operable = 0
+        this._operative = 0
 
-        this.inoperable = false
+        this.inoperative = false
 
         this.rejected = new Promise((...vargs) => this._rejected = vargs)
 
@@ -164,12 +164,12 @@ class Destructible {
     // promises have resolved or the shutdown failed to complete before the
     // scram timeout.
     _return () {
-        if (! this._waiting.empty || this._operable != 0) {
+        if (! this._waiting.empty || this._operative != 0) {
             this._rejected[1].call(null, new Destructible.Error('scrammed', this._errors, {
                 key: this.key,
                 context: this.context,
                 waiting: this._waiting.slice(),
-                operable: this._operable,
+                operative: this._operative,
                 code: 'scrammed'
             }))
         } else if (this._errors.length != 0) {
@@ -177,7 +177,7 @@ class Destructible {
                 key: this.key,
                 context: this.context,
                 waiting: this._waiting.slice(),
-                operable: this._operable,
+                operative: this._operative,
                 code: 'errored'
             }))
         } else {
@@ -191,15 +191,15 @@ class Destructible {
         throw new Error
     }
 
-    get operable () {
-        return this._operable
+    get operative () {
+        return this._operative
     }
 
-    set operable (value) {
-        if (! this.inoperable) {
-            this._operable = value
+    set operative (value) {
+        if (! this.inoperative) {
+            this._operative = value
             for (const child of this._children) {
-                child.operable = value
+                child.operative = value
             }
             if (this.destroyed) {
                 this._close()
@@ -209,7 +209,7 @@ class Destructible {
     }
 
     operational () {
-        if (this.destroyed && this._operable == 0) {
+        if (this.destroyed && this._operative == 0) {
             throw new Destructible.Destroyed('destroyed', { code: 'destroyed' })
         }
     }
@@ -288,7 +288,7 @@ class Destructible {
                 scram.resolve.call()
             })
             this._working = true
-            while ((! this._waiting.empty || this._operable != 0) && this._working) {
+            while ((! this._waiting.empty || this._operative != 0) && this._working) {
                 this._working = false
                 await new Promise(resolve => {
                     scram.resolve = resolve
@@ -354,8 +354,8 @@ class Destructible {
     }
 
     _close () {
-        if (this._operable == 0) {
-            this.inoperable = true
+        if (this._operative == 0) {
+            this.inoperative = true
             this._destructing = true
             while (!this._closers.empty) {
                 try {
@@ -383,7 +383,7 @@ class Destructible {
         return true
     }
 
-    // TODO Now with operable we might want to have another property for this
+    // TODO Now with operative we might want to have another property for this
     // countdown, which we might call countdown, and if it is never set to
     // anything it is ignored.
 
@@ -460,7 +460,7 @@ class Destructible {
     // if it is destroyed. If the destructible has completed shutdown stop the
     // scram timer and toggle the scram timer latch.
     _complete () {
-        if (this._operable == 0 && this._waiting.empty) {
+        if (this._operative == 0 && this._waiting.empty) {
             this._scram()
             return true
         } else {
@@ -596,7 +596,7 @@ class Destructible {
 
             const destructible = new Destructible(this._timeout, key)
 
-            destructible.operable = this.operable
+            destructible.operative = this.operative
 
             const child = this._children.push(destructible)
 
