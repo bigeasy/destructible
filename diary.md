@@ -1,3 +1,23 @@
+## Sat Sep 26 23:01:56 CDT 2020
+
+What if what we really need to do is delay the scram, oh, no... Okay...
+
+Okay, delay the scram, yes, but rather, delay the shutdown of starting new
+ephemerals. Already thinking about adding Turnstile to Amalgamate just so that
+we have a queue that can drain, because we can't start new ephemerals. What if
+we had a way of delaying the scram, so that we can add more ephemerals. We want
+to assert that we've not been destroyed when a new ephemeral starts, because
+nothing will monitor it, it will be a leak of a strand.
+
+And so a counter, when it reaches zero then we know there are no more ephemerals
+or durables, no strands what-so-ever.
+
+But, we don't need to delay the scram, we can just use this countdown and
+account for it in the scram. When it reaches zero we can wake the scram timer.
+
+So, now we do not delay destruction, it occurs, we just delay the shutdown of
+adding new work.
+
 ## Sat Sep 26 22:49:14 CDT 2020
 
 Realizing that `rescue` needs an `ephemeral` so that we can `await` on
