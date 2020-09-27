@@ -721,7 +721,7 @@ class Destructible {
 
     static async rescue (f) {
         try {
-            await f()
+            await (typeof f == 'function' ? f() : f)
         } catch (error) {
             Destructible.destroyed(error)
         }

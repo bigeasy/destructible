@@ -209,6 +209,10 @@ require('proof')(36, async (okay) => {
     }
     {
         const destructible = new Destructible('attempt')
+        await Destructible.rescue(Promise.resolve(true))
+    }
+    {
+        const destructible = new Destructible('attempt')
         Destructible.rescue(async function () {
             await destructible.ephemeral('name', async function () {
                 throw new Error('error')
