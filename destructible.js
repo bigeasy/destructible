@@ -88,6 +88,10 @@ class Destructible {
 
         this.destroyed = false
 
+        this._operable = 0
+
+        this.inoperable = false
+
         this.rejected = new Promise((...vargs) => this._rejected = vargs)
 
         this.destructed = new Promise(resolve => this._destructed = resolve)
@@ -99,6 +103,8 @@ class Destructible {
         this.ephemerals = 0
 
         this._waiting = new List
+
+        this._children = new List
 
         this._drain = null
 
@@ -113,6 +119,8 @@ class Destructible {
         this._errored = false
 
         this._destructing = false
+
+        this._closers = new List
 
         this._destructors = new List
         // Yes, we still need `Signal` because `Promise`s are not cancelable.
@@ -129,9 +137,15 @@ class Destructible {
         return this._destructors.push(f)
     }
 
+    close (f) {
+        return this._closers.push(f)
+    }
+
     // `destructible.destruct(f)` &mdash; Remove the registered destructor `f`
     // from the list of destructors to call when this `Destructible` is
     // destroyed.
+    //
+    // TODO Maybe return cleared function?
 
     //
     clear (handle) {
@@ -150,11 +164,12 @@ class Destructible {
     // promises have resolved or the shutdown failed to complete before the
     // scram timeout.
     _return () {
-        if (!this._waiting.empty) {
+        if (! this._waiting.empty || this._operable != 0) {
             this._rejected[1].call(null, new Destructible.Error('scrammed', this._errors, {
                 key: this.key,
                 context: this.context,
                 waiting: this._waiting.slice(),
+                operable: this._operable,
                 code: 'scrammed'
             }))
         } else if (this._errors.length != 0) {
@@ -162,6 +177,7 @@ class Destructible {
                 key: this.key,
                 context: this.context,
                 waiting: this._waiting.slice(),
+                operable: this._operable,
                 code: 'errored'
             }))
         } else {
@@ -175,8 +191,25 @@ class Destructible {
         throw new Error
     }
 
+    get operable () {
+        return this._operable
+    }
+
+    set operable (value) {
+        if (! this.inoperable) {
+            this._operable = value
+            for (const child of this._children) {
+                child.operable = value
+            }
+            if (this.destroyed) {
+                this._close()
+                this._complete()
+            }
+        }
+    }
+
     operational () {
-        if (this.destroyed) {
+        if (this.destroyed && this._operable == 0) {
             throw new Destructible.Destroyed('destroyed', { code: 'destroyed' })
         }
     }
@@ -255,7 +288,7 @@ class Destructible {
                 scram.resolve.call()
             })
             this._working = true
-            while (! this._waiting.empty && this._working) {
+            while ((! this._waiting.empty || this._operable != 0) && this._working) {
                 this._working = false
                 await new Promise(resolve => {
                     scram.resolve = resolve
@@ -305,6 +338,7 @@ class Destructible {
                 }
             }
             this._destructing = false
+            this._close()
             // If we're complete, we can resolve the `Destructible.promise`,
             // otherwise we need to start and wait for the scram timer.
             if (this._complete()) {
@@ -317,6 +351,21 @@ class Destructible {
                 this._scrammed()
             }
        }
+    }
+
+    _close () {
+        if (this._operable == 0) {
+            this.inoperable = true
+            this._destructing = true
+            while (!this._closers.empty) {
+                try {
+                    this._closers.shift().call()
+                } catch (error) {
+                    this._errors.push([ error, { method: 'close' } ])
+                }
+            }
+            this._destructing = false
+        }
     }
 
     drain () {
@@ -333,6 +382,10 @@ class Destructible {
         }
         return true
     }
+
+    // TODO Now with operable we might want to have another property for this
+    // countdown, which we might call countdown, and if it is never set to
+    // anything it is ignored.
 
     // Increment a countdown to destruction. Calling `increment()` increments an
     // internal counter. Calling `decrement()` decrements the internal counter.
@@ -407,7 +460,7 @@ class Destructible {
     // if it is destroyed. If the destructible has completed shutdown stop the
     // scram timer and toggle the scram timer latch.
     _complete () {
-        if (this.destroyed && this._waiting.empty) {
+        if (this._operable == 0 && this._waiting.empty) {
             this._scram()
             return true
         } else {
@@ -543,6 +596,10 @@ class Destructible {
 
             const destructible = new Destructible(this._timeout, key)
 
+            destructible.operable = this.operable
+
+            const child = this._children.push(destructible)
+
             destructible.increment()
 
             // Destroy the child destructible when we are destroyed.
@@ -550,6 +607,8 @@ class Destructible {
                 destructible._ephemeral = false
                 destructible.decrement()
             })
+
+            const close = this.close(() => List.unlink(child))
 
             if (method == 'ephemeral') {
                 destructible._ephemeral = true
@@ -573,6 +632,8 @@ class Destructible {
                     this._destroy()
                 }
             })
+
+            destructible.close(() => this.clear(close))
 
             // Scram the child destructible if we are scrammed. Cancel our scram
             // forwarding if the child's `_scrams` unlatches. (A `Destructible`
