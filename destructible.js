@@ -116,6 +116,8 @@ class Destructible {
         // errors, or eliminate `Destructible.Destroyed` originated errors.
         this._errors = []
 
+        this._working = []
+
         this._errored = false
 
         this._destructing = false
@@ -283,13 +285,13 @@ class Destructible {
         if (this._ephemeral) {
             const scram = { timeout: null, resolve: null }
             this._scrams.push(() => {
-                this._working = false
+                this._working[0] = false
                 clearTimeout(scram.timeout)
                 scram.resolve.call()
             })
-            this._working = true
-            while ((! this._waiting.empty || this._operative != 0) && this._working) {
-                this._working = false
+            this._working[0] = true
+            while ((! this._waiting.empty || this._operative != 0) && this._working[0]) {
+                this._working[0] = false
                 await new Promise(resolve => {
                     scram.resolve = resolve
                     scram.timeout = setTimeout(resolve, this._timeout)
@@ -596,6 +598,8 @@ class Destructible {
 
             const destructible = new Destructible(this._timeout, key)
 
+            destructible._working = this._working
+
             destructible.operative = this.operative
 
             const child = this._children.push(destructible)
@@ -668,10 +672,7 @@ class Destructible {
     }
 
     working () {
-        this._working = true
-        if (this._parent != null) {
-            this._parent.working()
-        }
+        this._working[0] = true
     }
 
     // Launch an operation that lasts the lifetime of the `Destructible`. When
