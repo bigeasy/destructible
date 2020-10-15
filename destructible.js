@@ -668,11 +668,9 @@ class Destructible {
     }
 
     working () {
-        if (this.destroyed) {
-            this._working = true
-            if (this._parent != null) {
-                this._parent.working()
-            }
+        this._working = true
+        if (this._parent != null) {
+            this._parent.working()
         }
     }
 
