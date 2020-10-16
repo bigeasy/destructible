@@ -7,19 +7,67 @@ const Interrupt = require('interrupt')
 // A linked-list to track promises, scrams.
 const List = require('./list')
 
-// `Destructible` awaits multiple concurrent JavaScript `Promise`s as
-// implemented by the JavaScript `Promise` class. Additionally, `Destructible`
-// registers destructor functions that will cancel the `Promise`s it is
-// awaiting. `Destructible` will allow you to stop all the awaited `Promise`s at
-// once and return. Unlike `Promise.all`, `Destructible` will ensure that all
-// the promises return when any `Promise` rejects.
+// `Destructible` is a utility for managing concurrent operations in
+// `async`/`await` style JavaScript programs. The fundimental concept of
+// `Destructible` is the "strand." A strand conceptually a thread, but it does
+// not run as a light-weight process. It is defined as an independent
+// `async`/`await` call stack.
 //
-// TODO Introduce the term "`Promise` group."
+// The typical example of a minimal `async`/`await` program is as follows.
+//
+// ```javascript
+// async function main () {
+//     const fs = require('fs').promises
+//     console.log(await fs.readFile(__filename, 'utf8'))
+// }
+//
+// main()
+// ```
+//
+// `await` can only be called within an `async` function, so we create an
+// `async` function named `main`. We then call it without `await` and relying on
+// the default unhandled exception handler to report any exceptions. The `main`
+// function here represents a single strand in a JavaScript program.
+//
+// But what if we wait to do to things at once? Imagine an `async`/`await` based
+// server using `await` to pull buffers off of a socket, with a loop for each
+// socket. Each of those loops represents an `async`/`await` call stack. They
+// can each raise and propagate an exception. Each of those loops is a strand.
+//
+// `Destructible` simplifis this sort of multi-loop/multi-stack/multi-strand
+// programming so that it looks a lot like multi-threaded programming.
+//
+// _`Destructible` in practice appears to be awaiting `async` functions, but in
+// reality and often in practice it is really awaiting `Promise`s. For the rest
+// of this document we will talk about `Promise`s and not `async` functions but
+// they are synonymous. I just don't want you to think that you must wrap a
+// `Promise` you need to resolve in a function call._
+//
+// `Destructible` awaits multiple concurrent JavaScript `Promise`s grouped
+// together as a `Promise` group. Additionally, `Destructible` registers
+// destructor functions of your design that will cancel the `Promise`s it is
+// awaiting. `Destructible` will allow you to stop all the awaited `Promise`s at
+// once and return.
+//
+// Unlike `Promise.all`, `Destructible` will ensure that all the promises return
+// when any `Promise` rejects and that all exceptions are reported instead of
+// just the first one to reject. Reporting all execeptions is important because
+// the first exception may only be the proixmate cause of failure.
 //
 // When you cancel a `Destructible` it will fire all the destructor functions
-// you registered to cancel all the `Promises`s you registered. You can use
-// cancellation to ensure that all your `Promise`s resolve when you exit your
-// application.
+// you registered to cancel all the `Promises`s you registered. Cancellation is
+// defined by you, the user. Perhaps you have to abort a socket connection or
+// cancel a timer. `Destructible` helps you organize all your shutdown
+// procedures and ensure that they run in order. It also helps you order the
+// shutdown of strands, so that background strands that need to continue to run
+// during shutdown shutdown after forground strands finish.
+//
+// And by background and foreground I do mean any number of layers of such
+// dependencies, not just the two. Your server may depend on a database that
+// depends on a memory cache and you can shut them down one, two, three.
+//
+// _**TODO** Above is a tidy and a rewrite that is consume what comes below.
+// What is above could be moved to the `README.md`._
 //
 // Cancellation can also occur automatically when a `Promise` in the group
 // resolves. This is done by registering the `Promise` as a durable `Promise`,
@@ -75,15 +123,24 @@ class Destructible {
 
     static Destroyed = Interrupt.create('Destructible.Destroyed', Destructible.Error)
 
-    // `new Destructible([ scram ], key, ...context)` constructs a new
-    // `Destructible` that will scram after the given `scram` timeout or the
-    // default `1000` milliseconds if not given. The key is used to report the
-    // `Destructible` in the stack trace on error or scram. The `context` is
-    // used to provide further context to the error stack trace for debugging.
+    // `new Destructible([ scram ], id)` constructs a new `Destructible` to act
+    // as the root of a tree of parallel concurrent strands.
+    //
+    // The `Destructible` will scram after the given `scram` timeout or the
+    // default `1000` milliseconds if not given. A scram is an exception raised
+    // when one or more strands fails to resolve or make progress before the
+    // given timeout.
+    //
+    // The `id` can be any JSON serializable object. It is displayed in the
+    // `Destructible` in the stack trace on error. It is also available through
+    // the `id` property of the `Destructible`. The `id` is not required by
+    // `Destructible` to be unique. It is for your reference.
+
+    //
     constructor (...vargs) {
         this._timeout = typeof vargs[0] == 'number' ? vargs.shift() : 1000
         this._ephemeral = true
-        this.key = vargs.shift()
+        this.id = vargs.shift()
         this.context = vargs
 
         this.destroyed = false
@@ -168,7 +225,7 @@ class Destructible {
     _return () {
         if (! this._waiting.empty || this._operative != 0) {
             this._rejected[1].call(null, new Destructible.Error('scrammed', this._errors, {
-                key: this.key,
+                id: this.id,
                 context: this.context,
                 waiting: this._waiting.slice(),
                 operative: this._operative,
@@ -176,7 +233,7 @@ class Destructible {
             }))
         } else if (this._errors.length != 0) {
             this._rejected[1].call(null, new Destructible.Error('error', this._errors, {
-                key: this.key,
+                id: this.id,
                 context: this.context,
                 waiting: this._waiting.slice(),
                 operative: this._operative,
@@ -580,11 +637,11 @@ class Destructible {
     // implementation as it stands points in this direction and I'm not going
     // back to rethink it all. Software as Plinko.
     //
-    _await (method, key, vargs) {
+    _await (method, id, vargs) {
         if (!(method == 'ephemeral' && this._destructing)) {
             this.operational()
         }
-        const wait = this._waiting.push({ method, key })
+        const wait = this._waiting.push({ method, id })
         // Ephemeral destructible children can set a scram timeout.
         if (typeof vargs[0] == 'function') {
             //const promise = async function () { return await vargs.shift()() } ()
@@ -596,7 +653,7 @@ class Destructible {
             // Create the child destructible.
             //assert(typeof this._timeout == 'number' && this._timeout != Infinity)
 
-            const destructible = new Destructible(this._timeout, key)
+            const destructible = new Destructible(this._timeout, id)
 
             destructible._working = this._working
 
@@ -678,21 +735,42 @@ class Destructible {
     // Launch an operation that lasts the lifetime of the `Destructible`. When
     // the promise resolves or rejects we perform an orderly shutdown of the
     // `Destructible`.
+    //
+    // The `id` identifies the strand. It can be any JSON serializable object.
+    // It is displayed in the stack trace on error. When creating a sub-group
+    // the `id` available as a property of the returned `Destructible`. The `id`
+    // is not required by `durable` to be unique. It is for your reference.
+    //
+    // Use this for strands that must run for the lifetime of `Promise` group
+    // whose early except without or without an exception would be exceptional.
+    //
+    // **TODO** Maybe instead of having `durable` trigger a shutdown, maybe it
+    // should raise an exception if it exits early? Then would I still need
+    // `durable` under another name? And would there be more than one in any
+    // `Promise` group? And what is that name? `expendable`?
+    //
+    // The names are just getting silly now, but so long as they are
+    // consistently silly I don't mind.
 
     //
-    durable (key, ...vargs) {
+    durable (id, ...vargs) {
         this.durables++
-        return this._await('durable', key, vargs)
+        return this._await('durable', id, vargs)
     }
 
     // Launch an operation that does not last the lifetime of the
     // `Destructible`. Only if the promise rejects do we perform an orderly
     // shutdown of the `Destructible`.
+    //
+    // The `id` identifies the strand. It can be any JSON serializable object.
+    // It is displayed in the stack trace on error. When creating a sub-group
+    // the `id` available as a property of the returned `Destructible`. The `id`
+    // is not required by `durable` to be unique. It is for your reference.
 
     //
-    ephemeral (key, ...vargs) {
+    ephemeral (id, ...vargs) {
         this.ephemerals++
-        return this._await('ephemeral', key, vargs)
+        return this._await('ephemeral', id, vargs)
     }
 
     // Used the configuration problem I keep encountering. The problem is that
@@ -727,8 +805,12 @@ class Destructible {
     }
 
     // `Destructible.rescue()` won
-    rescue (key, f) {
-        return this.ephemeral(key, Destructible.rescue(f))
+    //
+    // **TODO** Wrapping causes some sort of race, I forget which.
+    //
+    //
+    rescue (id, f) {
+        return this.ephemeral(id, Destructible.rescue(f))
     }
 }
 
