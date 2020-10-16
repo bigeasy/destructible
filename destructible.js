@@ -139,9 +139,10 @@ class Destructible {
     //
     constructor (...vargs) {
         this._timeout = typeof vargs[0] == 'number' ? vargs.shift() : 1000
+
         this._ephemeral = true
+
         this.id = vargs.shift()
-        this.context = vargs
 
         this.destroyed = false
 
