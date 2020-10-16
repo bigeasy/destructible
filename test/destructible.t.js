@@ -1,4 +1,4 @@
-require('proof')(37, async (okay) => {
+require('proof')(30, async (okay) => {
     const Destructible = require('..')
     {
         const destructible = new Destructible('main')
@@ -349,35 +349,5 @@ require('proof')(37, async (okay) => {
         latch.resolve()
         await destructible.rejected
         okay('drain')
-    }
-    {
-        const test = []
-        const destructible = new Destructible('main')
-        destructible.operative++
-        const child = destructible.durable('child')
-        okay(child.operative, 1, 'child inherits operative')
-        destructible.operative++
-        okay(child.operative, 2, 'child operative set')
-        destructible.destruct(() => test.push('destroyed'))
-        destructible.close(() => test.push('closed'))
-        const handle = destructible.close(() => test.push('should not see'))
-        destructible.close(() => { throw new Error('errored') })
-        destructible.operational()
-        destructible.destroy()
-        okay(test, [ 'destroyed' ], 'only destroyed')
-        okay(!destructible.inoperative, 'still operative')
-        destructible.operational()
-        destructible.clear(handle)
-        destructible.operative--
-        destructible.operative--
-        okay(test, [ 'destroyed', 'closed' ], 'destroyed and closed')
-        destructible.operative++
-        okay(destructible.inoperative, 'inoperative')
-        try {
-            await destructible.rejected
-        } catch (error) {
-            test.push(error.causes[0].message)
-        }
-        okay(test, [ 'destroyed', 'closed', 'errored' ], 'destroyed and closed and errored')
     }
 })
