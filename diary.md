@@ -1,3 +1,9 @@
+## Fri Oct 16 18:29:52 CDT 2020
+
+While documenting, it occurs to me that if ids are not unique, if a socket is
+just named `"socket"`, than copious duplicates when `Destructible.Destroyed`
+could be eliminated by eliminating duplcate path + code.
+
 ## Sat Sep 26 23:01:56 CDT 2020
 
 What if what we really need to do is delay the scram, oh, no... Okay...

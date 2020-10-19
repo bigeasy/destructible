@@ -136,7 +136,7 @@ require('proof')(30, async (okay) => {
             await destructible.rejected
         } catch (error) {
             console.log(error.stack)
-            test.push(error.label)
+            test.push(error.code)
         }
         okay(test, [ 'scrammed' ], 'scram')
         latch.resolve.call()
@@ -154,9 +154,9 @@ require('proof')(30, async (okay) => {
             console.log('there')
         } catch (error) {
             console.log(error.stack)
-            test.push(/^scrammed$/m.test(error.causes[0].message))
+            test.push(error.causes[0].code)
         }
-        okay(test, [ true ], 'scram sub-destructible')
+        okay(test, [ 'scrammed' ], 'scram sub-destructible')
         _resolve()
     }
     {
@@ -170,9 +170,9 @@ require('proof')(30, async (okay) => {
             await destructible.rejected
         } catch (error) {
             console.log(error.stack)
-            test.push(/^scrammed$/m.test(error.causes[0].message))
+            test.push(error.causes[0].code)
         }
-        okay(test, [ true ], 'set timeout for an ephemeral block')
+        okay(test, [ 'scrammed' ], 'set timeout for an ephemeral block')
     }
     {
         const test = []
@@ -193,9 +193,9 @@ require('proof')(30, async (okay) => {
     {
         const destructible = new Destructible('attempt')
         try {
-            await destructible.ephemeral('name', async function () {
+            await destructible.exceptional('name', async function () {
                 throw new Error('error')
-            }, true)
+            })
         } catch (error) {
             console.log(error)
             okay(error instanceof Destructible.Error, 'attempt did init error')
@@ -214,9 +214,9 @@ require('proof')(30, async (okay) => {
     {
         const destructible = new Destructible('attempt')
         Destructible.rescue(async function () {
-            await destructible.ephemeral('name', async function () {
+            await destructible.exceptional('name', async function () {
                 throw new Error('error')
-            }, true)
+            })
         })
         try {
             await destructible.rejected

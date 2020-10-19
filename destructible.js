@@ -119,7 +119,11 @@ const List = require('./list')
 
 //
 class Destructible {
-    static Error = Interrupt.create('Destructible.Error')
+    static Error = Interrupt.create('Destructible.Error', {
+        destroyed: 'attempt to launch new strands after destruction',
+        errored: 'strand exited with exception',
+        scrammed: 'strand failed to exit or make progress'
+    })
 
     static Destroyed = Interrupt.create('Destructible.Destroyed', Destructible.Error)
 
@@ -223,16 +227,14 @@ class Destructible {
             this._rejected[1].call(null, new Destructible.Error('scrammed', this._errors, {
                 id: this.id,
                 context: this.context,
-                waiting: this._waiting.slice(),
-                code: 'scrammed'
+                waiting: this._waiting.slice()
             }))
         } else if (this._errors.length != 0) {
-            this._rejected[1].call(null, new Destructible.Error('error', this._errors, {
+            this._rejected[1].call(null, new Destructible.Error('errored', this._errors, {
                 id: this.id,
                 context: this.context,
                 waiting: this._waiting.slice(),
-                operative: this._operative,
-                code: 'errored'
+                operative: this._operative
             }))
         } else {
             this._rejected[0].call(null, false)
@@ -517,7 +519,7 @@ class Destructible {
     // because it would just mean two extra `if` statements when we already
     // know.
 
-    async _awaitPromise (operation, wait, vargs) {
+    async _awaitPromise (operation, wait, raise) {
         try {
             try {
                 return await operation
@@ -528,7 +530,7 @@ class Destructible {
             this._errored = true
             this._errors.push([ error, wait.value ])
             this._destroy()
-            if (vargs.length != 0 && vargs[0] === true) {
+            if (raise) {
                 throw new Destructible.Destroyed('destroyed', { code: 'destroyed' })
             }
         } finally {
@@ -574,12 +576,12 @@ class Destructible {
     //
     // TODO We're going to have race conditions if we do not push the scrammable
     // in the same synchronous run in which we check destroyed.
-    async _awaitScrammable (destructible, wait, scram) {
+    async _awaitScrammable (destructible, wait, raise, scram) {
         // Monitor our new destructible as child of this destructible.
         const scrammable = {}
         const node = this._scrammable.push(new Promise(resolve => scrammable.resolve = resolve))
         try {
-            await this._awaitPromise(destructible.rejected, wait, [])
+            await this._awaitPromise(destructible.rejected, wait, raise)
         } finally {
             // TODO Convince yourself that it doens't matter if you call a
             // scrammable before you call `_complete`.
@@ -599,7 +601,7 @@ class Destructible {
     // implementation as it stands points in this direction and I'm not going
     // back to rethink it all. Software as Plinko.
     //
-    _await (method, id, vargs) {
+    _await (method, raise, id, vargs) {
         if (!(method == 'ephemeral' && this._destructing)) {
             this.operational()
         }
@@ -607,7 +609,7 @@ class Destructible {
         // Ephemeral destructible children can set a scram timeout.
         if (typeof vargs[0] == 'function') {
             //const promise = async function () { return await vargs.shift()() } ()
-            return this._awaitPromise(vargs.shift()(), wait, vargs)
+            return this._awaitPromise(vargs.shift()(), wait, raise)
         } else if (vargs.length == 0) {
             // Ephemeral sub-destructibles can have their own timeout and scram
             // timer, durable sub-destructibles are scrammed by their root.
@@ -676,11 +678,11 @@ class Destructible {
             // is the way it's supposed to be.
             destructible._parent = this
 
-            this._awaitScrammable(destructible, wait, scram)
+            this._awaitScrammable(destructible, wait, raise, scram)
 
             return destructible
         } else {
-            return this._awaitPromise(vargs.shift(), wait, vargs)
+            return this._awaitPromise(vargs.shift(), wait, raise)
         }
     }
 
@@ -711,31 +713,57 @@ class Destructible {
     //
     durable (id, ...vargs) {
         this.durables++
-        return this._await('durable', id, vargs)
+        return this._await('durable', false, id, vargs)
     }
 
-    // Launch an operation that does not last the lifetime of the
-    // `Destructible`. Only if the promise rejects do we perform an orderly
-    // shutdown of the `Destructible`.
+    // `async ephemeral(id, [ Promise ])` &mdash; Start a strand that does not
+    // last the lifetime of the `Destructible`. Only if the `Promise` rejects do
+    // we perform an orderly shutdown of the `Destructible`. No exception is
+    // raised if the `Promise` of strand rejects.
     //
     // The `id` identifies the strand. It can be any JSON serializable object.
     // It is displayed in the stack trace on error. When creating a sub-group
     // the `id` available as a property of the returned `Destructible`. The `id`
     // is not required by `durable` to be unique. It is for your reference.
+    //
+    // This is used for background tasks that are short-term, like shuffling
+    // files around in a database, or indefinate, like chatting on a socket in a
+    // server where there are many sockets opening and closing whenever.
+    //
+    // Note that if you have an application like a server where sockets can
+    // raise exceptions that destroy the socket but should not destroy the
+    // server, then you should catch those exceptions in the socket strand.
+    // Destructible has no facilities for rescuing exceptions. It treats any
+    // exception as fatal. Catch blocks in you strands perform rescues.
 
     //
     ephemeral (id, ...vargs) {
         this.ephemerals++
-        return this._await('ephemeral', id, vargs)
+        return this._await('ephemeral', false, id, vargs)
     }
 
-    // Used the configuration problem I keep encountering. The problem is that
-    // we're trying to setup a bunch of sub-destructibles, but we encounter an
-    // error that means we have to stop before setup is completed. We'd like to
-    // stop making progress on our setup, but we also want to report the error,
-    // and it would be nice if it was all wrapped up in `Destructible.rejected`.
-    // So, we run setup function in `attemptable` and we run the possibly
-    // abortive configuration step in `awaitable`.
+    // `async exeptional(id, [ Promise ])` &mdash; Start an `ephemeral` strand,
+    // a strand that does not last the lifetime of the `Destructible`. Return
+    // the reoslved value of the strand's `Promise`. Unlike `ephemeral`, if the
+    // `Promise` rejects, a `Destructible.Destroyed` exception is raised. The
+    // excpetion of the `Promise` rejection is reported in the elaborate stack
+    // trace in the `Destrucible.rejected` property.
+    //
+    // This is used to initialization perform tasks that must complete
+
+    //
+    exceptional (id, ...vargs) {
+        this.ephemeral++
+        return this._await('ephemeral', true, id, vargs)
+    }
+
+    // Used to address the configuration problem I keep encountering. The
+    // problem is that we're trying to setup a bunch of sub-destructibles, but
+    // we encounter an error that means we have to stop before setup is
+    // completed. We'd like to stop making progress on our setup, but we also
+    // want to report the error, and it would be nice if it was all wrapped up
+    // in `Destructible.rejected`. So, we run setup function in `attemptable`
+    // and we run the possibly abortive configuration step in `awaitable`.
     //
     // Actually a more general problem. With Destructible I tend to run
     // background strands with work queues and the like. The work queue will
@@ -744,6 +772,24 @@ class Destructible {
     // caller should get an exception to indicate that the system is shutdown,
     // but not the details of the shutdown, that would be reported through
     // `Destructible.rejected`.
+    //
+    // **UPDATE** Still an issue. It is a way of doing the upper must
+    // initialization where something in the background could throw an
+    // exception, but I don't know what I want to accomplish here. Does it
+    // bother me terribly to have both the source exception from a background
+    // strand and the foreground `Destructible.Destroyed` exception? Because
+    // that is going to happen a lot, so maybe we want to filter exceptions? We
+    // could add a `prune` method and prune any exception whose root cause is
+    // `Destructible.Destroyed`. This could be immutable, returning a new
+    // exception, so we can log the original exception, then log a pruned
+    // excpetion. Ideally we'd be able to do this after the fact.
+    //
+    // At times I see mass scrams, meaning I'm not shutting down correctly,
+    // which I imagine in a server with thousands of sockets that fail to close
+    // would be unreadable and possibly unreportable. This suggests a
+    // de-duplification prune that would remove exceptions that have the same
+    // `id` path and exception type and code. Give me an idea for using codes
+    // and prefixes and sprintf to report errors.
 
     //
     static destroyed (error) {
@@ -766,7 +812,7 @@ class Destructible {
     //
     //
     rescue (id, f) {
-        return this.ephemeral(id, Destructible.rescue(f))
+        return this.exceptional(id, Destructible.rescue(f))
     }
 }
 

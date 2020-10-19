@@ -20,7 +20,7 @@
     },
     "dependencies":
     {
-                            "interrupt":                    "^10.1.0",
+                            "interrupt":                    "11.0.0-alpha.1",
                             "prospective":                  "^0.3.0"
     },
     "devDependencies":
