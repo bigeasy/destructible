@@ -125,8 +125,6 @@ class Destructible {
         scrammed: 'strand failed to exit or make progress'
     })
 
-    static Destroyed = Interrupt.create('Destructible.Destroyed', Destructible.Error)
-
     // `new Destructible([ scram ], id)` constructs a new `Destructible` to act
     // as the root of a tree of parallel concurrent strands.
     //
@@ -172,8 +170,6 @@ class Destructible {
 
         this._scrammable = new List
 
-        // TODO Maybe have a limit, like a stack limit. Bonus, reduce duplicated
-        // errors, or eliminate `Destructible.Destroyed` originated errors.
         this._errors = []
 
         this._working = []
@@ -249,7 +245,7 @@ class Destructible {
 
     operational () {
         if (this.destroyed) {
-            throw new Destructible.Destroyed('destroyed', { code: 'destroyed' })
+            throw new Destructible.Error('destroyed')
         }
     }
 
@@ -531,7 +527,7 @@ class Destructible {
             this._errors.push([ error, wait.value ])
             this._destroy()
             if (raise) {
-                throw new Destructible.Destroyed('destroyed', { code: 'destroyed' })
+                throw new Destructible.Error('destroyed')
             }
         } finally {
             if (wait.value.method == 'durable') {
@@ -745,9 +741,10 @@ class Destructible {
     // `async exeptional(id, [ Promise ])` &mdash; Start an `ephemeral` strand,
     // a strand that does not last the lifetime of the `Destructible`. Return
     // the reoslved value of the strand's `Promise`. Unlike `ephemeral`, if the
-    // `Promise` rejects, a `Destructible.Destroyed` exception is raised. The
-    // excpetion of the `Promise` rejection is reported in the elaborate stack
-    // trace in the `Destrucible.rejected` property.
+    // `Promise` rejects, a `Destructible.Error` exception is raised with a
+    // `code` of `'destroyed'`. The excpetion of the `Promise` rejection is
+    // reported in the elaborate stack trace in the `Destrucible.rejected`
+    // property.
     //
     // This is used to initialization perform tasks that must complete
 
@@ -777,12 +774,13 @@ class Destructible {
     // initialization where something in the background could throw an
     // exception, but I don't know what I want to accomplish here. Does it
     // bother me terribly to have both the source exception from a background
-    // strand and the foreground `Destructible.Destroyed` exception? Because
-    // that is going to happen a lot, so maybe we want to filter exceptions? We
-    // could add a `prune` method and prune any exception whose root cause is
-    // `Destructible.Destroyed`. This could be immutable, returning a new
-    // exception, so we can log the original exception, then log a pruned
-    // excpetion. Ideally we'd be able to do this after the fact.
+    // strand and the foreground `Destructible.Error` exception? Because that is
+    // going to happen a lot, so maybe we want to filter exceptions? We could
+    // add a `prune` method and prune any exception whose root cause is
+    // `Destructible.Error` with a `code` of `'destroyed'`. This could be
+    // immutable, returning a new exception, so we can log the original
+    // exception, then log a pruned excpetion. Ideally we'd be able to do this
+    // after the fact.
     //
     // At times I see mass scrams, meaning I'm not shutting down correctly,
     // which I imagine in a server with thousands of sockets that fail to close
@@ -793,7 +791,7 @@ class Destructible {
 
     //
     static destroyed (error) {
-        if (!(error instanceof Destructible.Destroyed)) {
+        if (!(error instanceof Destructible.Error) || error.code != 'destroyed') {
             throw error
         }
     }
