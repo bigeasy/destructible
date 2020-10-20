@@ -255,17 +255,17 @@ require('proof')(30, async (okay) => {
         okay(await promise, 1, 'instance rescue')
     }
     {
-        const destructible = new Destructible(250, 'working')
+        const destructible = new Destructible(250, 'progress')
         const child = destructible.ephemeral('child')
-        child.working()
-        child.durable('working', async function () {
+        child.progress()
+        child.durable('progress', async function () {
             let count = 7
             while (--count != 0) {
                 await new Promise(resolve => setTimeout(resolve, 100))
                 if (count % 2 == 0) {
-                    destructible.working()
+                    destructible.progress()
                 } else {
-                    child.working()
+                    child.progress()
                 }
             }
         })

@@ -172,7 +172,7 @@ class Destructible {
 
         this._errors = []
 
-        this._working = []
+        this._progress = []
 
         this._errored = false
 
@@ -296,7 +296,7 @@ class Destructible {
     // own scram timer and scram itself if it does not shutdown in a reasonable
     // amount of time.
     //
-    // At the time of writing this comment, we've just added the `working()`
+    // At the time of writing this comment, we've just added the `progress()`
     // function to indicate that we're making progress on shutdown.
     //
     // Prior to this, the reasoning was that the ephemerals would always run
@@ -309,22 +309,22 @@ class Destructible {
     // root destructible should account for the shutdown of each socket, hmm...
     // is five minutes enough? Where's my calculator?
     //
-    // With the `working()` function a timeout is based on progress, or not if
-    // you never call `working()`. Each socket will call working as it performs
-    // the steps in its handshake indicating that it making progress.
+    // With the `progress()` function a timeout is based on progress, or not if
+    // you never call `progress()`. Each socket will call progress as it
+    // performs the steps in its handshake indicating that it making progress.
 
     //
     async _scrammed () {
         if (this._ephemeral) {
             const scram = { timeout: null, resolve: null }
             this._scrams.push(() => {
-                this._working[0] = false
+                this._progress[0] = false
                 clearTimeout(scram.timeout)
                 scram.resolve.call()
             })
-            this._working[0] = true
-            while (! this._waiting.empty && this._working[0]) {
-                this._working[0] = false
+            this._progress[0] = true
+            while (! this._waiting.empty && this._progress[0]) {
+                this._progress[0] = false
                 await new Promise(resolve => {
                     scram.resolve = resolve
                     scram.timeout = setTimeout(resolve, this._timeout)
@@ -615,7 +615,7 @@ class Destructible {
 
             const destructible = new Destructible(this._timeout, id)
 
-            destructible._working = this._working
+            destructible._progress = this._progress
 
             destructible._child = this._children.push(destructible)
 
@@ -664,14 +664,14 @@ class Destructible {
                 destructible._scram()
             })
 
-            // This is added at a late date to propagate the working flag. Until
-            // now, all parent/child communication was done through generalized
-            // structures so that the parent or child was just another consumer
-            // of child or parent services respectively. Temptation is to
-            // rethink whether this should be the case or if more parent/child
-            // interation should be explicit, but rather than give it a lof
-            // thought, I'm going to assume that if I did, I'd realize that this
-            // is the way it's supposed to be.
+            // This is added at a late date to propagate the progress flag.
+            // Until now, all parent/child communication was done through
+            // generalized structures so that the parent or child was just
+            // another consumer of child or parent services respectively.
+            // Temptation is to rethink whether this should be the case or if
+            // more parent/child interation should be explicit, but rather than
+            // give it a lof thought, I'm going to assume that if I did, I'd
+            // realize that this is the way it's supposed to be.
             destructible._parent = this
 
             this._awaitScrammable(destructible, wait, raise, scram)
@@ -682,8 +682,8 @@ class Destructible {
         }
     }
 
-    working () {
-        this._working[0] = true
+    progress () {
+        this._progress[0] = true
     }
 
     // Launch an operation that lasts the lifetime of the `Destructible`. When
