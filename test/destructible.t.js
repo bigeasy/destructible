@@ -1,4 +1,4 @@
-require('proof')(30, async (okay) => {
+require('proof')(31, async (okay) => {
     const Destructible = require('..')
     {
         const destructible = new Destructible('main')
@@ -349,5 +349,24 @@ require('proof')(30, async (okay) => {
         latch.resolve()
         await destructible.rejected
         okay('drain')
+    }
+    {
+        const destructible = new Destructible('redurable')
+        destructible._durable('early exit', async () => {})
+        const test = []
+        try {
+            await destructible.rejected
+        } catch (error) {
+            test.push(error.causes[0].code)
+        }
+        okay(test, [ 'durable' ], 'exited too early')
+    }
+    {
+        const destructible = new Destructible('redurable')
+        const latch = { resolve: null }
+        destructible._durable('resolve', new Promise(resolve => latch.resolve = resolve))
+        destructible.destroy()
+        latch.resolve.call()
+        await destructible.rejected
     }
 })

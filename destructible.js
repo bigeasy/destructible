@@ -122,7 +122,8 @@ class Destructible {
     static Error = Interrupt.create('Destructible.Error', {
         destroyed: 'attempt to launch new strands after destruction',
         errored: 'strand exited with exception',
-        scrammed: 'strand failed to exit or make progress'
+        scrammed: 'strand failed to exit or make progress',
+        durable: 'early exit from a strand expected to last for entire life of destructible'
     })
 
     // `new Destructible([ scram ], id)` constructs a new `Destructible` to act
@@ -533,6 +534,14 @@ class Destructible {
             if (wait.value.method == 'durable') {
                 this.durables--
                 this._destroy()
+            } else if (wait.value.method == 'terminal') {
+                console.log('here!!!')
+                this.durables--
+                if (! this.destroyed) {
+                    this._errored = true
+                    this._errors.push([ new Destructible.Error('durable'), wait.value ])
+                    this._destroy()
+                }
             } else {
                 this.ephemerals--
                 if (this._drain != null) {
@@ -710,6 +719,16 @@ class Destructible {
     durable (id, ...vargs) {
         this.durables++
         return this._await('durable', false, id, vargs)
+    }
+
+    // At some point I'm going to rename this to `durable` and what is currently
+    // `durable` will become known as `terminal`. I want a `durable` that will
+    // raise an exception if it returns before destruction.
+
+    //
+    _durable (id, ...vargs) {
+        this.durables++
+        return this._await('terminal', false, id, vargs)
     }
 
     // `async ephemeral(id, [ Promise ])` &mdash; Start a strand that does not
