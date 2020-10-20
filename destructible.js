@@ -768,7 +768,7 @@ class Destructible {
 
     //
     exceptional (id, ...vargs) {
-        this.ephemeral++
+        this.ephemerals++
         return this._await('ephemeral', true, id, vargs)
     }
 
