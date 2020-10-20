@@ -531,11 +531,10 @@ class Destructible {
                 throw new Destructible.Error('destroyed')
             }
         } finally {
-            if (wait.value.method == 'durable') {
+            if (wait.value.method == 'terminal') {
                 this.durables--
                 this._destroy()
-            } else if (wait.value.method == 'terminal') {
-                console.log('here!!!')
+            } else if (wait.value.method == 'durable') {
                 this.durables--
                 if (! this.destroyed) {
                     this._errored = true
@@ -653,7 +652,7 @@ class Destructible {
             // shutdown.
             destructible.destruct(() => {
                 this.clear(destruct)
-                if (method == 'durable' || destructible._errored) {
+                if (method == 'terminal' || destructible._errored) {
                     this._errored = this._errored || destructible._errored
                     this._destroy()
                 }
@@ -716,9 +715,9 @@ class Destructible {
     // consistently silly I don't mind.
 
     //
-    durable (id, ...vargs) {
+    terminal (id, ...vargs) {
         this.durables++
-        return this._await('durable', false, id, vargs)
+        return this._await('terminal', false, id, vargs)
     }
 
     // At some point I'm going to rename this to `durable` and what is currently
@@ -726,9 +725,9 @@ class Destructible {
     // raise an exception if it returns before destruction.
 
     //
-    _durable (id, ...vargs) {
+    durable (id, ...vargs) {
         this.durables++
-        return this._await('terminal', false, id, vargs)
+        return this._await('durable', false, id, vargs)
     }
 
     // `async ephemeral(id, [ Promise ])` &mdash; Start a strand that does not
