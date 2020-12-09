@@ -14,6 +14,7 @@ require('proof')(3, async okay => {
 
     //
     const Destructible = require('..')
+    //
 
     // We'll be using these anoymous blocks so we can show declarations that
     // should use `const` each time we illustrate a point. Without them we'd

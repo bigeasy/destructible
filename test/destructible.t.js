@@ -20,7 +20,6 @@ require('proof')(32, async (okay) => {
     {
         const destructible = new Destructible('main')
         destructible.terminal('destructs', new Promise(resolve => {
-            console.log('called!!!')
             destructible.destruct(resolve)
         }))
         destructible.destroy()
@@ -82,12 +81,15 @@ require('proof')(32, async (okay) => {
     {
         const test = []
         const destructible = new Destructible('main')
-        destructible.terminal('error', (async () => { throw new Error('thrown') })())
+        destructible.terminal('error', async function () {
+            await new Promise(resolve => setTimeout(resolve, 0))
+            throw new Error('thrown')
+        } (), $ => $())
         try {
             await destructible.rejected
         } catch (error) {
             console.log(error.stack)
-            test.push(error.causes[0].message)
+            test.push(error.errors[0].errors[0].message)
         } finally {
             destructible.destroy()
         }
@@ -109,7 +111,7 @@ require('proof')(32, async (okay) => {
             await destructible.rejected
         } catch (error) {
             console.log(error.stack)
-            test.push(error.causes[0].causes[0].message)
+            test.push(error.errors[0].errors[0].errors[0].message)
         }
         okay(test, [ 'thrown' ], 'destroy a destructible when an ephemeral sub-destructible errors')
     }
@@ -122,7 +124,7 @@ require('proof')(32, async (okay) => {
             await destructible.rejected
         } catch (error) {
             console.log(error.stack)
-            test.push(error.causes[0].message)
+            test.push(error.errors[0].errors[0].message)
         }
         okay(test, [ 'thrown' ], 'catch destructor error')
     }
@@ -138,7 +140,7 @@ require('proof')(32, async (okay) => {
             console.log(error.stack)
             test.push(error.code)
         }
-        okay(test, [ 'scrammed' ], 'scram')
+        okay(test, [ 'SCRAMMED' ], 'scram')
         latch.resolve.call()
     }
     {
@@ -154,9 +156,9 @@ require('proof')(32, async (okay) => {
             console.log('there')
         } catch (error) {
             console.log(error.stack)
-            test.push(error.causes[0].code)
+            test.push(error.errors[0].code)
         }
-        okay(test, [ 'scrammed' ], 'scram sub-destructible')
+        okay(test, [ 'SCRAMMED' ], 'scram sub-destructible')
         _resolve()
     }
     {
@@ -170,9 +172,9 @@ require('proof')(32, async (okay) => {
             await destructible.rejected
         } catch (error) {
             console.log(error.stack)
-            test.push(error.causes[0].code)
+            test.push(error.errors[0].code)
         }
-        okay(test, [ 'scrammed' ], 'set timeout for an ephemeral block')
+        okay(test, [ 'SCRAMMED' ], 'set timeout for an ephemeral block')
     }
     {
         const test = []
@@ -357,9 +359,9 @@ require('proof')(32, async (okay) => {
         try {
             await destructible.rejected
         } catch (error) {
-            test.push(error.causes[0].code)
+            test.push(error.errors[0].code)
         }
-        okay(test, [ 'durable' ], 'exited too early')
+        okay(test, [ 'DURABLE' ], 'exited too early')
     }
     {
         const destructible = new Destructible('redurable')
@@ -377,7 +379,7 @@ require('proof')(32, async (okay) => {
         try {
             await destructible.rejected
         } catch (error) {
-            test.push(error.causes[0].message)
+            test.push(error.errors[0].errors[0].message)
         }
         okay(test, [ 'thrown' ], 'durable reports an early exit due to exception with the exception')
     }

@@ -7,6 +7,21 @@ const Interrupt = require('interrupt')
 // A linked-list to track promises, scrams.
 const List = require('./list')
 
+function contextualize (poker, ...vargs) {
+    if (typeof poker === 'function') {
+        return poker(function callee () {
+            const options = Destructible.Error.options.apply(Destructible.Error, [{
+                '#callee': callee,
+            }, 1 ].concat(vargs))
+            return new Destructible.Error(options)
+        })
+    }
+    const options = Destructible.Error.options.apply(Destructible.Error, [{
+        '#callee': contextualize,
+    }].concat(vargs))
+    return new Destructible.Error(options)
+}
+
 // `Destructible` is a utility for managing concurrent operations in
 // `async`/`await` style JavaScript programs. The fundimental concept of
 // `Destructible` is the "strand." A strand conceptually a thread, but it does
@@ -120,10 +135,10 @@ const List = require('./list')
 //
 class Destructible {
     static Error = Interrupt.create('Destructible.Error', {
-        destroyed: 'attempt to launch new strands after destruction',
-        errored: 'strand exited with exception',
-        scrammed: 'strand failed to exit or make progress',
-        durable: 'early exit from a strand expected to last for entire life of destructible'
+        DESTROYED: 'attempt to launch new strands after destruction',
+        ERRORED: 'strand exited with exception',
+        SCRAMMED: 'strand failed to exit or make progress',
+        DURABLE: 'early exit from a strand expected to last for entire life of destructible'
     })
 
     // `new Destructible([ scram ], id)` constructs a new `Destructible` to act
@@ -221,17 +236,14 @@ class Destructible {
             List.unlink(this._child)
         }
         if (! this._waiting.empty) {
-            this._rejected[1].call(null, new Destructible.Error('scrammed', this._errors, {
+            this._rejected[1].call(null, new Destructible.Error('SCRAMMED', this._errors, {
                 id: this.id,
-                context: this.context,
                 waiting: this._waiting.slice()
             }))
         } else if (this._errors.length != 0) {
-            this._rejected[1].call(null, new Destructible.Error('errored', this._errors, {
+            this._rejected[1].call(null, new Destructible.Error('ERRORED', this._errors, {
                 id: this.id,
-                context: this.context,
-                waiting: this._waiting.slice(),
-                operative: this._operative
+                waiting: this._waiting.slice()
             }))
         } else {
             this._rejected[0].call(null, false)
@@ -246,7 +258,7 @@ class Destructible {
 
     operational () {
         if (this.destroyed) {
-            throw new Destructible.Error('destroyed')
+            throw new Destructible.Error('DESTROYED')
         }
     }
 
@@ -370,7 +382,7 @@ class Destructible {
                 try {
                     this._destructors.shift().call()
                 } catch (error) {
-                    this._errors.push([ error, { method: 'destroy' } ])
+                    this._errors.push(new Destructible.Error('DESTROY', [ error ]))
                 }
             }
             this._destructing = false
@@ -516,7 +528,7 @@ class Destructible {
     // because it would just mean two extra `if` statements when we already
     // know.
 
-    async _awaitPromise (operation, wait, raise) {
+    async _awaitPromise (operation, wait, raise, contextualizer) {
         try {
             try {
                 return await operation
@@ -525,10 +537,14 @@ class Destructible {
             }
         } catch (error) {
             this._errored = true
-            this._errors.push([ error, wait.value ])
+            if (error instanceof Destructible.Error) {
+                this._errors.push(error)
+            } else {
+                this._errors.push(contextualize(contextualizer, 'ERRORED', [ error ], wait.value))
+            }
             this._destroy()
             if (raise) {
-                throw new Destructible.Error('destroyed')
+                throw new Destructible.Error('DESTROYED')
             }
         } finally {
             if (wait.value.method == 'terminal') {
@@ -538,7 +554,7 @@ class Destructible {
                 this.durables--
                 if (! this.destroyed) {
                     this._errored = true
-                    this._errors.push([ new Destructible.Error('durable'), wait.value ])
+                    this._errors.push(contextualize(contextualizer, 'DURABLE', wait.value))
                     this._destroy()
                 }
             } else {
@@ -613,7 +629,7 @@ class Destructible {
         // Ephemeral destructible children can set a scram timeout.
         if (typeof vargs[0] == 'function') {
             //const promise = async function () { return await vargs.shift()() } ()
-            return this._awaitPromise(vargs.shift()(), wait, raise)
+            return this._awaitPromise(vargs.shift()(), wait, raise, vargs[0])
         } else if (vargs.length == 0) {
             // Ephemeral sub-destructibles can have their own timeout and scram
             // timer, durable sub-destructibles are scrammed by their root.
@@ -686,7 +702,7 @@ class Destructible {
 
             return destructible
         } else {
-            return this._awaitPromise(vargs.shift(), wait, raise)
+            return this._awaitPromise(vargs.shift(), wait, raise, vargs[0])
         }
     }
 
@@ -809,7 +825,7 @@ class Destructible {
 
     //
     static destroyed (error) {
-        if (!(error instanceof Destructible.Error) || error.code != 'destroyed') {
+        if (error.symbol != Destructible.Error.DESTROYED) {
             throw error
         }
     }
