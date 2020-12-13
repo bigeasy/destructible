@@ -7,21 +7,6 @@ const Interrupt = require('interrupt')
 // A linked-list to track promises, scrams.
 const List = require('./list')
 
-function contextualize (poker, ...vargs) {
-    if (typeof poker === 'function') {
-        return poker(function callee () {
-            const options = Destructible.Error.options.apply(Destructible.Error, [{
-                '#callee': callee,
-            }, 1 ].concat(vargs))
-            return new Destructible.Error(options)
-        })
-    }
-    const options = Destructible.Error.options.apply(Destructible.Error, [{
-        '#callee': contextualize,
-    }].concat(vargs))
-    return new Destructible.Error(options)
-}
-
 // `Destructible` is a utility for managing concurrent operations in
 // `async`/`await` style JavaScript programs. The fundimental concept of
 // `Destructible` is the "strand." A strand conceptually a thread, but it does
@@ -528,7 +513,7 @@ class Destructible {
     // because it would just mean two extra `if` statements when we already
     // know.
 
-    async _awaitPromise (operation, wait, raise, contextualizer) {
+    async _awaitPromise (operation, wait, raise, $trace = null) {
         try {
             try {
                 return await operation
@@ -540,7 +525,7 @@ class Destructible {
             if (error instanceof Destructible.Error) {
                 this._errors.push(error)
             } else {
-                this._errors.push(contextualize(contextualizer, 'ERRORED', [ error ], wait.value))
+                this._errors.push(Destructible.Error.create({ $trace, $stack: 0 }, [ 'ERRORED', [ error ], wait.value ]))
             }
             this._destroy()
             if (raise) {
@@ -554,7 +539,7 @@ class Destructible {
                 this.durables--
                 if (! this.destroyed) {
                     this._errored = true
-                    this._errors.push(contextualize(contextualizer, 'DURABLE', wait.value))
+                    this._errors.push(Destructible.Error.create({ $trace, $stack: 0 }, [ 'DURABLE', wait.value ]))
                     this._destroy()
                 }
             } else {

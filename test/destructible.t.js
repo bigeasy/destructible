@@ -79,12 +79,13 @@ require('proof')(32, async (okay) => {
         okay(!await destructible.rejected, 'wait for sub-destructible to complete')
     }
     {
+        const fs = require('fs').promises
         const test = []
         const destructible = new Destructible('main')
         destructible.terminal('error', async function () {
             await new Promise(resolve => setTimeout(resolve, 0))
             throw new Error('thrown')
-        } (), $ => $())
+        }, $ => $())
         try {
             await destructible.rejected
         } catch (error) {
@@ -230,9 +231,9 @@ require('proof')(32, async (okay) => {
         const destructible = new Destructible('attempt')
         Destructible.rescue(async function () {
             try {
-            await destructible.ephemeral('name', async function () {
-                throw new Error('error')
-            }, true)
+                await destructible.ephemeral('name', async function () {
+                    throw new Error('error')
+                })
             } catch (error) {
                 console.log(error)
             }
