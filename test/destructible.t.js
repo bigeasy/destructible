@@ -81,11 +81,11 @@ require('proof')(32, async (okay) => {
     {
         const fs = require('fs').promises
         const test = []
-        const destructible = new Destructible('main')
-        destructible.terminal('error', async function () {
+        const destructible = new Destructible($ => $(), 'main')
+        destructible.terminal($ => $(), 'error', async function () {
             await new Promise(resolve => setTimeout(resolve, 0))
             throw new Error('thrown')
-        }, $ => $())
+        })
         try {
             await destructible.rejected
         } catch (error) {
@@ -105,9 +105,9 @@ require('proof')(32, async (okay) => {
     }
     {
         const test = []
-        const destructible = new Destructible(10000, 'main')
-        const sub = destructible.terminal('parent')
-        sub.ephemeral('child', Promise.reject(new Error('thrown')))
+        const destructible = new Destructible($ => $(), 10000, 'main')
+        const sub = destructible.terminal($ => $(), 'parent')
+        sub.ephemeral($ => $(), 'child', Promise.reject(new Error('thrown')))
         try {
             await destructible.rejected
         } catch (error) {

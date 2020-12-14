@@ -7,6 +7,15 @@ const Interrupt = require('interrupt')
 // A linked-list to track promises, scrams.
 const List = require('./list')
 
+function checkTrace (trace) {
+    if (trace != null) {
+        Destructible.Error.assert(trace.length == 1, 'INVALID_TRACER')
+        let called = false
+        trace(() => called = true)
+        Destructible.Error.assert(called, 'TRACER_DID_NOT_INVOKE')
+    }
+}
+
 // `Destructible` is a utility for managing concurrent operations in
 // `async`/`await` style JavaScript programs. The fundimental concept of
 // `Destructible` is the "strand." A strand conceptually a thread, but it does
@@ -120,6 +129,11 @@ const List = require('./list')
 //
 class Destructible {
     static Error = Interrupt.create('Destructible.Error', {
+        INVALID_TRACER: 'tracer must be a function that takes a single argument',
+        TRACER_DID_NOT_INVOKE: {
+            code: 'INVALID_TRACER',
+            message: 'tracer did not call given function'
+        },
         DESTROYED: 'attempt to launch new strands after destruction',
         ERRORED: 'strand exited with exception',
         SCRAMMED: 'strand failed to exit or make progress',
@@ -141,6 +155,10 @@ class Destructible {
 
     //
     constructor (...vargs) {
+        this._trace = typeof vargs[0] == 'function' ? vargs.shift() : null
+
+        checkTrace(this._trace)
+
         this._timeout = typeof vargs[0] == 'number' ? vargs.shift() : 1000
 
         this._ephemeral = true
@@ -222,11 +240,13 @@ class Destructible {
         }
         if (! this._waiting.empty) {
             this._rejected[1].call(null, new Destructible.Error('SCRAMMED', this._errors, {
+                $trace: this._trace,
                 id: this.id,
                 waiting: this._waiting.slice()
             }))
         } else if (this._errors.length != 0) {
             this._rejected[1].call(null, new Destructible.Error('ERRORED', this._errors, {
+                $trace: this._trace,
                 id: this.id,
                 waiting: this._waiting.slice()
             }))
@@ -243,7 +263,7 @@ class Destructible {
 
     operational () {
         if (this.destroyed) {
-            throw new Destructible.Error('DESTROYED')
+            throw new Destructible.Error('DESTROYED', { $trace: this._trace })
         }
     }
 
@@ -367,7 +387,7 @@ class Destructible {
                 try {
                     this._destructors.shift().call()
                 } catch (error) {
-                    this._errors.push(new Destructible.Error('DESTROY', [ error ]))
+                    this._errors.push(new Destructible.Error('DESTROY', [ error ], { $trace: this._trace }))
                 }
             }
             this._destructing = false
@@ -529,7 +549,7 @@ class Destructible {
             }
             this._destroy()
             if (raise) {
-                throw new Destructible.Error('DESTROYED')
+                throw new Destructible.Error('DESTROYED', { $trace })
             }
         } finally {
             if (wait.value.method == 'terminal') {
@@ -606,15 +626,18 @@ class Destructible {
     // implementation as it stands points in this direction and I'm not going
     // back to rethink it all. Software as Plinko.
     //
-    _await (method, raise, id, vargs) {
+    _await (method, raise, vargs) {
         if (!(method == 'ephemeral' && this._destructing)) {
             this.operational()
         }
+        const trace = typeof vargs[0] == 'function' ? vargs.shift() : null
+        checkTrace(trace)
+        const id = vargs.shift()
         const wait = this._waiting.push({ method, id })
         // Ephemeral destructible children can set a scram timeout.
         if (typeof vargs[0] == 'function') {
             //const promise = async function () { return await vargs.shift()() } ()
-            return this._awaitPromise(vargs.shift()(), wait, raise, vargs[0])
+            return this._awaitPromise(vargs.shift()(), wait, raise, trace)
         } else if (vargs.length == 0) {
             // Ephemeral sub-destructibles can have their own timeout and scram
             // timer, durable sub-destructibles are scrammed by their root.
@@ -623,6 +646,8 @@ class Destructible {
             //assert(typeof this._timeout == 'number' && this._timeout != Infinity)
 
             const destructible = new Destructible(this._timeout, id)
+
+            destructible._trace = trace
 
             destructible._progress = this._progress
 
@@ -687,7 +712,7 @@ class Destructible {
 
             return destructible
         } else {
-            return this._awaitPromise(vargs.shift(), wait, raise, vargs[0])
+            return this._awaitPromise(vargs.shift(), wait, raise, trace)
         }
     }
 
@@ -716,9 +741,9 @@ class Destructible {
     // consistently silly I don't mind.
 
     //
-    terminal (id, ...vargs) {
+    terminal (...vargs) {
         this.durables++
-        return this._await('terminal', false, id, vargs)
+        return this._await('terminal', false, vargs)
     }
 
     // At some point I'm going to rename this to `durable` and what is currently
@@ -726,9 +751,9 @@ class Destructible {
     // raise an exception if it returns before destruction.
 
     //
-    durable (id, ...vargs) {
+    durable (...vargs) {
         this.durables++
-        return this._await('durable', false, id, vargs)
+        return this._await('durable', false, vargs)
     }
 
     // `async ephemeral(id, [ Promise ])` &mdash; Start a strand that does not
@@ -752,9 +777,9 @@ class Destructible {
     // exception as fatal. Catch blocks in you strands perform rescues.
 
     //
-    ephemeral (id, ...vargs) {
+    ephemeral (...vargs) {
         this.ephemerals++
-        return this._await('ephemeral', false, id, vargs)
+        return this._await('ephemeral', false, vargs)
     }
 
     // `async exeptional(id, [ Promise ])` &mdash; Start an `ephemeral` strand,
@@ -768,9 +793,9 @@ class Destructible {
     // This is used to initialization perform tasks that must complete
 
     //
-    exceptional (id, ...vargs) {
+    exceptional (...vargs) {
         this.ephemerals++
-        return this._await('ephemeral', true, id, vargs)
+        return this._await('ephemeral', true, vargs)
     }
 
     // Used to address the configuration problem I keep encountering. The
