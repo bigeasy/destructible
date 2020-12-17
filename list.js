@@ -4,16 +4,11 @@ class List {
         this._head.next = this._head.previous = this._head
     }
 
-    [Symbol.iterator] () {
+    *[Symbol.iterator] () {
         let iterator = this._head
-        return {
-            next: () => {
-                if (iterator.next === this._head) {
-                    return { done: true, value: null }
-                }
-                iterator = iterator.next
-                return { done: false, value: iterator.value }
-            }
+        while (iterator.next !== this._head) {
+            iterator = iterator.next
+            yield iterator.value
         }
     }
 
