@@ -1,8 +1,22 @@
-// We're going to use our unit test framework so we can run within an `async`
-// function that will catch and report errors.
+// # Destructible
+//
+// This readme document is a unit test from the Rescue source code. It uses the
+// [Proof](https://github.com/bigeasy/proof) unit test framework. We'll be using
+// the `okay` method from Proof to assert the points we make about Rescue.
+//
+// Please run this test yourself.
+//
+// ```text
+// git clone git@github.com:bigeasy/interrupt.git
+// cd interrupt
+// npm install --no-package-lock --no-save
+// node test/readme.t.js
+// ```
+//
+// Out unit test begins here.
 
 //
-require('proof')(3, async okay => {
+require('proof')(8, async okay => {
     // In your program this would be
     //
     // ```javascript
@@ -71,7 +85,258 @@ require('proof')(3, async okay => {
 
         await destructible.destroy().rejected
     }
-//
+    //
 
-//
+    // # Staged Shutdown
+
+    // Preamble here...
+
+    // To implement staged construction we use the increment and decrement
+    // interface of Destructible. Destructible has an internal counter. When the
+    // counter reaches zero destruction is initiated. When you created a
+    // Destructible the counter is already set to one. Automatic shutdown is
+    // performed internally by decrementing the counter.
+
+    // If you increment the encounter exterinally, automatic shutdown is
+    // defeated. You will have to decrement the counter externally.
+
+    // To perform a staged shutdown you would create a destructible with a child
+    // that that performs all the real work. The child will have its countdown
+    // incremented externally. When the parent gets destroyed it starts an
+    // ephemeral strand that will wait for the work in the child to finish, then
+    // decrement the child's counter so it will shutdown. This is how you
+    // perform a staged shutdown.
+
+    // **TODO** We will have introduced the use in classes above.
+
+    // There is a convention in classes that want to expose a staged shutdown,
+    // and we are going to implement a `Queue` class as if we want out staged
+    // shutdown to be exposed. **TODO** No, implement it enclosed first.
+
+    // Some classes will want to expose their staged shutdown to give users say
+    // in when the class has completed shutdown. Our `Queue` class above, for
+    // example, may want to allow users to decide when the queue is finished.
+    // They may have to put a shutdown procedure into the work queue. If they
+    // have no way of holding the queue open, they are in a race to see if they
+    // can enqueue their shutdown procedure before the queue drains and refuses
+    // to accept more work.
+
+    // By convention we expose our `countdown` destructible so the user can
+    // increment and decrement the counter. We also expose a `destructible` that
+    // will be destroyed synchronously when the root destructible is called.
+    // Rather than exposing destructible used to create the queue we create a
+    // new sub-destructible so that the exposed destructible has a clean
+    // namespace. For exampe, the user can may a `'shutown'` stand. We create a
+    // sub-destructible so that an error from the users `'shutdown'` strand can
+    // be more easily distinquished from the `'shutdown'` strand or our `Queue`
+    // class.
+
+    // **TODO** Probably need a preamble about namespaces.
+
+    // **TODO** And we show just that in a code example.
+
+    // We can extend this convention a bit further and create a countdownable
+    // class. A countdownable class has a `destructible` and `countdown`
+    // Destructible and an object called `counted`. The `counted` object
+    // contains named properties that describe the counted object.
+
+    // Now you can create a `Destructible.Counter` using the static
+    // `Destructible.counter`. `Destructible.Counter` has a `destructible`
+    // property which is a sub-destructible of `destructible`, a `countdown`
+    // property which is the countdown of the counted object, and a `counted`
+    // property. That `counted` property can be deferenced or destructured to
+    // receive an instance of the actual counted object.
+
+    // The `Destructible.Counter` it itself a counted object, so you can create
+    // sub-destructibles using it.
+
+    // Now that we have a con
+
+    // Here is a class that would like to shut down in stages. It is a work
+    // queue. When it gets a destruction notice it would like to complete its
+    // work before exiting.
+
+    class Queue {
+        constructor (destructible) {
+            this._notify = () => {}
+            this._queue = []
+            this.counted = { queue: this }
+            this.destructible = destructible
+            this.countdown = destructible.durable('countdown')
+            this.countdown.increment()
+            this.countdown.durable('queue', async () => {
+                for (;;) {
+                    if (this.terminated) {
+                        break
+                    }
+                    if (this._queue.length == 0) {
+                        if (this._drain != null) {
+                            this._drain.resolve.call()
+                            this._drain = null
+                        }
+                        await new Promise(resolve => this._notify = resolve)
+                        continue
+                    }
+                    await this._queue.shift().call()
+                }
+            })
+            this.countdown.destruct(() => {
+                console.log('destructing')
+                this.terminated = true
+                this._notify.call()
+            })
+            this.destructible.destruct(() => {
+                this.destructible.ephemeral('shutdown', async () => {
+                    console.log('shutting down')
+                    await this.drain()
+                    console.log('shut down')
+                    this.countdown.decrement()
+                })
+            })
+        }
+
+        async drain () {
+            if (this._queue.length == 0) {
+                if (this._drain == null) {
+                    let capture
+                    this._drain = { promise: new Promise(resolve => capture = { resolve }), ...capture }
+                }
+                await this._drain.promise
+            }
+        }
+
+        enqueue (work) {
+            if (this.terminated) {
+                throw new Error('terminated')
+            }
+            this._queue.push(work)
+            this._notify.call()
+        }
+    }
+    //
+
+    // Examples go here.
+
+    // The Queue class implement a duck-type interface that we're going to
+    // establish as a convention for staged shutdowns. Any class that wants to
+    // advertise a staged shutdown should expose the `destructible` given to the
+    // class through the constructor and a `countdown` Destructible created from
+    // the `destructible` that will hold the strands that do the real work.
+
+    // The when the `destructible` is destructed it lauches an ephemeral
+    // shutdown strand that waits for the real work to finish. It then
+    // decrements the counter on the `countdown` so it can destruct.
+
+    // By exposing the `countdown`, users can increment the countdown and keep
+    // the class running after destruction. By exposing the `destructible`,
+    // users can register their own destructor that can launch it's own
+    // ephemeral shutdown strand and wait for work to finish.
+
+    // This is, admittedly, a bit complex, but we have an example here, we ought
+    // to be able to illustrate this.
+
+    // Because this is a convention, we've created a static
+    // `Destructible.countdown()` method that returns an instance of
+    // `Destructible.Countdown`.
+
+    //
+    {
+        // We create our Queue object.
+        const destructible = new Destructible($ => $(), 'coundown')
+        const queue = new Queue(destructible.durable($ => $(), 'queue'))
+
+        // We can now wrap out Queue object in a countdown.
+        const counter = Destructible.counter($ => $(), 'counter', queue)
+
+        // The counted object is our queue.
+        okay(counter.counted.queue === queue, 'counted object')
+
+        // Here is an array of input, a sempahore, and a function that submits
+        // work to the queue.
+
+        const gathered = []
+        //
+        const input = [ 1, 2, 3, 4 ]
+
+        const done = function () {
+            let capture
+            return { promise: new Promise(resolve => capture = { resolve }), ...capture }
+        } ()
+
+        function submit (value) {
+            queue.enqueue(async function () {
+                gathered.push(value)
+                next()
+            })
+        }
+
+        function next () {
+            if (input.length == 0) {
+                done.resolve.call()
+            } else {
+                submit(input.shift())
+            }
+        }
+
+        // Once you have a counter you're going to want to register your own
+        // destructor. We have an input array and we are going to wait for it to
+        // be empty before we allow the queue to shutdown.
+
+        //
+        counter.destructible.destruct(() => {
+            counter.destructible.ephemeral($ => $(), 'shutdown', async () => {
+                await done.promise
+                counter.decrement()
+            })
+        })
+
+        // Now we can destroy stuff.
+
+        destructible.destroy()
+
+        // And still work through our queue.
+        next()
+
+        await destructible.rejected
+
+        okay(gathered, [ 1, 2, 3, 4 ], 'ran')
+    }
+    //
+    {
+        // We create our Queue object.
+        const destructible = new Destructible($ => $(), 'coundown')
+        const queue = new Queue(destructible.durable($ => $(), 'queue'))
+
+        // We can now wrap out Queue object in a countdown.
+        const counter = Destructible.counter($ => $(), 'counter', queue)
+
+        // The counted object is our queue.
+        okay(counter.counted.queue === queue, 'counted object')
+
+        // We can even create sub counters because counter is itself a
+        // countdownable object. The sub-counter will have the same `counted`
+        // object and `countdown` destructible but the `destructible` will be a
+        // sub-destructible.
+        const subCounter = Destructible.counter($ => $(), 'subcounter', counter)
+
+        okay(subCounter.counted.queue === queue, 'sub counted object')
+
+        destructible.destroy()
+
+        const gathered = []
+
+        queue.enqueue(async () => gathered.push(1))
+
+        await queue.drain()
+
+        counter.decrement()
+        subCounter.decrement()
+
+        await destructible.destroy().rejected
+
+        okay(gathered, [ 1 ], 'gathered')
+    }
+
+
+    //
 })
