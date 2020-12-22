@@ -154,23 +154,6 @@ class Destructible {
         DURABLE: 'early exit from a strand expected to last for entire life of destructible'
     })
 
-    static Counter = class {
-        constructor (vargs, object) {
-            this.counted = object.counted
-            this.countdown = object.countdown
-            this.destructible = object.destructible.durable.apply(object.destructible, vargs)
-            this.countdown.increment()
-        }
-
-        decrement () {
-            this.countdown.decrement()
-        }
-    }
-
-    static counter (...vargs) {
-        return new Destructible.Counter(vargs, vargs.pop())
-    }
-
     // `new Destructible([ scram ], id)` constructs a new `Destructible` to act
     // as the root of a tree of parallel concurrent strands.
     //

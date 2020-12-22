@@ -17,7 +17,7 @@
 // Our unit test begins here.
 
 //
-require('proof')(34, async okay => {
+require('proof')(29, async okay => {
     // In your program this would be
     //
     // ```javascript
@@ -158,61 +158,7 @@ require('proof')(34, async okay => {
     // work before exiting.
 
     class Queue {
-        constructor (destructible) {
-            this._notify = () => {}
-            this._queue = []
-            this.counted = { queue: this }
-            this.destructible = destructible
-            this.countdown = destructible.durable('countdown')
-            this.countdown.increment()
-            this.countdown.durable('queue', async () => {
-                for (;;) {
-                    if (this.terminated) {
-                        break
-                    }
-                    if (this._queue.length == 0) {
-                        if (this._drain != null) {
-                            this._drain.resolve.call()
-                            this._drain = null
-                        }
-                        await new Promise(resolve => this._notify = resolve)
-                        continue
-                    }
-                    await this._queue.shift().call()
-                }
-            })
-            this.countdown.destruct(() => {
-                console.log('destructing')
-                this.terminated = true
-                this._notify.call()
-            })
-            this.destructible.destruct(() => {
-                this.destructible.ephemeral('shutdown', async () => {
-                    console.log('shutting down')
-                    await this.drain()
-                    console.log('shut down')
-                    this.countdown.decrement()
-                })
-            })
-        }
-
-        async drain () {
-            if (this._queue.length == 0) {
-                if (this._drain == null) {
-                    let capture
-                    this._drain = { promise: new Promise(resolve => capture = { resolve }), ...capture }
-                }
-                await this._drain.promise
-            }
-        }
-
-        enqueue (work) {
-            if (this.terminated) {
-                throw new Error('terminated')
-            }
-            this._queue.push(work)
-            this._notify.call()
-        }
+        // Gone.
     }
     //
 
@@ -242,100 +188,7 @@ require('proof')(34, async okay => {
 
     //
     {
-        // We create our Queue object.
-        const destructible = new Destructible($ => $(), 'coundown')
-        const queue = new Queue(destructible.durable($ => $(), 'queue'))
-
-        // We can now wrap out Queue object in a countdown.
-        const counter = Destructible.counter($ => $(), 'counter', queue)
-
-        // The counted object is our queue.
-        okay(counter.counted.queue === queue, 'counted object')
-
-        // Here is an array of input, a sempahore, and a function that submits
-        // work to the queue.
-
-        const gathered = []
-        //
-        const input = [ 1, 2, 3, 4 ]
-
-        const done = function () {
-            let capture
-            return { promise: new Promise(resolve => capture = { resolve }), ...capture }
-        } ()
-
-        function submit (value) {
-            queue.enqueue(async function () {
-                gathered.push(value)
-                next()
-            })
-        }
-
-        function next () {
-            if (input.length == 0) {
-                done.resolve.call()
-            } else {
-                submit(input.shift())
-            }
-        }
-
-        // Once you have a counter you're going to want to register your own
-        // destructor. We have an input array and we are going to wait for it to
-        // be empty before we allow the queue to shutdown.
-
-        //
-        counter.destructible.destruct(() => {
-            counter.destructible.ephemeral($ => $(), 'shutdown', async () => {
-                await done.promise
-                counter.decrement()
-            })
-        })
-
-        // Now we can destroy stuff.
-
-        destructible.destroy()
-
-        // And still work through our queue.
-        next()
-
-        await destructible.rejected
-
-        okay(gathered, [ 1, 2, 3, 4 ], 'ran')
-    }
-    //
-    {
-        // We create our Queue object.
-        const destructible = new Destructible($ => $(), 'coundown')
-        const queue = new Queue(destructible.durable($ => $(), 'queue'))
-
-        // We can now wrap out Queue object in a countdown.
-        const counter = Destructible.counter($ => $(), 'counter', queue)
-
-        // The counted object is our queue.
-        okay(counter.counted.queue === queue, 'counted object')
-
-        // We can even create sub counters because counter is itself a
-        // countdownable object. The sub-counter will have the same `counted`
-        // object and `countdown` destructible but the `destructible` will be a
-        // sub-destructible.
-        const subCounter = Destructible.counter($ => $(), 'subcounter', counter)
-
-        okay(subCounter.counted.queue === queue, 'sub counted object')
-
-        destructible.destroy()
-
-        const gathered = []
-
-        queue.enqueue(async () => gathered.push(1))
-
-        await queue.drain()
-
-        counter.decrement()
-        subCounter.decrement()
-
-        await destructible.destroy().rejected
-
-        okay(gathered, [ 1 ], 'gathered')
+        // Gone. Kept text in case there's something in it worth saving.
     }
 
 
