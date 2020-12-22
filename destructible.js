@@ -1,6 +1,5 @@
 // Node.js API.
 const assert = require('assert')
-const sortof = require('empathy')
 
 // Exceptions that you can catch by type.
 const Interrupt = require('interrupt')
@@ -169,11 +168,11 @@ class Destructible {
 
     //
     constructor (...vargs) {
-        this._trace = sortof(vargs[0]) == 'function' ? vargs.shift() : null
+        this._trace = typeof vargs[0] == 'function' ? vargs.shift() : null
 
         checkTrace(this._trace)
 
-        this._timeout = sortof(vargs[0]) == 'number' ? vargs.shift() : 1000
+        this._timeout = typeof vargs[0] == 'number' ? vargs.shift() : 1000
 
         this._ephemeral = true
 
@@ -264,7 +263,7 @@ class Destructible {
 
     //
     clear (handle) {
-        if (sortof(handle[Symbol.iterator]) == 'function') {
+        if (typeof handle[Symbol.iterator] == 'function') {
             for (const _handle of handle) {
                 this.clear(_handle)
             }
@@ -678,15 +677,15 @@ class Destructible {
         if (!(method == 'ephemeral' && this._destructing)) {
             this.operational()
         }
-        const trace = sortof(vargs[0]) == 'function' ? vargs.shift() : null
+        const trace = typeof vargs[0] == 'function' ? vargs.shift() : null
         checkTrace(trace)
         const id = vargs.shift()
         const wait = this._waiting.push({ method, id })
         // Ephemeral destructible children can set a scram timeout.
-        if (sortof(vargs[0]) == 'function') {
+        if (typeof vargs[0] == 'function') {
             //const promise = async function () { return await vargs.shift()() } ()
             return this._awaitPromise(vargs.shift()(), wait, raise, trace)
-        } else if (vargs.length == 0 || sortof(vargs[0]) == 'number') {
+        } else if (vargs.length == 0 || typeof vargs[0] == 'number') {
             // Ephemeral sub-destructibles can have their own timeout and scram
             // timer, durable sub-destructibles are scrammed by their root.
             //assert(typeof vargs[0] != 'number')
@@ -764,7 +763,7 @@ class Destructible {
             this._awaitScrammable(destructible, wait, raise, scram)
 
             return destructible
-        } else if (sortof(vargs[0].then) == 'function') {
+        } else if (typeof vargs[0].then == 'function') {
             return this._awaitPromise(vargs.shift(), wait, raise, trace)
         } else {
             throw new Destructible.Error('INVALID_ARGUMENT')
@@ -897,7 +896,7 @@ class Destructible {
 
     static async rescue (f) {
         try {
-            return await (sortof(f) == 'function' ? f() : f)
+            return await (typeof f == 'function' ? f() : f)
         } catch (error) {
             Destructible.destroyed(error)
         }
