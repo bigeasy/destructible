@@ -27,7 +27,7 @@
     "devDependencies":
     {
                             "proof":                        "^9.0.1",
-                            "rescue":                       "7.0.0-alpha.4"
+                            "rescue":                       "7.0.0-alpha.6"
     },
     "main":                 "destructible",
     "scripts":
