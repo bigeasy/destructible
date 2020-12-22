@@ -182,9 +182,10 @@ require('proof')(33, async (okay) => {
         const test = []
         const destructible = new Destructible('main')
         destructible.increment()
-        destructible.increment(2)
+        destructible.increment()
         destructible.decrement()
-        destructible.decrement(2)
+        destructible.decrement()
+        destructible.decrement()
         await destructible.rejected
         okay(test, [], 'countdown to destruction')
     }
@@ -305,7 +306,7 @@ require('proof')(33, async (okay) => {
     }
     {
         const destructible = new Destructible('main')
-        const child = destructible.terminal('child')
+        const child = destructible.terminal('child', 1)
         child.increment()
         destructible.destroy()
         okay(destructible.destroyed, 'parent destroyed')
@@ -326,7 +327,7 @@ require('proof')(33, async (okay) => {
     {
         const test = []
         const destructible = new Destructible(50, 'main')
-        const child = destructible.ephemeral('child')
+        const child = destructible.ephemeral('child', 1)
         child.increment()
         destructible.destroy()
         await destructible.rejected

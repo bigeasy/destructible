@@ -1,5 +1,6 @@
 // Node.js API.
 const assert = require('assert')
+const sortof = require('empathy')
 
 // Exceptions that you can catch by type.
 const Interrupt = require('interrupt')
@@ -7,6 +8,7 @@ const Interrupt = require('interrupt')
 // A linked-list to track promises, scrams.
 const List = require('./list')
 
+// **TODO** What is this doing here? Shouldn't it be in Interrupt?
 function checkTrace (trace) {
     if (trace != null) {
         Destructible.Error.assert(trace.length == 1, 'INVALID_TRACER')
@@ -130,9 +132,20 @@ function checkTrace (trace) {
 class Destructible {
     static Error = Interrupt.create('Destructible.Error', {
         INVALID_TRACER: 'tracer must be a function that takes a single argument',
+        INVALID_ARGUMENT: `
+            the strand constructor argument must be a function, Promise, initial countdown, or nothing at all
+        `,
+        INVALID_COUNTDOWN: {
+            code: 'INVALID_ARGUMENT',
+            message: 'the countdown must be an integer zero or greater, got: %(_countdown)d'
+        },
         TRACER_DID_NOT_INVOKE: {
             code: 'INVALID_TRACER',
             message: 'tracer did not call given function'
+        },
+        NOT_A_DESTRUCTIBLE: {
+            code: 'INVALID_ARGUMENT',
+            message: 'argument must be an instance of Destructible'
         },
         DESTROYED: 'attempt to launch new strands after destruction',
         EXCEPTIONAL: 'strand raised an exception',
@@ -173,11 +186,11 @@ class Destructible {
 
     //
     constructor (...vargs) {
-        this._trace = typeof vargs[0] == 'function' ? vargs.shift() : null
+        this._trace = sortof(vargs[0]) == 'function' ? vargs.shift() : null
 
         checkTrace(this._trace)
 
-        this._timeout = typeof vargs[0] == 'number' ? vargs.shift() : 1000
+        this._timeout = sortof(vargs[0]) == 'number' ? vargs.shift() : 1000
 
         this._ephemeral = true
 
@@ -205,6 +218,8 @@ class Destructible {
 
         this._increment = 0
 
+        this._counted = false
+
         this._scrammable = new List
 
         this._errors = []
@@ -220,6 +235,34 @@ class Destructible {
         this._scrams = new List
 
         this._results = {}
+    }
+
+    get countdown () {
+        return this._increment
+    }
+
+    get counted () {
+        return this._counted
+    }
+
+    isSameStage (destructible) {
+        Destructible.Error.assert(destructible instanceof Destructible, 'NOT_A_DESTRUCTIBLE')
+        const path = []
+        let iterator = this, counted = false
+        do {
+            path.push(iterator)
+            counted = iterator._counted
+            iterator = iterator._parent
+        } while (iterator != null && ! counted)
+        iterator = destructible
+        do {
+            if (~path.indexOf(iterator)) {
+                return true
+            }
+            counted = iterator._counted
+            iterator = iterator._parent
+        } while (iterator != null && ! counted)
+        return false
     }
 
     // `destructible.destruct(f)` &mdash; Register a destructor `f` that will be
@@ -238,7 +281,7 @@ class Destructible {
 
     //
     clear (handle) {
-        if (typeof handle[Symbol.iterator] == 'function') {
+        if (sortof(handle[Symbol.iterator]) == 'function') {
             for (const _handle of handle) {
                 this.clear(_handle)
             }
@@ -452,13 +495,13 @@ class Destructible {
     // `Destructible`.
 
     //
-    increment (increment = 1) {
-        this._increment += increment
+    increment (increment) {
+        this._increment++
     }
 
-    decrement (decrement = 1) {
-        this._increment -= decrement
+    decrement (decrement) {
         if (this._increment == 0) {
+        } else if (--this._increment == 0) {
             this._destroy()
         }
     }
@@ -648,30 +691,34 @@ class Destructible {
         if (!(method == 'ephemeral' && this._destructing)) {
             this.operational()
         }
-        const trace = typeof vargs[0] == 'function' ? vargs.shift() : null
+        const trace = sortof(vargs[0]) == 'function' ? vargs.shift() : null
         checkTrace(trace)
         const id = vargs.shift()
         const wait = this._waiting.push({ method, id })
         // Ephemeral destructible children can set a scram timeout.
-        if (typeof vargs[0] == 'function') {
+        if (sortof(vargs[0]) == 'function') {
             //const promise = async function () { return await vargs.shift()() } ()
             return this._awaitPromise(vargs.shift()(), wait, raise, trace)
-        } else if (vargs.length == 0) {
+        } else if (vargs.length == 0 || sortof(vargs[0]) == 'number') {
             // Ephemeral sub-destructibles can have their own timeout and scram
             // timer, durable sub-destructibles are scrammed by their root.
             //assert(typeof vargs[0] != 'number')
             // Create the child destructible.
             //assert(typeof this._timeout == 'number' && this._timeout != Infinity)
 
+            const countdown = vargs.length == 0 ? 0 : vargs.shift()
+            Destructible.Error.assert(Number.isInteger(countdown) && countdown >= 0, 'INVALID_COUNTDOWN', { _countdown: countdown })
+
             const destructible = new Destructible(this._timeout, id)
+
+            destructible._increment = Math.max(countdown, 1)
+            destructible._counted = countdown != 0
 
             destructible._trace = trace
 
             destructible._progress = this._progress
 
             destructible._child = this._children.push(destructible)
-
-            destructible.increment()
 
             // Destroy the child destructible when we are destroyed.
             const destruct = this.destruct(() => {
@@ -722,15 +769,17 @@ class Destructible {
             // another consumer of child or parent services respectively.
             // Temptation is to rethink whether this should be the case or if
             // more parent/child interation should be explicit, but rather than
-            // give it a lof thought, I'm going to assume that if I did, I'd
+            // give it a lot of thought, I'm going to assume that if I did, I'd
             // realize that this is the way it's supposed to be.
             destructible._parent = this
 
             this._awaitScrammable(destructible, wait, raise, scram)
 
             return destructible
-        } else {
+        } else if (sortof(vargs[0].then) == 'function') {
             return this._awaitPromise(vargs.shift(), wait, raise, trace)
+        } else {
+            throw new Destructible.Error('INVALID_ARGUMENT')
         }
     }
 
@@ -860,7 +909,7 @@ class Destructible {
 
     static async rescue (f) {
         try {
-            return await (typeof f == 'function' ? f() : f)
+            return await (sortof(f) == 'function' ? f() : f)
         } catch (error) {
             Destructible.destroyed(error)
         }
