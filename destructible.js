@@ -299,10 +299,11 @@ class Destructible {
         if (this._child != null) {
             List.unlink(this._child)
         }
-        if (! this._waiting.empty) {
+        if (! this._waiting.empty || this._increment != 0) {
             this._rejected[1].call(null, new Destructible.Error('SCRAMMED', this._errors, {
                 $trace: this._trace,
                 id: this.id,
+                countdown: this._increment,
                 waiting: this._waiting.slice()
             }))
         } else if (this._errors.length != 0) {
@@ -393,7 +394,7 @@ class Destructible {
     // performs the steps in its handshake indicating that it making progress.
 
     //
-    async _scrammed () {
+    async _shutdown () {
         if (this._ephemeral) {
             const scram = { timeout: null, resolve: null }
             this._scrams.push(() => {
@@ -434,6 +435,7 @@ class Destructible {
     _destroy () {
         // If we've not yet been destroyed, let's start the shutdown.
         if (!this.destroyed) {
+
             this.destroyed = true
             // Run our destructors.
             //
@@ -461,7 +463,7 @@ class Destructible {
                 // shouldn't matter because the async call should run
                 // synchronously until it awaits, but I'm too lazy to go and
                 // confirm this and this is fine.
-                this._scrammed()
+                this._shutdown()
             }
        }
     }
@@ -519,6 +521,7 @@ class Destructible {
 
     //
     destroy () {
+        this._increment = 0
         this._destroy()
         return this
     }
@@ -615,6 +618,7 @@ class Destructible {
         } finally {
             if (wait.value.method == 'terminal') {
                 this.durables--
+                this._increment = 0
                 this._destroy()
             } else if (wait.value.method == 'durable') {
                 this.durables--
@@ -745,6 +749,7 @@ class Destructible {
                 this.clear(destruct)
                 if (method == 'terminal' || destructible._errored) {
                     this._errored = this._errored || destructible._errored
+                    this._increment = 0
                     this._destroy()
                 }
             })

@@ -327,11 +327,14 @@ require('proof')(33, async (okay) => {
     {
         const test = []
         const destructible = new Destructible(50, 'main')
-        const child = destructible.ephemeral('child', 1)
-        child.increment()
+        const child = destructible.ephemeral('child', 2)
         destructible.destroy()
-        await destructible.rejected
-        okay('delayed child scrammed')
+        try {
+            await destructible.rejected
+        } catch (error) {
+            rescue(error, [{ code: 'SCRAMMED' }])
+            okay('delayed child scrammed')
+        }
     }
     {
         const destructible = new Destructible('main')
