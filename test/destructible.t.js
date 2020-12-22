@@ -1,4 +1,5 @@
-require('proof')(32, async (okay) => {
+require('proof')(33, async (okay) => {
+    const rescue = require('rescue')
     const Destructible = require('..')
     {
         const destructible = new Destructible('main')
@@ -217,14 +218,18 @@ require('proof')(32, async (okay) => {
     {
         const destructible = new Destructible('attempt')
         Destructible.rescue(async function () {
-            await destructible.exceptional('name', async function () {
+            await destructible.ephemeral('name', async function () {
                 throw new Error('error')
+            })
+            await new Promise(resolve => setImmediate(resolve))
+            await destructible.ephemeral('name', async function () {
             })
         })
         try {
             await destructible.rejected
         } catch (error) {
-            console.log(error.stack)
+            const caught = rescue(error, [ 'error' ]).errors.shift()
+            okay(caught.message, 'error', 'intialization halted by a shutdown')
         }
     }
     {

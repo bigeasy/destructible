@@ -135,6 +135,7 @@ class Destructible {
             message: 'tracer did not call given function'
         },
         DESTROYED: 'attempt to launch new strands after destruction',
+        EXCEPTIONAL: 'strand raised an exception',
         ERRORED: 'strand exited with exception',
         SCRAMMED: 'strand failed to exit or make progress',
         DURABLE: 'early exit from a strand expected to last for entire life of destructible'
@@ -566,7 +567,7 @@ class Destructible {
             }
             this._destroy()
             if (raise) {
-                throw new Destructible.Error('DESTROYED', { $trace })
+                throw new Destructible.Error('EXCEPTIONAL', { $trace }, [ error ])
             }
         } finally {
             if (wait.value.method == 'terminal') {
@@ -870,8 +871,9 @@ class Destructible {
     // **TODO** Wrapping causes some sort of race, I forget which.
     //
     //
-    rescue (id, f) {
-        return this.exceptional(id, Destructible.rescue(f))
+    rescue (...vargs) {
+        this.ephemeral++
+        return this._await('ephemeral', true, vargs.concat(Destructible.rescue(vargs.pop())))
     }
 }
 
