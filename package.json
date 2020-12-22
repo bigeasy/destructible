@@ -20,7 +20,7 @@
     },
     "dependencies":
     {
-                            "empathy":                      "0.0.2",
+                            "empathy":                      "0.0.3",
                             "interrupt":                    "11.0.0-alpha.11",
                             "prospective":                  "^0.3.0"
     },
