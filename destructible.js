@@ -292,6 +292,7 @@ class Destructible {
             this._rejected[1].call(null, new Destructible.Error('ERRORED', this._errors, {
                 $trace: this._trace,
                 id: this.id,
+                countdown: this._increment,
                 waiting: this._waiting.slice()
             }))
         } else {
@@ -581,7 +582,7 @@ class Destructible {
     // because it would just mean two extra `if` statements when we already
     // know.
 
-    async _awaitPromise (operation, wait, raise, $trace = null) {
+    async _awaitPromise (operation, wait, $trace = null) {
         try {
             try {
                 return await operation
@@ -596,36 +597,43 @@ class Destructible {
                 this._errors.push(Destructible.Error.create({ $trace, $stack: 0 }, [ 'ERRORED', [ error ], wait.value ]))
             }
             this._destroy()
-            if (raise) {
+            if (wait.value.method == 'exceptional') {
                 throw new Destructible.Error('EXCEPTIONAL', { $trace }, [ error ])
             }
         } finally {
-            if (wait.value.method == 'terminal') {
-                this.durables--
-                this._increment = 0
-                this._destroy()
-            } else if (wait.value.method == 'durable') {
-                this.durables--
-                if (! this.destroyed) {
-                    this._errored = true
-                    this._errors.push(Destructible.Error.create({ $trace, $stack: 0 }, [ 'DURABLE', wait.value ]))
+            switch (wait.value.method) {
+            case 'terminal': {
+                    this.durables--
+                    this._increment = 0
                     this._destroy()
                 }
-            } else {
-                this.ephemerals--
-                if (this._drain != null) {
-                    if ((() => {
-                        for (const wait of this._waiting) {
-                            if (wait.method == 'ephemeral') {
-                                return false
-                            }
-                        }
-                        return true
-                    }) ()) {
-                        this._drain.resolve(true)
-                        this._drain = null
+                break
+            case 'durable': {
+                    this.durables--
+                    if (! this.destroyed) {
+                        this._errored = true
+                        this._errors.push(Destructible.Error.create({ $trace, $stack: 0 }, [ 'DURABLE', wait.value ]))
+                        this._destroy()
                     }
                 }
+                break
+            default: {
+                    this.ephemerals--
+                    if (this._drain != null) {
+                        if ((() => {
+                            for (const wait of this._waiting) {
+                                if (wait.method == 'ephemeral') {
+                                    return false
+                                }
+                            }
+                            return true
+                        }) ()) {
+                            this._drain.resolve(true)
+                            this._drain = null
+                        }
+                    }
+                }
+                break
             }
             if (this.destroyed) {
                 this._complete()
@@ -657,12 +665,12 @@ class Destructible {
     // case in Google V8, but is it specified in the ECMA standard?)
 
     //
-    async _awaitScrammable (destructible, wait, raise, scram) {
+    async _awaitScrammable (destructible, wait, scram) {
         // Monitor our new destructible as child of this destructible.
         let scrammable
         const node = this._scrammable.push(new Promise(resolve => scrammable = { resolve }))
         try {
-            await this._awaitPromise(destructible.rejected, wait, raise)
+            await this._awaitPromise(destructible.rejected, wait)
         } finally {
             // TODO Convince yourself that it doens't matter if you call a
             // scrammable before you call `_complete`.
@@ -682,8 +690,8 @@ class Destructible {
     // implementation as it stands points in this direction and I'm not going
     // back to rethink it all. Software as Plinko.
     //
-    _await (method, raise, vargs) {
-        if (!(method == 'ephemeral' && this._destructing)) {
+    _await (method, vargs) {
+        if (!(this._destructing && (method == 'ephemeral' || method == 'exceptional'))) {
             this.operational()
         }
         const trace = typeof vargs[0] == 'function' ? vargs.shift() : null
@@ -693,7 +701,7 @@ class Destructible {
         // Ephemeral destructible children can set a scram timeout.
         if (typeof vargs[0] == 'function') {
             //const promise = async function () { return await vargs.shift()() } ()
-            return this._awaitPromise(vargs.shift()(), wait, raise, trace)
+            return this._awaitPromise(vargs.shift()(), wait, trace)
         } else if (vargs.length == 0 || typeof vargs[0] == 'number') {
             // Ephemeral sub-destructibles can have their own timeout and scram
             // timer, durable sub-destructibles are scrammed by their root.
@@ -801,11 +809,11 @@ class Destructible {
             // of the same stage.
             destructible._parent = this
 
-            this._awaitScrammable(destructible, wait, raise, scram)
+            this._awaitScrammable(destructible, wait, scram)
 
             return destructible
         } else if (typeof vargs[0].then == 'function') {
-            return this._awaitPromise(vargs.shift(), wait, raise, trace)
+            return this._awaitPromise(vargs.shift(), wait, trace)
         } else {
             throw new Destructible.Error('INVALID_ARGUMENT')
         }
@@ -838,7 +846,7 @@ class Destructible {
     //
     terminal (...vargs) {
         this.durables++
-        return this._await('terminal', false, vargs)
+        return this._await('terminal', vargs)
     }
 
     // At some point I'm going to rename this to `durable` and what is currently
@@ -848,7 +856,7 @@ class Destructible {
     //
     durable (...vargs) {
         this.durables++
-        return this._await('durable', false, vargs)
+        return this._await('durable', vargs)
     }
 
     // `async ephemeral(id, [ Promise ])` &mdash; Start a strand that does not
@@ -874,10 +882,10 @@ class Destructible {
     //
     ephemeral (...vargs) {
         this.ephemerals++
-        return this._await('ephemeral', false, vargs)
+        return this._await('ephemeral', vargs)
     }
 
-    // `async exeptional(id, [ Promise ])` &mdash; Start an `ephemeral` strand,
+    // `async exceptional(id, [ Promise ])` &mdash; Start an `ephemeral` strand,
     // a strand that does not last the lifetime of the `Destructible`. Return
     // the reoslved value of the strand's `Promise`. Unlike `ephemeral`, if the
     // `Promise` rejects, a `Destructible.Error` exception is raised with a
@@ -889,9 +897,8 @@ class Destructible {
 
     //
     exceptional (...vargs) {
-        // **TODO** Get rid of `true` and just use `'exceptional'`.
         this.ephemerals++
-        return this._await('ephemeral', true, vargs)
+        return this._await('exceptional', vargs)
     }
 
     // Used to address the configuration problem I keep encountering. The
@@ -951,7 +958,7 @@ class Destructible {
     //
     rescue (...vargs) {
         this.ephemeral++
-        return this._await('ephemeral', true, vargs.concat(Destructible.rescue(vargs.pop())))
+        return this._await('exceptional', vargs.concat(Destructible.rescue(vargs.pop())))
     }
 }
 
