@@ -233,7 +233,7 @@ class Destructible {
         let iterator = this, counted = false
         do {
             path.push(iterator)
-            counted = iterator._counted
+            counted = iterator._counted || iterator._ephemeral
             iterator = iterator._parent
         } while (iterator != null && ! counted)
         iterator = destructible
@@ -241,7 +241,7 @@ class Destructible {
             if (~path.indexOf(iterator)) {
                 return true
             }
-            counted = iterator._counted
+            counted = iterator._counted || iterator._ephemeral
             iterator = iterator._parent
         } while (iterator != null && ! counted)
         return false
@@ -768,13 +768,9 @@ class Destructible {
             // Anyway, we now have rules about destruction. It does propagate,
             // but it's not entirely harmless.
 
-            // **TODO** Also, it really is the case that ephemeral defines a new
-            // stage.
-
             //
             destructible.destruct(() => {
                 this.clear(destruct)
-                // **TODO** Isn't ephemeral also a stage boundary.
                 if (! destructible._ephemeral || destructible._errored) {
                     this._errored = this._errored || destructible._errored
                     this._increment = 0

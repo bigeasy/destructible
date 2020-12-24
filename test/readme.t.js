@@ -17,7 +17,7 @@
 // Our unit test begins here.
 
 //
-require('proof')(36, async okay => {
+require('proof')(44, async okay => {
     // In your program this would be
     //
     // ```javascript
@@ -369,6 +369,44 @@ require('proof')(36, async okay => {
         destructible.destroy()
 
         await destructible.rejected
+    }
+    //
+
+    // Ephemeral and exceptional Destructilbles also create a stage boundary.
+    // They are both ephemeral in that they can both exit before their parent
+    // Destructible exists.
+
+    // If you have a Destructible with an ephemeral child and a durable child
+    // and you initiate a destroy from the parent, the destruct message will
+    // immediately cross ephemeral bounaries, both the ephemeral child and the
+    // durable child will destruct, so they are in the same stage from the root
+    // to the leaves, but because you can also initate a destroy on the
+    // ephemeral alone the durable will not destruct so we cannot say that they
+    // are always in the same stage. For our purposes and practical applicatoins
+    // not always is as good as not at all.
+
+    //
+    {
+        const destructible = new Destructible('parent')
+
+        const first = destructible.durable('first')
+        const second = destructible.ephemeral('second')
+
+        okay(!first.isSameStage(second), 'durable and ephemeral siblings not in same stage')
+        okay(!second.isSameStage(first), 'ephemral and durable siblings not in same stage')
+
+        okay(!destructible.isSameStage(second), 'child ephemeral not in same stage as parent')
+        okay(!second.isSameStage(destructible), 'parnet not in same stage as child ephemeral')
+
+        const third = destructible.durable('third')
+        okay(third.isSameStage(first), 'durable siblings in same stage')
+
+        const fourth = second.durable('fourth')
+        okay(second.isSameStage(fourth), 'durable child in same stage as ephemeral parent')
+
+        const fifth = second.ephemeral('fifth')
+        okay(!second.isSameStage(fifth), 'ephemeral child not in same stage as ephemeral parent')
+        okay(!fifth.isSameStage(second), 'ephemeral parent not in same stage as ephemeral child')
     }
     //
 
