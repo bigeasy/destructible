@@ -542,6 +542,8 @@ class Destructible {
     // Check to see if this `Destructible` has completed its shutdown
     // if it is destroyed. If the destructible has completed shutdown stop the
     // scram timer and toggle the scram timer latch.
+
+    //
     _complete () {
         if (this.destroyed && this._waiting.empty) {
             this._scram()
@@ -646,12 +648,19 @@ class Destructible {
     // creates.
 
     //
-    // TODO We're going to have race conditions if we do not push the scrammable
-    // in the same synchronous run in which we check destroyed.
+    // **TODO** We're going to have race conditions if we do not push the
+    // scrammable in the same synchronous run in which we check destroyed. (This
+    // is getting to be an old TODO. Wondering how to examine my assumptions
+    // about this. I believe this has to do with being concerned about the
+    // construction location of the promise and the push, can we be assured that
+    // we enter `async` functions synchronously? Experience tells me this is the
+    // case in Google V8, but is it specified in the ECMA standard?)
+
+    //
     async _awaitScrammable (destructible, wait, raise, scram) {
         // Monitor our new destructible as child of this destructible.
-        const scrammable = {}
-        const node = this._scrammable.push(new Promise(resolve => scrammable.resolve = resolve))
+        let scrammable
+        const node = this._scrammable.push(new Promise(resolve => scrammable = { resolve }))
         try {
             await this._awaitPromise(destructible.rejected, wait, raise)
         } finally {
@@ -712,9 +721,7 @@ class Destructible {
                 destructible.decrement()
             })
 
-            if (method == 'ephemeral') {
-                destructible._ephemeral = true
-            }
+            destructible._ephemeral = method == 'ephemeral'
 
             // Propagate destruction on error. Recall that we need to send this
             // message up though our alternate route, we can't wait on the
@@ -727,9 +734,40 @@ class Destructible {
             // kind of want them to be scrammed, or else the user has to think
             // hard about the difference between ordered shutdown and abnormal
             // shutdown.
+
+            // **TODO** Above comments are hard to parse now. Adding this to say
+            // that we now are developing a new rule about propagating shutdown
+            // upwards. It would appear that when we shutdown an ephemeral or
+            // exceptional that shutdown does not propagate. When we shutdown a
+            // durable or terminal it does. If durable, an exception is raised
+            // when the parent processes the resolve.
+
+            // Turnstile uses `destroy` to indicate that it has encountered an
+            // error. If you build destructible with a durable that error will
+            // always cause an exception to be raised. It will be explicit when
+            // Turnstile's shutdown strand throws an exception with gathered
+            // errors nested. We can add an option to turnstile to allow errors
+            // to get funneled off to logs. We want to do this because we are
+            // realizing that there are alternatives to handling errors, logging
+            // them as they occur, or gathering them and reporting them in the
+            // stack trace. The approach depends on the application. Turnstile
+            // could have a queue of thousands of writes and the disk is full,
+            // every one will produce an error and the stack trace will be
+            // useless. We have to build stack trace reduction into Interrupt.
+            // Alternatively, Turnstile can log errors. This is easier to reason
+            // about when we have a single Turnstile per application.
+
+            // Anyway, we now have rules about destruction. It does propagate,
+            // but it's not entirely harmless.
+
+            // **TODO** Also, it really is the case that ephemeral defines a new
+            // stage.
+
+            //
             destructible.destruct(() => {
                 this.clear(destruct)
-                if (method == 'terminal' || destructible._errored) {
+                // **TODO** Isn't ephemeral also a stage boundary.
+                if (! destructible._ephemeral || destructible._errored) {
                     this._errored = this._errored || destructible._errored
                     this._increment = 0
                     this._destroy()
@@ -758,6 +796,9 @@ class Destructible {
             // more parent/child interation should be explicit, but rather than
             // give it a lot of thought, I'm going to assume that if I did, I'd
             // realize that this is the way it's supposed to be.
+
+            // I now depend on this to determine if two destructibles are part
+            // of the same stage.
             destructible._parent = this
 
             this._awaitScrammable(destructible, wait, raise, scram)
@@ -848,6 +889,7 @@ class Destructible {
 
     //
     exceptional (...vargs) {
+        // **TODO** Get rid of `true` and just use `'exceptional'`.
         this.ephemerals++
         return this._await('ephemeral', true, vargs)
     }

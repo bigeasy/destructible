@@ -17,7 +17,7 @@
 // Our unit test begins here.
 
 //
-require('proof')(29, async okay => {
+require('proof')(36, async okay => {
     // In your program this would be
     //
     // ```javascript
@@ -85,6 +85,93 @@ require('proof')(29, async okay => {
         await new Promise(resolve => setTimeout(resolve, 250))
 
         await destructible.destroy().rejected
+    }
+    //
+
+    // We created a destructible and created `durable` strand. A `durable`
+    // strand will run for the lifetime of the Destructible. If it returns early
+    // the Destructible will raise an exception.
+
+    // An exception looks like this. You can view the generated stack trace by
+    // running this unit test.
+
+    //
+    {
+        const destructible = new Destructible('example')
+
+        destructible.durable('errored', async () => {
+            throw new Error('thrown')
+        })
+
+        try {
+            await destructible.rejected
+        } catch (error) {
+            okay(error instanceof Destructible.Error, 'destructible wraps exceptions of strands')
+            okay(error.errors[0] instanceof Destructible.Error, 'strands wrap exceptions thrown by the Promise they monitor')
+            okay(error.errors[0].errors[0].message, 'thrown', 'actual exception')
+            console.log('\n--- Destructible exception ---\n')
+            console.log(`${error.stack}\n`)
+        }
+    }
+    //
+
+    // As noted, when you end a `durable` strand early, that will raise an
+    // exception.
+
+    //
+    {
+        const destructible = new Destructible('example')
+
+        destructible.durable('early', async () => {})
+
+        try {
+            await destructible.rejected
+        } catch (error) {
+            okay(error instanceof Destructible.Error, 'destructible wraps exceptions of strands')
+            okay(error.errors[0] instanceof Destructible.Error, 'strands raised an early exit error')
+            // **TODO** Maybe DURABLE_EXIT or EARLY_EXIT something.
+            okay(error.errors[0].code, 'DURABLE', 'code indicates an early exit')
+            console.log('\n--- Destructible early exit exception ---\n')
+            console.log(`${error.stack}\n`)
+        }
+    }
+    //
+
+    // We use a `durable` strand to indicate that the strand should run the
+    // lifetime of the parent Destructible. If the strand returns before the
+    // parent Destructible`s `destroyed` property is `true` it will raise an
+    // exception.
+
+    // Here is how you would exit a `durable` strand propery, you would use the
+    // `destroyed` property as a condition to stop performing work and resolve
+    // the Promise.
+
+    //
+    {
+    }
+    //
+
+    // Sub-destructibles...
+
+    //
+    {
+    }
+    //
+
+    // Note that the argument after the id must be a `Promise`, a function or an
+    // integer greater than zero to indicated a counted Destructible which we
+    // discuss in Staged Shutdown. That argument is optional, so you can give
+    // nothing at all.
+
+    // Any other type will raise an exception.
+    {
+        const destructible = new Destructible('example')
+
+        try {
+            destructible.durable('terrible', 'completely unexpected type')
+        } catch (error) {
+            okay(error.code, 'INVALID_ARGUMENT', 'invalid argument to create a durable strand')
+        }
     }
     //
 
