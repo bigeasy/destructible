@@ -306,8 +306,8 @@ class Destructible {
         throw new Error
     }
 
-    operational () {
-        if (this.destroyed) {
+    operational (additional = true) {
+        if (this.destroyed && additional) {
             throw new Destructible.Error('DESTROYED', { $trace: this._trace })
         }
     }

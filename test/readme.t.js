@@ -521,6 +521,4 @@ require('proof')(36, async okay => {
 
         okay(gathered, [ 'working', 'working', 'done' ], 'pushed final work onto queue')
     }
-
-    //
 })
