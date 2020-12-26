@@ -181,9 +181,9 @@ class Destructible {
 
         this.destroyed = false
 
-        this.rejected = new Promise((...vargs) => this._rejected = vargs)
+        this.promise = new Promise((resolve, reject) => this._promise = { resolve, reject })
 
-        this.destructed = new Promise(resolve => this._destructed = resolve)
+        this.done = new Promise(resolve => this._done = { resolve })
 
         this._parent = null
 
@@ -283,23 +283,23 @@ class Destructible {
             List.unlink(this._child)
         }
         if (! this._waiting.empty || this._countdown != 0) {
-            this._rejected[1].call(null, new Destructible.Error('SCRAMMED', this._errors, {
+            this._promise.reject.call(null, new Destructible.Error('SCRAMMED', this._errors, {
                 $trace: this._trace,
                 id: this.id,
                 countdown: this._countdown,
                 waiting: this._waiting.slice()
             }))
         } else if (this._errors.length != 0) {
-            this._rejected[1].call(null, new Destructible.Error('ERRORED', this._errors, {
+            this._promise.reject.call(null, new Destructible.Error('ERRORED', this._errors, {
                 $trace: this._trace,
                 id: this.id,
                 countdown: this._countdown,
                 waiting: this._waiting.slice()
             }))
         } else {
-            this._rejected[0].call(null, false)
+            this._promise.resolve.call(null, false)
         }
-        this._destructed.call(null, true)
+        this._done.resolve.call(null, true)
     }
 
     // Temporary function to ensure noone is using the cause property.
@@ -674,7 +674,7 @@ class Destructible {
         let scrammable
         const node = this._scrammable.push(new Promise(resolve => scrammable = { resolve }))
         try {
-            await this._awaitPromise(destructible.rejected, wait)
+            await this._awaitPromise(destructible.promise, wait)
         } finally {
             // TODO Convince yourself that it doens't matter if you call a
             // scrammable before you call `_complete`.

@@ -38,7 +38,7 @@ require('proof')(48, async okay => {
     //
     {
         const destructible = new Destructible('example')
-        await destructible.destroy().rejected
+        await destructible.destroy().promise
     }
 
     // If you're wondering what just happened, we created an instance of
@@ -63,7 +63,7 @@ require('proof')(48, async okay => {
         okay(!destructible.destroyed, 'destructible has not been destroyed')
 
         // Destroy the `Destructible` and await its funnel `Promise`.
-        await destructible.destroy().rejected
+        await destructible.destroy().promise
 
         // The destructible is now `destroyed`.
         okay(destructible.destroyed, 'destructible has been destroyed')
@@ -84,7 +84,7 @@ require('proof')(48, async okay => {
 
         await new Promise(resolve => setTimeout(resolve, 250))
 
-        await destructible.destroy().rejected
+        await destructible.destroy().promise
     }
     //
 
@@ -104,7 +104,7 @@ require('proof')(48, async okay => {
         })
 
         try {
-            await destructible.rejected
+            await destructible.promise
         } catch (error) {
             okay(error instanceof Destructible.Error, 'destructible wraps exceptions of strands')
             okay(error.errors[0] instanceof Destructible.Error, 'strands wrap exceptions thrown by the Promise they monitor')
@@ -125,7 +125,7 @@ require('proof')(48, async okay => {
         destructible.durable('early', async () => {})
 
         try {
-            await destructible.rejected
+            await destructible.promise
         } catch (error) {
             okay(error instanceof Destructible.Error, 'destructible wraps exceptions of strands')
             okay(error.errors[0] instanceof Destructible.Error, 'strands raised an early exit error')
@@ -319,7 +319,7 @@ require('proof')(48, async okay => {
 
         okay(countdown.destroyed, 'countdown is now destroyed')
 
-        await destructible.rejected
+        await destructible.promise
     }
     //
 
@@ -445,7 +445,7 @@ require('proof')(48, async okay => {
         parent.destroy()
         child.decrement()
 
-        await parent.rejected
+        await parent.promise
     }
     //
 
@@ -496,7 +496,7 @@ require('proof')(48, async okay => {
         destructible.destroy()
         deferrable.decrement()
 
-        await destructible.rejected
+        await destructible.promise
     }
     //
 
@@ -664,7 +664,7 @@ require('proof')(48, async okay => {
         okay(queue.destructible.destroyed, 'destructible is destoryed')
         okay(!queue.deferrable.destroyed, 'countdown is not destroyed')
 
-        await destructible.rejected
+        await destructible.promise
 
         okay(queue.terminated, 'queue is has completely shutdown')
 
@@ -715,7 +715,7 @@ require('proof')(48, async okay => {
         okay(queue.destructible.destroyed, 'destructible is destoryed')
         okay(!queue.deferrable.destroyed, 'deferrable is not destroyed')
 
-        await destructible.rejected
+        await destructible.promise
 
         okay(queue.terminated, 'queue is has completely shutdown')
 

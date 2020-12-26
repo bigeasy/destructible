@@ -4,8 +4,8 @@ require('proof')(33, async (okay) => {
     {
         const destructible = new Destructible('main')
         destructible.destroy()
-        okay(!await destructible.rejected, 'constructed')
-        okay(await destructible.destructed, 'destructed')
+        okay(!await destructible.promise, 'constructed')
+        okay(await destructible.done, 'destructed')
         try {
             destructible.cause
         } catch (error) {
@@ -15,7 +15,7 @@ require('proof')(33, async (okay) => {
     {
         const destructible = new Destructible('main')
         destructible.terminal('immediate', new Promise(resolve => setImmediate(resolve)))
-        await destructible.rejected
+        await destructible.promise
         okay(destructible.destroyed, 'wait for terminal promise')
     }
     {
@@ -24,7 +24,7 @@ require('proof')(33, async (okay) => {
             destructible.destruct(resolve)
         }))
         destructible.destroy()
-        await destructible.rejected
+        await destructible.promise
         okay(destructible.destroyed, 'set destructor')
     }
     {
@@ -36,7 +36,7 @@ require('proof')(33, async (okay) => {
         destructors.push(destructible.destruct(() => { throw new Error }))
         destructible.clear(destructors)
         destructible.destroy()
-        await destructible.rejected
+        await destructible.promise
         okay(test, [ 'destructed' ], 'create a destructor group')
     }
     {
@@ -57,7 +57,7 @@ require('proof')(33, async (okay) => {
         await new Promise(resolve => setTimeout(resolve, 50))
         future.two.call(null, 2)
         future.one.call(null, 1)
-        await destructible.rejected
+        await destructible.promise
         okay(await results, { one: 1, two: 2 }, 'gather retrurn values')
     }
     {
@@ -67,17 +67,17 @@ require('proof')(33, async (okay) => {
         sub.terminal('future', new Promise(resolve => future.resolve = resolve))
         sub.destruct(() => future.resolve.call(null, 1))
         destructible.destroy()
-        okay(!await destructible.rejected, 'create sub-destructible')
+        okay(!await destructible.promise, 'create sub-destructible')
     }
     {
         const destructible = new Destructible('main')
         const sub = destructible.ephemeral('child')
         const subsub = sub.terminal('child')
         subsub.destroy()
-        await sub.rejected
+        await sub.promise
         okay(!destructible.destroyed, 'not destroyed')
         destructible.destroy()
-        okay(!await destructible.rejected, 'wait for sub-destructible to complete')
+        okay(!await destructible.promise, 'wait for sub-destructible to complete')
     }
     {
         const fs = require('fs').promises
@@ -88,7 +88,7 @@ require('proof')(33, async (okay) => {
             throw new Error('thrown')
         })
         try {
-            await destructible.rejected
+            await destructible.promise
         } catch (error) {
             console.log(error.stack)
             test.push(error.errors[0].errors[0].message)
@@ -101,7 +101,7 @@ require('proof')(33, async (okay) => {
         const destructible = new Destructible(10000, 'main')
         const sub = destructible.terminal('parent')
         sub.terminal('child', Promise.resolve(true))
-        await destructible.rejected
+        await destructible.promise
         okay(destructible.destroyed, 'destroy a destructible when a terminal sub-destructible completes')
     }
     {
@@ -110,7 +110,7 @@ require('proof')(33, async (okay) => {
         const sub = destructible.terminal($ => $(), 'parent')
         sub.ephemeral($ => $(), 'child', Promise.reject(new Error('thrown')))
         try {
-            await destructible.rejected
+            await destructible.promise
         } catch (error) {
             console.log(error.stack)
             test.push(error.errors[0].errors[0].errors[0].message)
@@ -123,7 +123,7 @@ require('proof')(33, async (okay) => {
         destructible.destruct(() => { throw new Error('thrown') })
         destructible.destroy()
         try {
-            await destructible.rejected
+            await destructible.promise
         } catch (error) {
             console.log(error.stack)
             test.push(error.errors[0].errors[0].message)
@@ -137,7 +137,7 @@ require('proof')(33, async (okay) => {
         destructible.terminal('unresolved', new Promise(resolve => latch.resolve = resolve))
         destructible.destroy()
         try {
-            await destructible.rejected
+            await destructible.promise
         } catch (error) {
             console.log(error.stack)
             test.push(error.code)
@@ -154,7 +154,7 @@ require('proof')(33, async (okay) => {
         destructible.destroy()
         try {
             console.log('here')
-            await destructible.rejected
+            await destructible.promise
             console.log('there')
         } catch (error) {
             console.log(error.stack)
@@ -171,7 +171,7 @@ require('proof')(33, async (okay) => {
         sub.terminal('unresolved', new Promise(resolve => _resolve = resolve))
         sub.destroy()
         try {
-            await destructible.rejected
+            await destructible.promise
         } catch (error) {
             console.log(error.stack)
             test.push(error.errors[0].code)
@@ -186,7 +186,7 @@ require('proof')(33, async (okay) => {
         destructible.decrement()
         destructible.decrement()
         destructible.decrement()
-        await destructible.rejected
+        await destructible.promise
         okay(test, [], 'countdown to destruction')
     }
     {
@@ -207,7 +207,7 @@ require('proof')(33, async (okay) => {
             console.log(error.stack)
         }
         try {
-            await destructible.rejected
+            await destructible.promise
         } catch (error) {
             console.log(error.stack)
         }
@@ -227,7 +227,7 @@ require('proof')(33, async (okay) => {
             })
         })
         try {
-            await destructible.rejected
+            await destructible.promise
         } catch (error) {
             const caught = rescue(error, [ 'error' ]).errors.shift()
             okay(caught.message, 'error', 'intialization halted by a shutdown')
@@ -245,7 +245,7 @@ require('proof')(33, async (okay) => {
             }
         })
         try {
-            await destructible.rejected
+            await destructible.promise
         } catch (error) {
             console.log(error.stack)
         }
@@ -257,7 +257,7 @@ require('proof')(33, async (okay) => {
         })
         destructible.destroy()
         try {
-            await destructible.rejected
+            await destructible.promise
         } catch (error) {
             console.log(error.stack)
         }
@@ -279,7 +279,7 @@ require('proof')(33, async (okay) => {
             }
         })
         destructible.destroy()
-        await destructible.rejected
+        await destructible.promise
         okay('cleanup')
     }
     {
@@ -302,7 +302,7 @@ require('proof')(33, async (okay) => {
         ephemeral.destroy()
         await new Promise(resolve => setImmediate(resolve))
         one.resolve()
-        await destructible.rejected
+        await destructible.promise
     }
     {
         const destructible = new Destructible('main')
@@ -313,7 +313,7 @@ require('proof')(33, async (okay) => {
         okay(!child.destroyed, 'child not yet destroyed')
         child.decrement()
         okay(child.destroyed, 'child destroyed')
-        await destructible.rejected
+        await destructible.promise
     }
     {
         const test = []
@@ -330,7 +330,7 @@ require('proof')(33, async (okay) => {
         const child = destructible.ephemeral('child', 2)
         destructible.destroy()
         try {
-            await destructible.rejected
+            await destructible.promise
         } catch (error) {
             rescue(error, [{ code: 'SCRAMMED' }])
             okay('delayed child scrammed')
@@ -359,7 +359,7 @@ require('proof')(33, async (okay) => {
             await promise
         }
         latch.resolve()
-        await destructible.rejected
+        await destructible.promise
         okay('drain')
     }
     {
@@ -367,7 +367,7 @@ require('proof')(33, async (okay) => {
         destructible.durable('early exit', async () => {})
         const test = []
         try {
-            await destructible.rejected
+            await destructible.promise
         } catch (error) {
             test.push(error.errors[0].code)
         }
@@ -379,7 +379,7 @@ require('proof')(33, async (okay) => {
         destructible.durable('resolve', new Promise(resolve => latch.resolve = resolve))
         destructible.destroy()
         latch.resolve.call()
-        await destructible.rejected
+        await destructible.promise
     }
     {
         const destructible = new Destructible('redurable')
@@ -387,7 +387,7 @@ require('proof')(33, async (okay) => {
         destructible.durable('resolve', async () => { throw new Error('thrown') })
         const test = []
         try {
-            await destructible.rejected
+            await destructible.promise
         } catch (error) {
             test.push(error.errors[0].errors[0].message)
         }
