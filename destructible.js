@@ -146,6 +146,7 @@ class Destructible {
             code: 'INVALID_ARGUMENT',
             message: 'argument must be an instance of Destructible'
         },
+        NOT_DEFERRABLE: 'attempt to increment countdown of a destructible that is not deferrable',
         DESTROYED: 'attempt to launch new strands after destruction',
         EXCEPTIONAL: 'strand raised an exception',
         ERRORED: 'strand exited with exception',
@@ -198,9 +199,9 @@ class Destructible {
 
         this._drain = null
 
-        this._increment = 0
+        this._countdown = 0
 
-        this._counted = false
+        this.isDeferrable = true
 
         this._scrammable = new List
 
@@ -220,11 +221,11 @@ class Destructible {
     }
 
     get countdown () {
-        return this._increment
+        return this._countdown
     }
 
     get counted () {
-        return this._counted
+        throw new Error
     }
 
     isDestroyedIfDestroyed (destructible) {
@@ -233,7 +234,7 @@ class Destructible {
         let iterator = this, boundary
         do {
             path.push(iterator)
-            boundary = iterator._counted
+            boundary = iterator.isDeferrable
             iterator = iterator._parent
         } while (iterator != null && ! boundary)
         iterator = destructible
@@ -241,7 +242,7 @@ class Destructible {
             if (~path.indexOf(iterator)) {
                 return true
             }
-            boundary = iterator._counted || iterator._ephemeral
+            boundary = iterator.isDeferrable || iterator._ephemeral
             iterator = iterator._parent
         } while (iterator != null && ! boundary)
         return false
@@ -281,18 +282,18 @@ class Destructible {
         if (this._child != null) {
             List.unlink(this._child)
         }
-        if (! this._waiting.empty || this._increment != 0) {
+        if (! this._waiting.empty || this._countdown != 0) {
             this._rejected[1].call(null, new Destructible.Error('SCRAMMED', this._errors, {
                 $trace: this._trace,
                 id: this.id,
-                countdown: this._increment,
+                countdown: this._countdown,
                 waiting: this._waiting.slice()
             }))
         } else if (this._errors.length != 0) {
             this._rejected[1].call(null, new Destructible.Error('ERRORED', this._errors, {
                 $trace: this._trace,
                 id: this.id,
-                countdown: this._increment,
+                countdown: this._countdown,
                 waiting: this._waiting.slice()
             }))
         } else {
@@ -480,15 +481,18 @@ class Destructible {
     // `Destructible`.
 
     //
-    increment (increment) {
-        this._increment++
+    increment () {
+        Destructible.Error.assert(this.isDeferrable, 'NOT_DEFERRABLE', { id: this.id })
+        this._countdown++
     }
 
-    decrement (decrement) {
-        if (this._increment == 0) {
-        } else if (--this._increment == 0) {
+    decrement () {
+        Destructible.Error.assert(this.isDeferrable, 'NOT_DEFERRABLE', { id: this.id })
+        if (this._countdown == 0) {
+        } else if (--this._countdown == 0) {
             this._destroy()
         }
+        return this
     }
 
     // `destructible.destroy()` &mdash; Destroy the `Destructible` and
@@ -504,7 +508,7 @@ class Destructible {
 
     //
     destroy () {
-        this._increment = 0
+        this._countdown = 0
         this._destroy()
         return this
     }
@@ -604,7 +608,7 @@ class Destructible {
             switch (wait.value.method) {
             case 'terminal': {
                     this.durables--
-                    this._increment = 0
+                    this._countdown = 0
                     this._destroy()
                 }
                 break
@@ -709,24 +713,28 @@ class Destructible {
             // Create the child destructible.
             //assert(typeof this._timeout == 'number' && this._timeout != Infinity)
 
-            const countdown = vargs.length == 0 ? 0 : vargs.shift()
+            const isDeferrable = vargs.length != 0
+            const countdown = isDeferrable ? vargs.shift() : 0
             Destructible.Error.assert(Number.isInteger(countdown) && countdown >= 0, 'INVALID_COUNTDOWN', { _countdown: countdown })
 
             const destructible = new Destructible(this._timeout, id)
 
-            destructible._increment = Math.max(countdown, 1)
-            destructible._counted = countdown != 0
+            destructible._countdown = countdown
+            destructible.isDeferrable = isDeferrable
 
             destructible._trace = trace
 
             destructible._progress = this._progress
 
+            // **TODO** Here it is. Entirely unused. Maybe a tree report?
             destructible._child = this._children.push(destructible)
 
             // Destroy the child destructible when we are destroyed.
             const destruct = this.destruct(() => {
                 destructible._ephemeral = false
-                destructible.decrement()
+                if (destructible._countdown == 0) {
+                    destructible.destroy()
+                }
             })
 
             destructible._ephemeral = method == 'ephemeral'
@@ -773,7 +781,7 @@ class Destructible {
                 this.clear(destruct)
                 if (! destructible._ephemeral || destructible._errored) {
                     this._errored = this._errored || destructible._errored
-                    this._increment = 0
+                    // this._countdown = 0
                     this._destroy()
                 }
             })

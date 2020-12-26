@@ -306,7 +306,7 @@ require('proof')(33, async (okay) => {
     }
     {
         const destructible = new Destructible('main')
-        const child = destructible.terminal('child', 1)
+        const child = destructible.terminal('child', 0)
         child.increment()
         destructible.destroy()
         okay(destructible.destroyed, 'parent destroyed')

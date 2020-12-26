@@ -298,15 +298,15 @@ require('proof')(48, async okay => {
     //
     {
         const destructible = new Destructible('root')
-        okay(!destructible.counted, 'is not a counted destructible')
+        okay(destructible.isDeferrable, 'root is always a counted destructible')
 
-        const countdown = destructible.terminal('countdown', 2)
-        okay(countdown.countdown, 2, 'initial countdown')
-        okay(countdown.counted, 'is a counted destructible')
+        const countdown = destructible.terminal('countdown', 1)
+        okay(countdown.countdown, 1, 'initial countdown')
+        okay(countdown.isDeferrable, 'is a counted destructible')
 
         destructible.destroy()
 
-        okay(countdown.countdown, 1, 'auto decrement initiated')
+        okay(countdown.countdown, 1, 'countdown unchanged')
 
         okay(!countdown.destroyed, 'countdown not destroyed')
         okay(destructible.destroyed, 'destructible is destroyed')
@@ -442,7 +442,10 @@ require('proof')(48, async okay => {
         okay(!parent.isDestroyedIfDestroyed(child), 'parent is not destroyed by child destruction due to deferrable boundary')
         okay(!child.isDestroyedIfDestroyed(parent), 'child is not destroyed by parent destruction due to deferrable boundary')
 
-        await parent.destroy().rejected
+        parent.destroy()
+        child.decrement()
+
+        await parent.rejected
     }
     //
 
@@ -475,22 +478,23 @@ require('proof')(48, async okay => {
         const second = destructible.durable('second')
         const third = second.durable('third')
 
-        const counted = first.durable('counted', 1)
-        const fourth = counted.durable('fourth')
+        const deferrable = first.durable('deferrable', 1)
+        const fourth = deferrable.durable('fourth')
 
         okay(first.isDestroyedIfDestroyed(third), 'will shutdown at the same time')
         okay(!fourth.isDestroyedIfDestroyed(third), 'will not shutdown at the same time')
 
-        okay(counted.isDestroyedIfDestroyed(fourth), 'parent and child in same stage')
-        okay(fourth.isDestroyedIfDestroyed(counted), 'child and parent in same stage')
+        okay(deferrable.isDestroyedIfDestroyed(fourth), 'parent and child in same stage')
+        okay(fourth.isDestroyedIfDestroyed(deferrable), 'child and parent in same stage')
 
-        okay(!first.isDestroyedIfDestroyed(counted), 'parent and child not in same stage')
-        okay(!counted.isDestroyedIfDestroyed(first), 'child and parent not in same stage')
+        okay(!first.isDestroyedIfDestroyed(deferrable), 'parent and child not in same stage')
+        okay(!deferrable.isDestroyedIfDestroyed(first), 'child and parent not in same stage')
 
-        okay(counted.isDestroyedIfDestroyed(counted), 'counted in same stage as self')
+        okay(deferrable.isDestroyedIfDestroyed(deferrable), 'counted in same stage as self')
         okay(third.isDestroyedIfDestroyed(third), 'uncounted in same stage as self')
 
         destructible.destroy()
+        deferrable.decrement()
 
         await destructible.rejected
     }
@@ -581,8 +585,8 @@ require('proof')(48, async okay => {
             this._notify = () => {}
             this._queue = []
             this.destructible = destructible
-            this.countdown = destructible.durable('countdown', 2)
-            this.countdown.durable('queue', async () => {
+            this.deferrable = destructible.durable('deferrable', 1)
+            this.deferrable.durable('queue', async () => {
                 for (;;) {
                     if (this.terminated) {
                         break
@@ -598,14 +602,14 @@ require('proof')(48, async okay => {
                     await this._queue.shift().call()
                 }
             })
-            this.countdown.destruct(() => {
+            this.deferrable.destruct(() => {
                 this.terminated = true
                 this._notify.call()
             })
             this.destructible.destruct(() => {
                 this.destructible.ephemeral('shutdown', async () => {
                     await this.drain()
-                    this.countdown.decrement()
+                    this.deferrable.decrement()
                 })
             })
         }
@@ -631,10 +635,10 @@ require('proof')(48, async okay => {
     //
 
     // Our staged shutdown queue creates a counted Destructible with a countdown
-    // of 2 to process the work queue queue. When it gets a destruct message the
-    // countdown will be automatically decremented once by the parent. There
-    // will still be one decrement to go before the `countdown` Destructible is
-    // destroyed.
+    // of **TODO** No! 2 to process the work queue queue. When it gets a
+    // destruct message the countdown will be automatically decremented once by
+    // the parent. There will still be one decrement to go before the
+    // `countdown` Destructible is destroyed.
 
     // When the queue gets a destruct message from the given destructible is
     // starts an ephemeral shutdown strand that will wait for the queue to
@@ -658,7 +662,7 @@ require('proof')(48, async okay => {
         queue.enqueue(async () => gathered.push(5))
 
         okay(queue.destructible.destroyed, 'destructible is destoryed')
-        okay(!queue.countdown.destroyed, 'countdown is not destroyed')
+        okay(!queue.deferrable.destroyed, 'countdown is not destroyed')
 
         await destructible.rejected
 
@@ -693,10 +697,10 @@ require('proof')(48, async okay => {
 
         assert(destructible.isDestroyedIfDestroyed(queue.destructible))
 
-        queue.countdown.increment()
+        queue.deferrable.increment()
         destructible.destruct(() => {
             queue.enqueue(async () => gathered.push('done'))
-            queue.countdown.decrement()
+            queue.deferrable.decrement()
         })
 
         const gathered = []
@@ -709,7 +713,7 @@ require('proof')(48, async okay => {
         okay(!queue.terminated, 'queue is still operational')
 
         okay(queue.destructible.destroyed, 'destructible is destoryed')
-        okay(!queue.countdown.destroyed, 'countdown is not destroyed')
+        okay(!queue.deferrable.destroyed, 'deferrable is not destroyed')
 
         await destructible.rejected
 
