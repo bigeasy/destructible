@@ -17,7 +17,7 @@
 // Our unit test begins here.
 
 //
-require('proof')(44, async okay => {
+require('proof')(48, async okay => {
     // In your program this would be
     //
     // ```javascript
@@ -336,12 +336,136 @@ require('proof')(44, async okay => {
     }
     //
 
-    // A counted Destructbile creates a stage boundary. All the descendents of
-    // that Destructible that are not themselves counted Destructibles are part
-    // of the same stage. There are times when you will want to ensure that two
-    // destructibles are part of the same stage. This is actually an important
-    // part of managing our staged shutdown conventions. For this we have a an
-    // `isSameStage()` method.
+    // Destructible creates a destructible tree. The branches of the tree are
+    // destructible objects. The leaves of the tree are promises.
+
+    // Ordinarily, a rejected promise in a sub-destructible will be gathered
+    // into the `Destructible.promise` property of ...
+
+    // **TODO** Ready to rename it again. Maybe `promise` and `done`.
+
+    // ... as part of a nested exception of all errors. `exceptional` will
+    // will both ...
+
+    // **TODO** Maybe exceptional will throw the exception, crash the program,
+    // but not report it assuming that it is going to get reported somewhere
+    // else? Yes, but you need to have an exception to report, it would have to
+    // be an exception that said, hey, something bad happened, but someone else
+    // is going to report it. Really, you should not allow exceptions to slip
+    // out of destructible. You're finding that initialization is separate.
+
+    // **TODO** Also, you need some sort of recoverable. It will receive the
+    // shutdown message and be part of scram, it is basically an ephemeral that
+    // both resolves and rejects.
+
+    // ... report the exception through the funnel exception, but it will also
+    // throw the exception.
+
+    //
+    {
+    }
+    //
+
+    // When we discuss how to use destructible tree we have to have some terms
+    // to describe the actors on the destructible tree.
+
+    // We are going to call the enviornment in which our destructible tree
+    // exists our _application_. The application might represent the entire
+    // process where the desturction of the destructible tree means the program
+    // is over, but Destructible is not a per process module.
+
+    // The destructible tree can be short lived. Ultimately it is just a single
+    // promise you resolve. It might represent a complex module like a network
+    // server where the destruction of the destructible tree means the server
+    // has stopped listening. The complex module can simply return the root
+    // `Destructible.promise` to the module client who doesn't know or care that
+    // they're listening to a destructible tree.
+
+    // A destructible in the destructible tree it not itself an actor, athough
+    // when you read the code it may look like one. When you define strands and
+    // destructors using anonymous functions, it gives the appearance that the
+    // destructible is doing a lot of work. It's not. It's merely monitoring the
+    // work in the case of strands, and triggering callbacks in the case of
+    // destructors.
+
+    // It's like `EventEmitter` in that way. Even more so, since you can derrive
+    // a class from `EventEmitter` but not `Destructible`. `Destructible` is all
+    // about composition.
+
+    // When we describe an actor we will call it a _service_. These are services
+    // that other services depend on to function, so they cannot be destroyed
+    // until their dependent services are destroyed. We are going to call a
+    // dependent service a _client service_ and the service it depnds on a
+    // _common service_.
+
+    // Our convention for a common service is to create a deferrable
+    // destructible and expose it on our common service as a `deferrable`
+    // property while exposing the parent of the deferrable destructible as a
+    // `destructible` property.
+
+    // We register a destructor on our `destructible` destructible that will
+    // wait for work to finish then decrement the countdown of the `deferrable`
+    // destructible. The `deferrable` destructible will contain the destructible
+    // tree with the strands that do the real work of the common service.
+
+    // We expose these properties so that client services can opt to keep our
+    // service operational during shutdown. A client service will increment the
+    // countdown of the `deferrable` destructible of the common service and
+    // register a destructor that will make use of the service before
+    // decrementing that same countdown.
+
+    // If this service is a work queue, client services may want to enqueue a
+    // cleanup procedure. If they are unable to defer
+
+    // With this convention we've established a method for staged shutdown.
+
+    // Stages are defined by boundaries in the destructible tree. Stage
+    // bondaries occur when a destructible is either deferred or ephemeral.
+
+    // We think about these boundaries in these terms; if this this destructible
+    // destroyed if that destructible is destroyed? Will calling `destroy()` on
+    // that destructible cause this destructible to be destroyed _immediately_
+    // with the same synchronous destruct chain invocation?
+
+    // **TODO** What is one destructible calling another? It is not the
+    // destructible called by the process group, or the keeper of the
+    // destructible. Maybe we clarify in a preamble.
+
+    // We use `Destructible.isDestroyedIfDestroyed(destructible)` to answer this
+    // question.
+
+    //
+    {
+        const parent = new Destructible('parent')
+        const child = parent.durable('child', 1)
+
+        okay(!parent.isDestroyedIfDestroyed(child), 'parent is not destroyed by child destruction due to deferrable boundary')
+        okay(!child.isDestroyedIfDestroyed(parent), 'child is not destroyed by parent destruction due to deferrable boundary')
+
+        await parent.destroy().rejected
+    }
+    //
+
+    // We need to know this in order to build services that want to increment
+    // the countdown of a defferred destructible of another service. The client
+    // service needs to be certain that it will be destroyed by the same
+    // destruct call as the destructible that ...
+
+    // We want to know that if a deferred destructible is destroyed, that a
+    // destructible that incremented the countdown of the deferred destructble
+    // on will be immediately destroyed so it can work toward decrementing the
+    // countdown and shutting down the destructible tree.
+
+    // When a destructible is dife
+
+    // A deferrable destructible creates a stage boundary.
+
+    // A deferrable destructible creates a stage boundary. All the descendents
+    // of that destructible that are not themselves counted destructibles are
+    // part of the same stage. There are times when you will want to ensure that
+    // two destructibles are part of the same stage. This is actually an
+    // important part of managing our staged shutdown conventions. For this we
+    // have a an `isSameStage()` method.
 
     //
     {
@@ -354,17 +478,17 @@ require('proof')(44, async okay => {
         const counted = first.durable('counted', 1)
         const fourth = counted.durable('fourth')
 
-        okay(first.isSameStage(third), 'will shutdown at the same time')
-        okay(!fourth.isSameStage(third), 'will not shutdown at the same time')
+        okay(first.isDestroyedIfDestroyed(third), 'will shutdown at the same time')
+        okay(!fourth.isDestroyedIfDestroyed(third), 'will not shutdown at the same time')
 
-        okay(counted.isSameStage(fourth), 'parent and child in same stage')
-        okay(fourth.isSameStage(counted), 'child and parent in same stage')
+        okay(counted.isDestroyedIfDestroyed(fourth), 'parent and child in same stage')
+        okay(fourth.isDestroyedIfDestroyed(counted), 'child and parent in same stage')
 
-        okay(!first.isSameStage(counted), 'parent and child not in same stage')
-        okay(!counted.isSameStage(first), 'child and parent not in same stage')
+        okay(!first.isDestroyedIfDestroyed(counted), 'parent and child not in same stage')
+        okay(!counted.isDestroyedIfDestroyed(first), 'child and parent not in same stage')
 
-        okay(counted.isSameStage(counted), 'counted in same stage as self')
-        okay(third.isSameStage(third), 'uncounted in same stage as self')
+        okay(counted.isDestroyedIfDestroyed(counted), 'counted in same stage as self')
+        okay(third.isDestroyedIfDestroyed(third), 'uncounted in same stage as self')
 
         destructible.destroy()
 
@@ -372,7 +496,33 @@ require('proof')(44, async okay => {
     }
     //
 
-    // Ephemeral and exceptional Destructilbles also create a stage boundary.
+    // **TODO** Remove the funny argument handling and simply have a `counted`
+    // constructor, oh, wait. You can have deferrable ephemerals and deferrable
+    // durables and deferrable anything.
+
+    // Ephemeral destructible also create a stage boundary. Unlike the
+    // deferrable boundaries, the boundary is not transative.
+
+    // A destruct message from the root will be received by both an ephemeral
+    // destructible and its parent.
+
+    // When you call destroy on an ephemeral's parent, the ephemeral will
+    // receive the same destruct message. When you call destroy on an ephemeral,
+    // the ephemeral's parent will not receive the destruct message.
+
+    // When you call destroy on a deferrable's parent, the deferrable will not
+    // receive the same destruct message. When you call destroy on a
+    // deferrable, the deferrable's parent will not receive the destruct
+    // message.
+
+    // A child will receive the same destruct message as a parent. A parent will
+    // not
+
+    // Ephemeral and exceptional Destructilbles also create a stage boundary,
+    // but this boundary is not transitive. Unlike a countdown, an ephemeral and
+    // a durable will both receive a destruct message from the root. If an
+    // ephemeral depends on being notified when a durable is notified they are
+
     // They are both ephemeral in that they can both exit before their parent
     // Destructible exists.
 
@@ -387,26 +537,34 @@ require('proof')(44, async okay => {
 
     //
     {
+        const parent = new Destructible('parent')
+        const child = parent.ephemeral('child')
+
+        okay(!parent.isDestroyedIfDestroyed(child), 'durable and ephemeral siblings not in same stage')
+        okay(child.isDestroyedIfDestroyed(parent), 'ephemral and durable siblings not in same stage')
+    }
+
+    {
         const destructible = new Destructible('parent')
 
         const first = destructible.durable('first')
         const second = destructible.ephemeral('second')
 
-        okay(!first.isSameStage(second), 'durable and ephemeral siblings not in same stage')
-        okay(!second.isSameStage(first), 'ephemral and durable siblings not in same stage')
+        okay(!first.isDestroyedIfDestroyed(second), 'durable sibling not in same stage as ephemeral sibling')
+        okay(second.isDestroyedIfDestroyed(first), 'ephemeral sibling in same stage as durable sibling')
 
-        okay(!destructible.isSameStage(second), 'child ephemeral not in same stage as parent')
-        okay(!second.isSameStage(destructible), 'parnet not in same stage as child ephemeral')
+        okay(!destructible.isDestroyedIfDestroyed(second), 'child ephemeral not in same stage as parent')
+        okay(second.isDestroyedIfDestroyed(destructible), 'parent in same stage as child ephemeral')
 
         const third = destructible.durable('third')
-        okay(third.isSameStage(first), 'durable siblings in same stage')
+        okay(third.isDestroyedIfDestroyed(first), 'durable siblings in same stage')
 
         const fourth = second.durable('fourth')
-        okay(second.isSameStage(fourth), 'durable child in same stage as ephemeral parent')
+        okay(second.isDestroyedIfDestroyed(fourth), 'durable child in same stage as ephemeral parent')
 
         const fifth = second.ephemeral('fifth')
-        okay(!second.isSameStage(fifth), 'ephemeral child not in same stage as ephemeral parent')
-        okay(!fifth.isSameStage(second), 'ephemeral parent not in same stage as ephemeral child')
+        okay(!second.isDestroyedIfDestroyed(fifth), 'ephemeral child not in same stage as ephemeral parent')
+        okay(fifth.isDestroyedIfDestroyed(second), 'ephemeral parent in same stage as ephemeral child')
     }
     //
 
@@ -533,7 +691,7 @@ require('proof')(44, async okay => {
 
         const queue = new StagedShutdownQueue(destructible.durable($ => $(), 'queue'))
 
-        assert(destructible.isSameStage(queue.destructible))
+        assert(destructible.isDestroyedIfDestroyed(queue.destructible))
 
         queue.countdown.increment()
         destructible.destruct(() => {

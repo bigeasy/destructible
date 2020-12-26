@@ -227,23 +227,23 @@ class Destructible {
         return this._counted
     }
 
-    isSameStage (destructible) {
+    isDestroyedIfDestroyed (destructible) {
         Destructible.Error.assert(destructible instanceof Destructible, 'NOT_A_DESTRUCTIBLE')
         const path = []
-        let iterator = this, counted = false
+        let iterator = this, boundary
         do {
             path.push(iterator)
-            counted = iterator._counted || iterator._ephemeral
+            boundary = iterator._counted
             iterator = iterator._parent
-        } while (iterator != null && ! counted)
+        } while (iterator != null && ! boundary)
         iterator = destructible
         do {
             if (~path.indexOf(iterator)) {
                 return true
             }
-            counted = iterator._counted || iterator._ephemeral
+            boundary = iterator._counted || iterator._ephemeral
             iterator = iterator._parent
-        } while (iterator != null && ! counted)
+        } while (iterator != null && ! boundary)
         return false
     }
 
