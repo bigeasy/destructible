@@ -953,7 +953,7 @@ class Destructible {
     //
     //
     rescue (...vargs) {
-        this.ephemeral++
+        this.ephemerals++
         return this._await('exceptional', vargs.concat(Destructible.rescue(vargs.pop())))
     }
 }
