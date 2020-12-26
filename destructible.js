@@ -899,6 +899,8 @@ class Destructible {
     //
     // This is used to initialization perform tasks that must complete
 
+    // **TODO** Dubious.
+
     //
     exceptional (...vargs) {
         this.ephemerals++
