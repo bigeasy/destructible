@@ -944,8 +944,7 @@ class Destructible {
 
     //
     static destroyed (error) {
-        if (error.symbol != Destructible.Error.DESTROYED && error.symbol != Destructible.Error.DESTROYED) {
-            console.log('rethrowing', error.symbol)
+        if (!(error.symbol == Destructible.Error.DESTROYED || error.symbol == Destructible.Error.EXCEPTIONAL)) {
             throw error
         }
     }
