@@ -40,6 +40,7 @@ require('proof')(48, async okay => {
         const destructible = new Destructible('example')
         await destructible.destroy().promise
     }
+    //
 
     // If you're wondering what just happened, we created an instance of
     // `Destructible`, immediately destroyed and then waited for the funnel

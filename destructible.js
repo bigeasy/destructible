@@ -4,6 +4,9 @@ const assert = require('assert')
 // Exceptions that you can catch by type.
 const Interrupt = require('interrupt')
 
+// A Promise wrapper that captures `resolve` and `reject`.
+const Future = require('perhaps')
+
 // A linked-list to track promises, scrams.
 const List = require('./list')
 
@@ -181,9 +184,9 @@ class Destructible {
 
         this.destroyed = false
 
-        this.promise = new Promise((resolve, reject) => this._promise = { resolve, reject })
+        this._promise = new Future
 
-        this.done = new Promise(resolve => this._done = { resolve })
+        this._done = new Future
 
         this._parent = null
 
@@ -197,7 +200,7 @@ class Destructible {
 
         this._child = null
 
-        this._drain = null
+        this._drain = new Future({ resolution: [] })
 
         this._countdown = 0
 
@@ -218,6 +221,17 @@ class Destructible {
         this._scrams = new List
 
         this._results = {}
+    }
+
+    get promise () {
+        return this._promise.promise
+    }
+
+    get done () {
+        if (! this._done.fulfilled) {
+            return this._done.promise
+        }
+        return null
     }
 
     get countdown () {
@@ -283,23 +297,23 @@ class Destructible {
             List.unlink(this._child)
         }
         if (! this._waiting.empty || this._countdown != 0) {
-            this._promise.reject.call(null, new Destructible.Error('SCRAMMED', this._errors, {
+            this._promise.reject(new Destructible.Error('SCRAMMED', this._errors, {
                 $trace: this._trace,
                 id: this.id,
                 countdown: this._countdown,
                 waiting: this._waiting.slice()
             }))
         } else if (this._errors.length != 0) {
-            this._promise.reject.call(null, new Destructible.Error('ERRORED', this._errors, {
+            this._promise.reject(new Destructible.Error('ERRORED', this._errors, {
                 $trace: this._trace,
                 id: this.id,
                 countdown: this._countdown,
                 waiting: this._waiting.slice()
             }))
         } else {
-            this._promise.resolve.call(null, false)
+            this._promise.resolve()
         }
-        this._done.resolve.call(null, true)
+        this._done.resolve()
     }
 
     // Temporary function to ensure noone is using the cause property.
@@ -384,7 +398,7 @@ class Destructible {
             this._scrams.push(() => {
                 this._progress[0] = false
                 clearTimeout(scram.timeout)
-                scram.resolve.call()
+                scram.resolve()
             })
             this._progress[0] = true
             while (! this._waiting.empty && this._progress[0]) {
@@ -402,7 +416,7 @@ class Destructible {
         // Wait for any scrammable promises. Reducing the list is
         // performed on the resolution side.
         while (!this._scrammable.empty) {
-            await this._scrammable.peek()
+            await this._scrammable.peek().promise
         }
 
         // Calcuate the resolution of this `Destructible`.
@@ -451,20 +465,24 @@ class Destructible {
             }
        }
     }
+    //
 
+    // **TODO** For documentation, this is a new convention. Drain returns a
+    // `Promise` if something is awaiting `null` otherwise. Allows to
+    // synchornously do nothing and know you did nothing.
+
+    //
     drain () {
-        if (this._drain != null) {
+        if (! this._drain.fulfilled) {
             return this._drain.promise
         }
         for (const wait of this._waiting) {
             if (wait.method == 'ephemeral') {
-                this._drain = { promise: null, resolve: null }
-                return this._drain.promise = new Promise(resolve => {
-                    this._drain.resolve = resolve
-                })
+                this._drain = new Future
+                return this._drain.promise
             }
         }
-        return true
+        return null
     }
 
     // TODO Now with operative we might want to have another property for this
@@ -623,7 +641,7 @@ class Destructible {
                 break
             default: {
                     this.ephemerals--
-                    if (this._drain != null) {
+                    if (! this._drain.fulfilled) {
                         if ((() => {
                             for (const wait of this._waiting) {
                                 if (wait.method == 'ephemeral') {
@@ -632,8 +650,7 @@ class Destructible {
                             }
                             return true
                         }) ()) {
-                            this._drain.resolve(true)
-                            this._drain = null
+                            this._drain.resolve()
                         }
                     }
                 }
@@ -671,8 +688,8 @@ class Destructible {
     //
     async _awaitScrammable (destructible, wait, scram) {
         // Monitor our new destructible as child of this destructible.
-        let scrammable
-        const node = this._scrammable.push(new Promise(resolve => scrammable = { resolve }))
+        const scrammable = new Future
+        const node = this._scrammable.push(scrammable)
         try {
             await this._awaitPromise(destructible.promise, wait)
         } finally {
@@ -680,7 +697,7 @@ class Destructible {
             // scrammable before you call `_complete`.
             List.unlink(scram)
             List.unlink(node)
-            scrammable.resolve.call()
+            scrammable.resolve()
         }
     }
 

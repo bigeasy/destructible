@@ -1,11 +1,11 @@
-require('proof')(33, async (okay) => {
+require('proof')(32, async (okay) => {
     const rescue = require('rescue')
     const Destructible = require('..')
     {
         const destructible = new Destructible('main')
         destructible.destroy()
-        okay(!await destructible.promise, 'constructed')
-        okay(await destructible.done, 'destructed')
+        await destructible.promise
+        await destructible.done
         try {
             destructible.cause
         } catch (error) {
@@ -347,7 +347,7 @@ require('proof')(33, async (okay) => {
     }
     {
         const destructible = new Destructible('main')
-        await destructible.drain()
+        okay(destructible.drain(), null, 'nothing to drain')
         const latch = { resolve: null }
         destructible.terminal('first', new Promise(resolve => latch.resolve = resolve))
         destructible.ephemeral('second', new Promise(resolve => setTimeout(resolve, 150)))
