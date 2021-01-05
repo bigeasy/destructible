@@ -473,14 +473,15 @@ class Destructible {
 
     //
     drain () {
-        if (! this._drain.fulfilled) {
-            return this._drain.promise
-        }
-        for (const wait of this._waiting) {
-            if (wait.method == 'ephemeral') {
-                this._drain = new Future
-                return this._drain.promise
-            }
+        if (this.ephemerals != 0) {
+            return (async () => {
+                while (this.ephemerals != 0) {
+                    if (this._drain.fulfilled) {
+                        this._drain = new Future
+                    }
+                    await this._drain.promise
+                }
+            }) ()
         }
         return null
     }
@@ -640,18 +641,8 @@ class Destructible {
                 }
                 break
             default: {
-                    this.ephemerals--
-                    if (! this._drain.fulfilled) {
-                        if ((() => {
-                            for (const wait of this._waiting) {
-                                if (wait.method == 'ephemeral') {
-                                    return false
-                                }
-                            }
-                            return true
-                        }) ()) {
-                            this._drain.resolve()
-                        }
+                    if (--this.ephemerals == 0) {
+                        this._drain.resolve()
                     }
                 }
                 break
