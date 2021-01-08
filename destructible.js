@@ -212,7 +212,7 @@ class Destructible {
 
         this._progress = []
 
-        this._errored = false
+        this._errored = [ false ]
 
         this._destructing = false
 
@@ -240,6 +240,10 @@ class Destructible {
 
     get counted () {
         throw new Error
+    }
+
+    get errored () {
+        return this._errored[0]
     }
 
     isDestroyedIfDestroyed (destructible) {
@@ -622,7 +626,7 @@ class Destructible {
                 List.unlink(wait)
             }
         } catch (error) {
-            this._errored = true
+            this._errored[0] = true
             if (error instanceof Destructible.Error) {
                 this._errors.push(error)
             } else {
@@ -643,7 +647,7 @@ class Destructible {
             case 'durable': {
                     this.durables--
                     if (! this.destroyed) {
-                        this._errored = true
+                        this._errored[0] = true
                         this._errors.push(Destructible.Error.create({ $trace, $stack: 0 }, [ 'DURABLE', wait.value ]))
                         this._destroy()
                     }
@@ -739,6 +743,10 @@ class Destructible {
 
             const destructible = new Destructible(this._timeout, id)
 
+            if (! options.isolated) {
+                destructible._errored = this._errored
+            }
+
             destructible._countdown = countdown
             destructible.deferrable = deferrable
 
@@ -763,9 +771,9 @@ class Destructible {
             // message up though our alternate route, we can't wait on the
             // promise of a sub-destructible to complete and propagate the
             // returned error. Why do we have scram if we can rely on that
-            // return? We need a separate `_errored` boolean, we can't just
-            // check `_errored.length` because of scram, and because we have
-            // some objects that only shutdown from a user function (Conduit,
+            // return? We need a separate `_errored` boolean, we can't just check
+            // `errors.length` because of scram, and because we have some
+            // objects that only shutdown from a user function (Conduit,
             // Turnstile, Fracture) so they're going to need to be scrammed, we
             // kind of want them to be scrammed, or else the user has to think
             // hard about the difference between ordered shutdown and abnormal
@@ -796,11 +804,16 @@ class Destructible {
             // Anyway, we now have rules about destruction. It does propagate,
             // but it's not entirely harmless.
 
+            // An error array, so that we only have to set it once, or an array
+            // of errored references, those being arrays.
+
+            // If a child is er
+
             //
             destructible.destruct(() => {
                 this.clear(destruct)
-                if (! destructible._ephemeral || destructible._errored) {
-                    this._errored = this._errored || destructible._errored
+                if (! destructible._ephemeral || destructible._errored[0]) {
+                    this._errored[0] = this._errored[0] || destructible._errored[0]
                     this._destroy()
                 }
             })
@@ -973,6 +986,55 @@ class Destructible {
             Destructible.destroyed(error)
         }
     }
+    //
+    copacetic (...vargs) {
+        if (! this.errored) {
+            return this.destructive.apply(this, vargs)
+        }
+        if (vargs.length == 2) {
+            return vargs.shift()
+        }
+    }
+
+    async _destructive ($trace, promise, id, vargs) {
+        try {
+            return await promise
+        } catch (error) {
+            this._errored[0] = true
+            this._errors.push(new Destructible.Error({ $trace, $stack: 0 }, [ error ], 'ERRORED', { id: id }))
+            this._destroy()
+            if (vargs.length == 0) {
+                throw new Destructible.Error({ $trace }, 'DESTROYED')
+            }
+            return vargs[0]
+        }
+    }
+
+    destructive (...vargs) {
+        const $trace = typeof vargs[0] == 'function' ? vargs.shift() : null
+        const id = vargs.shift()
+        const f = vargs.pop()
+        try {
+            let result = f
+            if (typeof result == 'function') {
+                result = result()
+            }
+            if (typeof result.then == 'function') {
+                return this._destructive($trace, result, id, vargs)
+            }
+            return result
+        } catch (error) {
+            this._errored[0] = true
+            this._errors.push(new Destructible.Error({ $trace, $stack: 0 }, [ error ], 'ERRORED', { id: id }))
+            this._destroy()
+            if (vargs.length == 0) {
+                throw new Destructible.Error({ $trace }, 'DESTROYED')
+            }
+            return vargs[0]
+        }
+    }
+
+    //
 
     // `Destructible.rescue()` won
     //

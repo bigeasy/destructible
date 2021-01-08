@@ -393,4 +393,6 @@ require('proof')(32, async (okay) => {
         }
         okay(test, [ 'thrown' ], 'durable reports an early exit due to exception with the exception')
     }
+    {
+    }
 })
