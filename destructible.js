@@ -986,51 +986,56 @@ class Destructible {
             Destructible.destroyed(error)
         }
     }
+    _vargs (vargs) {
+        const $trace = typeof vargs[0] == 'function' ? vargs.shift() : null
+        const id = vargs.shift()
+        const f = vargs.pop()
+        return { $trace, id, f, errored: vargs }
+    }
     //
     copacetic (...vargs) {
         if (! this.errored) {
             return this.destructive.apply(this, vargs)
         }
-        if (vargs.length == 2) {
-            return vargs.shift()
+        const { errored } = this._vargs(vargs)
+        if (errored.length == 1) {
+            return errored[0]
         }
     }
 
-    async _destructive ($trace, promise, id, vargs) {
+    async _destructive ($trace, promise, id, errored) {
         try {
             return await promise
         } catch (error) {
             this._errored[0] = true
             this._errors.push(new Destructible.Error({ $trace, $stack: 0 }, [ error ], 'ERRORED', { id: id }))
             this._destroy()
-            if (vargs.length == 0) {
+            if (errored.length == 0) {
                 throw new Destructible.Error({ $trace }, 'DESTROYED')
             }
-            return vargs[0]
+            return errored[0]
         }
     }
 
     destructive (...vargs) {
-        const $trace = typeof vargs[0] == 'function' ? vargs.shift() : null
-        const id = vargs.shift()
-        const f = vargs.pop()
+        const { $trace, id, f, errored } = this._vargs(vargs)
         try {
             let result = f
             if (typeof result == 'function') {
                 result = result()
             }
             if (typeof result.then == 'function') {
-                return this._destructive($trace, result, id, vargs)
+                return this._destructive($trace, result, id, errored)
             }
             return result
         } catch (error) {
             this._errored[0] = true
             this._errors.push(new Destructible.Error({ $trace, $stack: 0 }, [ error ], 'ERRORED', { id: id }))
             this._destroy()
-            if (vargs.length == 0) {
+            if (errored.length == 0) {
                 throw new Destructible.Error({ $trace }, 'DESTROYED')
             }
-            return vargs[0]
+            return errored[0]
         }
     }
 
