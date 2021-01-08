@@ -1,3 +1,52 @@
+## Thu Jan  7 22:24:56 CST 2021
+
+Now struggling with the concept of error versus normal shutdown with Memento. If
+there is an error in any instance of Strata in Memento, then Memento should stop
+doing anything because a hard stopped state is something you can reason about,
+whereas this write failed, but we managed to go ahead and write some more stuff
+after it, maybe even including the commit message, I don't know, would that
+happen, I wonder, how would I detect it, etc.
+
+Currently, only the path to the root will be aware of the error. In Strata, I've
+declared the `canceled` property of Turnstile, but I haven't done anything with
+it. It doens't seem like Turnstile is the place to signal these things. Today I
+commented out Turnstile's error catch so that I could see exceptions being
+raised instead of scrams.
+
+Where I am now is making the second argument to a sub-destructible an object
+with options. `countdown` is one option. Another option is `errored` which will
+indicate an errored group. If any of the children go into an errored state, they
+all go into an errored state. Then you can have wrapper functions on
+destructible that allong the lines of `ifNotErrored` that will only invoke the
+function if it is not errored. With this we can skip work in Turnstile, skip
+constructing ephemerals in shutdown.
+
+On my way to this, I thought about how to externalize this using another module,
+and this module would have an object you pass around to wrap your code in
+closures that would trigger an error state. I have `snafu` which I could use for
+this, but now I have to expose something else and document something else and
+remember how it works.
+
+The problem remains that we have Turnstile which gathers errors and runs
+operations in its own destructible which ruins the tree I'm describing. While
+the Strata destructibles represent an actual tree of dependencies, they are all
+doing their real work aside from read and shutdown in the turnstile.
+
+Which would lead one to want to pull all work into the Turnstile and then run
+all error handling through the Turnstile, but that isn't going to work. If we
+have Memento using a turnstile and it is shared with another system, we could
+say that the other system can error without Memento erroring, so the other
+system could go into an error state but Memento could shutdown normally.
+
+Of course saying simply that an exception always crashed your whole program
+doesn't effect Memento, a commit is a commit. But, the whole point of
+Destructible is to get all the errors from all the strands, so if that's what
+you want, you need to think about this.
+
+So, rather than having `snafu`, because that is another tree, or rather, that is
+some sort of a pointcut, cross-cutting concern, whatever, a lateral messge, we
+actually have to think about how use Turnstile with the tree we have.
+
 ## Fri Oct 16 18:29:52 CDT 2020
 
 While documenting, it occurs to me that if ids are not unique, if a socket is

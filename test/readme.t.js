@@ -299,11 +299,11 @@ require('proof')(48, async okay => {
     //
     {
         const destructible = new Destructible('root')
-        okay(destructible.isDeferrable, 'root is always a counted destructible')
+        okay(destructible.deferrable, 'root is always a counted destructible')
 
-        const countdown = destructible.terminal('countdown', 1)
+        const countdown = destructible.terminal('countdown', { countdown: 1 })
         okay(countdown.countdown, 1, 'initial countdown')
-        okay(countdown.isDeferrable, 'is a counted destructible')
+        okay(countdown.deferrable, 'is a counted destructible')
 
         destructible.destroy()
 
@@ -438,7 +438,7 @@ require('proof')(48, async okay => {
     //
     {
         const parent = new Destructible('parent')
-        const child = parent.durable('child', 1)
+        const child = parent.durable('child', { countdown: 1 })
 
         okay(!parent.isDestroyedIfDestroyed(child), 'parent is not destroyed by child destruction due to deferrable boundary')
         okay(!child.isDestroyedIfDestroyed(parent), 'child is not destroyed by parent destruction due to deferrable boundary')
@@ -479,7 +479,7 @@ require('proof')(48, async okay => {
         const second = destructible.durable('second')
         const third = second.durable('third')
 
-        const deferrable = first.durable('deferrable', 1)
+        const deferrable = first.durable('deferrable', { countdown: 1 })
         const fourth = deferrable.durable('fourth')
 
         okay(first.isDestroyedIfDestroyed(third), 'will shutdown at the same time')
@@ -586,7 +586,7 @@ require('proof')(48, async okay => {
             this._notify = () => {}
             this._queue = []
             this.destructible = destructible
-            this.deferrable = destructible.durable('deferrable', 1)
+            this.deferrable = destructible.durable('deferrable', { countdown: 1 })
             this.deferrable.durable('queue', async () => {
                 for (;;) {
                     if (this.terminated) {

@@ -204,7 +204,7 @@ class Destructible {
 
         this._countdown = 0
 
-        this.isDeferrable = true
+        this.deferrable = true
 
         this._scrammable = new List
 
@@ -248,7 +248,7 @@ class Destructible {
         let iterator = this, boundary
         do {
             path.push(iterator)
-            boundary = iterator.isDeferrable
+            boundary = iterator.deferrable
             iterator = iterator._parent
         } while (iterator != null && ! boundary)
         iterator = destructible
@@ -256,7 +256,7 @@ class Destructible {
             if (~path.indexOf(iterator)) {
                 return true
             }
-            boundary = iterator.isDeferrable || iterator._ephemeral
+            boundary = iterator.deferrable || iterator._ephemeral
             iterator = iterator._parent
         } while (iterator != null && ! boundary)
         return false
@@ -471,6 +471,15 @@ class Destructible {
     // `Promise` if something is awaiting `null` otherwise. Allows to
     // synchornously do nothing and know you did nothing.
 
+    // An ephemeral could be added after the drain promise is resolved but
+    // before the drain function continues. Not really a race condition. We
+    // could simply await the drain. Drain is only ever used to ensure that a
+    // particular write flushed, or work in a work queue completed, that
+    // progress was made past a certian point or alternatively, that everything
+    // has shut down. Although, in the shutdown case, we do have a race unless
+    // we're certain that, well we have to be certain that new ephemerals are
+    // only created by ephemerals, you don't use drain to test done.
+
     //
     drain () {
         if (this.ephemerals != 0) {
@@ -501,12 +510,12 @@ class Destructible {
 
     //
     increment () {
-        Destructible.Error.assert(this.isDeferrable, 'NOT_DEFERRABLE', { id: this.id })
+        Destructible.Error.assert(this.deferrable, 'NOT_DEFERRABLE', { id: this.id })
         this._countdown++
     }
 
     decrement () {
-        Destructible.Error.assert(this.isDeferrable, 'NOT_DEFERRABLE', { id: this.id })
+        Destructible.Error.assert(this.deferrable, 'NOT_DEFERRABLE', { id: this.id })
         if (this._countdown == 0) {
         } else if (--this._countdown == 0) {
             this._destroy()
@@ -714,21 +723,24 @@ class Destructible {
         if (typeof vargs[0] == 'function') {
             //const promise = async function () { return await vargs.shift()() } ()
             return this._awaitPromise(vargs.shift()(), wait, trace)
-        } else if (vargs.length == 0 || typeof vargs[0] == 'number') {
+        } else if (vargs.length != 0 && typeof vargs[0].then == 'function') {
+            return this._awaitPromise(vargs.shift(), wait, trace)
+        } else if (vargs.length == 0 || typeof vargs[0] == 'object') {
+            const options = vargs.shift() || {}
             // Ephemeral sub-destructibles can have their own timeout and scram
             // timer, durable sub-destructibles are scrammed by their root.
             //assert(typeof vargs[0] != 'number')
             // Create the child destructible.
             //assert(typeof this._timeout == 'number' && this._timeout != Infinity)
 
-            const isDeferrable = vargs.length != 0
-            const countdown = isDeferrable ? vargs.shift() : 0
+            const deferrable = options.countdown != null
+            const countdown = deferrable ? options.countdown : 0
             Destructible.Error.assert(Number.isInteger(countdown) && countdown >= 0, 'INVALID_COUNTDOWN', { _countdown: countdown })
 
             const destructible = new Destructible(this._timeout, id)
 
             destructible._countdown = countdown
-            destructible.isDeferrable = isDeferrable
+            destructible.deferrable = deferrable
 
             destructible._trace = trace
 
@@ -789,7 +801,6 @@ class Destructible {
                 this.clear(destruct)
                 if (! destructible._ephemeral || destructible._errored) {
                     this._errored = this._errored || destructible._errored
-                    // this._countdown = 0
                     this._destroy()
                 }
             })
@@ -824,8 +835,6 @@ class Destructible {
             this._awaitScrammable(destructible, wait, scram)
 
             return destructible
-        } else if (typeof vargs[0].then == 'function') {
-            return this._awaitPromise(vargs.shift(), wait, trace)
         } else {
             throw new Destructible.Error('INVALID_ARGUMENT')
         }

@@ -306,7 +306,7 @@ require('proof')(32, async (okay) => {
     }
     {
         const destructible = new Destructible('main')
-        const child = destructible.terminal('child', 0)
+        const child = destructible.terminal('child', { countdown: 0 })
         child.increment()
         destructible.destroy()
         okay(destructible.destroyed, 'parent destroyed')
@@ -327,7 +327,7 @@ require('proof')(32, async (okay) => {
     {
         const test = []
         const destructible = new Destructible(50, 'main')
-        const child = destructible.ephemeral('child', 2)
+        const child = destructible.ephemeral('child', { countdown: 2 })
         destructible.destroy()
         try {
             await destructible.promise
