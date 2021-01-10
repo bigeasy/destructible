@@ -441,12 +441,10 @@ class Destructible {
         // Calcuate the resolution of this `Destructible`.
         this._return()
     }
+    //
 
-    // This is our internal destroy. We run it as an async function which
-    // creates a new strand of execution. Nowhere do we wait on the promise
-    // returned by executing this function nor should we. It is fire and forget.
-    // Hung or rejected child promises are reported through an `Interrupt`
-    // generated error through the `Destructible.promise`.
+    // This is our internal destroy. **TODO** How does it differ from our
+    // external destroy.
 
     //
     _destroy () {
@@ -467,15 +465,15 @@ class Destructible {
             if (! this._isolation.errored) {
                 this._isolation.panic.push(this._panic)
             }
-
-            // Run our destructors.
             //
-            // We may want to make `Destructors` synchronous, however, and
-            // insist that if they must do something async that they use an
-            // ephemeral, since we are not going to actually get to the scram
-            // part until the destructors are done. We set `_destructing` flag
-            // that allows us to create an `ephemeral`, but only for the
-            // synchronous duration of the destructor function.
+
+            // Run our destructors. They are synchronous. If they want to do
+            // something asynchronous they can create an ephemeral while the
+            // destructor is running. That ephemeral can create further
+            // sub-destructibles. Thus, running new sub-destructibles after
+            // destruction takes some determination.
+
+            //
             this._destructing = true
             while (!this._destructors.empty) {
                 try {
@@ -485,15 +483,15 @@ class Destructible {
                 }
             }
             this._destructing = false
+            //
+
             // If we're complete, we can resolve the `Destructible.promise`,
-            // otherwise we need to start and wait for the scram timer.
+            // otherwise we need to wait for the scram timer.
+
+            //
             if (this._complete()) {
                 this._return()
             } else {
-                // Push something into the scram list immediately, but it
-                // shouldn't matter because the async call should run
-                // synchronously until it awaits, but I'm too lazy to go and
-                // confirm this and this is fine.
                 this._shutdown()
             }
        }
@@ -569,7 +567,7 @@ class Destructible {
 
     //
     destroy () {
-        this._countdown = 0
+        // this._countdown = 0
         this._destroy()
         return this
     }
@@ -603,13 +601,9 @@ class Destructible {
         }
     }
 
-    //
-
-    // Check to see if this `Destructible` has completed its shutdown
-    // if it is destroyed. If the destructible has completed shutdown stop the
-    // scram timer and toggle the scram timer latch.
-
-    //
+    // Check to see if this `Destructible` has completed its shutdown if it is
+    // destroyed. If the destructible has completed the call to scran does not
+    // actually scram, it just wakes up the scram timer.
     _complete () {
         if (this.destroyed && this._waiting.empty) {
             this._scram()
@@ -623,6 +617,8 @@ class Destructible {
     // better to just return the result of `durable` or `ephemeral` if that's
     // what you want, but uh, no. That doesn't make sense, oh, no it does, it's
     // pretty much the same thing, this is the result of `durable`.
+    //
+    // **TODO** Exceedingly dubious and I don't want to document it.
     //
     // ```
     // const result = {
