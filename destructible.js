@@ -200,7 +200,7 @@ class Destructible {
 
         this._child = null
 
-        this._drain = new Future({ resolution: [] })
+        this._drain = Future.resolve()
 
         this._countdown = 0
 
@@ -209,16 +209,27 @@ class Destructible {
         this._scrammable = new List
 
         this._errors = []
+        //
 
+        // **TODO** Progress also needs an isolation treatment. Imagine you have
+        // a server with thousands of sockets opening and closing quickly. You
+        // have ephemeral sub-trees for each socket. One socket isn't shutting
+        // down, but the progress reports form all the other sockets are keeping
+        // it from scramming. Should be easy to implement by cribbing from
+        // panic.
+
+        //
         this._progress = []
 
-        this._errored = [ false ]
+        this._isolation = { errored: false, panic: [] }
 
         this._destructing = false
 
         this._destructors = new List
-        // Yes, we still need `Signal` because `Promise`s are not cancelable.
+
         this._scrams = new List
+
+        this._panic = new List
 
         this._results = {}
     }
@@ -238,12 +249,8 @@ class Destructible {
         return this._countdown
     }
 
-    get counted () {
-        throw new Error
-    }
-
     get errored () {
-        return this._errored[0]
+        return this._isolation.errored
     }
 
     isDestroyedIfDestroyed (destructible) {
@@ -274,11 +281,16 @@ class Destructible {
         return this._destructors.push(f)
     }
 
+    panic (f) {
+        return this._panic.push(f)
+    }
+
     // `destructible.destruct(f)` &mdash; Remove the registered destructor `f`
     // from the list of destructors to call when this `Destructible` is
     // destroyed.
     //
-    // TODO Maybe return cleared function?
+    // TODO Maybe return cleared function? Now that you're iterating over a
+    // list, how do you do this?
 
     //
     clear (handle) {
@@ -297,6 +309,9 @@ class Destructible {
     // promises have resolved or the shutdown failed to complete before the
     // scram timeout.
     _return () {
+        while (! this._panic.empty) {
+            this._panic.shift()
+        }
         if (this._child != null) {
             List.unlink(this._child)
         }
@@ -437,8 +452,22 @@ class Destructible {
     _destroy () {
         // If we've not yet been destroyed, let's start the shutdown.
         if (!this.destroyed) {
-
+            //
             this.destroyed = true
+            //
+
+            // Add our panic list to the isolation panic list, but only if we
+            // are not destructing in an error state. We only run `panic` if
+            // `destruct` is not already called in an `errored` state.
+
+            // Any ephemeral created after destruction will be isolated, it will
+            // only enter the errored state if an error occurs in that sub-tree.
+
+            //
+            if (! this._isolation.errored) {
+                this._isolation.panic.push(this._panic)
+            }
+
             // Run our destructors.
             //
             // We may want to make `Destructors` synchronous, however, and
@@ -626,7 +655,14 @@ class Destructible {
                 List.unlink(wait)
             }
         } catch (error) {
-            this._errored[0] = true
+            const errored = this._isolation.errored
+            this._isolation.errored = true
+            // **TODO** Okay, here we go. New, new stuff.
+            while (this._isolation.panic.length != 0) {
+                for (const panic of this._isolation.panic.shift()) {
+                    panic()
+                }
+            }
             if (error instanceof Destructible.Error) {
                 this._errors.push(error)
             } else {
@@ -647,7 +683,7 @@ class Destructible {
             case 'durable': {
                     this.durables--
                     if (! this.destroyed) {
-                        this._errored[0] = true
+                        this._isolation.errored = true
                         this._errors.push(Destructible.Error.create({ $trace, $stack: 0 }, [ 'DURABLE', wait.value ]))
                         this._destroy()
                     }
@@ -743,8 +779,10 @@ class Destructible {
 
             const destructible = new Destructible(this._timeout, id)
 
-            if (! options.isolated) {
-                destructible._errored = this._errored
+            // **TODO** This is new, ephemerals launched after error are
+            // isolated.
+            if (! options.isolated && ! this._isolation.errored) {
+                destructible._isolation = this._isolation
             }
 
             destructible._countdown = countdown
@@ -812,8 +850,8 @@ class Destructible {
             //
             destructible.destruct(() => {
                 this.clear(destruct)
-                if (! destructible._ephemeral || destructible._errored[0]) {
-                    this._errored[0] = this._errored[0] || destructible._errored[0]
+                if (! destructible._ephemeral || destructible._isolation.errored) {
+                    this._isolation.errored = this._isolation.errored || destructible._isolation.errored
                     this._destroy()
                 }
             })
@@ -876,6 +914,11 @@ class Destructible {
     //
     // The names are just getting silly now, but so long as they are
     // consistently silly I don't mind.
+    //
+    // **TODO** How is this any different from just calling
+    // `destructible.destroy()` at the end of the strand?
+    //
+    // **TODO** Dubious.
 
     //
     terminal (...vargs) {
@@ -1007,7 +1050,7 @@ class Destructible {
         try {
             return await promise
         } catch (error) {
-            this._errored[0] = true
+            this._isolation.errored = true
             this._errors.push(new Destructible.Error({ $trace, $stack: 0 }, [ error ], 'ERRORED', { id: id }))
             this._destroy()
             if (errored.length == 0) {
@@ -1029,7 +1072,7 @@ class Destructible {
             }
             return result
         } catch (error) {
-            this._errored[0] = true
+            this._isolation.errored = true
             this._errors.push(new Destructible.Error({ $trace, $stack: 0 }, [ error ], 'ERRORED', { id: id }))
             this._destroy()
             if (errored.length == 0) {

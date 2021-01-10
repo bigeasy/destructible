@@ -16,7 +16,9 @@ Controlled demoltion of `async`/`await` applications.
 | Coverage:     | https://codecov.io/gh/bigeasy/destructible        |
 | License:      | MIT                                               |
 
+
 ```
+//{ "mode": "text" }
 npm install destructible
 ```
 
@@ -30,7 +32,10 @@ use the Proof `okay` function to assert out statements in the readme. A Proof
 unit test generally looks like this.
 
 ```javascript
-require('proof')(4, async okay => {
+//{ "code": { "tests": 18 }, "text": { "tests": 4  } }
+require('proof')(%(tests)d, async okay => {
+    //{ "include": "testRequire" }
+    //{ "include": "test" }
     okay('always okay')
     okay(true, 'okay if true')
     okay(1, 1, 'okay if equal')
@@ -41,6 +46,7 @@ require('proof')(4, async okay => {
 You can run this unit test yourself.
 
 ```text
+//{ "mode": "text" }
 git clone git@github.com:bigeasy/destructible.git
 cd destructible
 npm install --no-package-lock --no-save
@@ -51,12 +57,19 @@ node test/readme.t.js
 The `'destructible'` module exports a single `Destructible` object.
 
 ```javascript
+//{ "name": "displayedRequire", "mode": "text" }
 const Destructible = require('destructible')
+```
+
+```javascript
+//{ "name": "testRequire", "mode": "code" }
+const Destructible = require('..')
 ```
 
 Basic destructible usage.
 
 ```javascript
+//{ "name": "test" }
 {
     const destructible = new Destructible('example')
 
@@ -103,20 +116,23 @@ fail then all destructibles will have their errored property set, so the
 individual destructible itself.
 
 ```javascript
-const destructible = new Destructible('destructible')
+//{ "name": "test", "unblock": true }
+{
+    const destructible = new Destructible('destructible')
 
-const child = destructible.durable('child')
-const sibling = destructible.durable('sibling')
+    const child = destructible.durable('child')
+    const sibling = destructible.durable('sibling')
 
-child.durable('errored', async () => { throw new Error('reject') })
+    child.durable('errored', async () => { throw new Error('reject') })
 
-try {
-    await destructible.promise
-} catch (error) {
-    okay(child.errored, 'child errored')
-    okay(sibling.errored, 'sibling errored')
-    okay(destructible.errored, 'parent errored')
-    okay(child.errored && sibling.errored && destructible.errored, 'everyone errored')
+    try {
+        await destructible.promise
+    } catch (error) {
+        okay(child.errored, 'child errored')
+        okay(sibling.errored, 'sibling errored')
+        okay(destructible.errored, 'parent errored')
+        okay(child.errored && sibling.errored && destructible.errored, 'everyone errored')
+    }
 }
 ```
 
@@ -132,19 +148,22 @@ isolated sub-tree, the destructibles in the isolated sub-tree will not have
 their `errored` property set.
 
 ```javascript
-const destructible = new Destructible('top')
+//{ "name": "test", "unblock": true }
+{
+    const destructible = new Destructible('top')
 
-const outside = destructible.durable('outside')
-const group = destructible.durable('group', { isolated: true })
-const sibling = group.durable('sibling')
-outside.durable('errored', async () => { throw new Error('error') })
-try {
-    await destructible.promise
-} catch (error) {
-    okay(destructible.errored, 'root errored')
-    okay(!group.errored, 'group errored')
-    okay(!group.sibling, 'sibling errored')
-    okay(outside.errored, 'outside errored')
+    const outside = destructible.durable('outside')
+    const group = destructible.durable('group', { isolated: true })
+    const sibling = group.durable('sibling')
+    outside.durable('errored', async () => { throw new Error('error') })
+    try {
+        await destructible.promise
+    } catch (error) {
+        okay(destructible.errored, 'root errored')
+        okay(!group.errored, 'group errored')
+        okay(!group.sibling, 'sibling errored')
+        okay(outside.errored, 'outside errored')
+    }
 }
 ```
 
@@ -152,18 +171,21 @@ When an error occurs inside of the isolated sub-tree, the destructibles outside
 the isolated sub-tree _will_ have their `errored` property set.
 
 ```javascript
-const destructible = new Destructible('top')
+//{ "name": "test", "unblock": true }
+{
+    const destructible = new Destructible('top')
 
-const outside = destructible.durable('outside')
-const group = destructible.durable('group', { isolated: true })
-const sibling = group.durable('sibling')
-group.durable('errored', async () => { throw new Error('error') })
-try {
-    await destructible.promise
-} catch (error) {
-    okay(destructible.errored, 'root errored')
-    okay(sibling.errored, 'sibling errored')
-    okay(outside.errored, 'outside errored')
+    const outside = destructible.durable('outside')
+    const group = destructible.durable('group', { isolated: true })
+    const sibling = group.durable('sibling')
+    group.durable('errored', async () => { throw new Error('error') })
+    try {
+        await destructible.promise
+    } catch (error) {
+        okay(destructible.errored, 'root errored')
+        okay(sibling.errored, 'sibling errored')
+        okay(outside.errored, 'outside errored')
+    }
 }
 ```
 
@@ -190,46 +212,49 @@ latch, however, it raises an exception. The consumer registered a panic handler
 that will release the latch itself so that the consumer shutdown will complete.
 
 ```javascript
-const destructible = new Destructible('destructible')
+//{ "name": "test", "unblock": true }
+{
+    const destructible = new Destructible('destructible')
 
-const test = []
+    const test = []
 
-const drain = function () {
-    let capture
-    return {
-        promise: new Promise(resolve => capture = { resolve }),
-        ...capture
-    }
-} ()
+    const drain = function () {
+        let capture
+        return {
+            promise: new Promise(resolve => capture = { resolve }),
+            ...capture
+        }
+    } ()
 
-const producer = destructible.durable('producer')
-producer.destruct(() => test.push(`producer errored: ${producer.errored}`))
-producer.panic(() => test.push('producer panicked'))
+    const producer = destructible.durable('producer')
+    producer.destruct(() => test.push(`producer errored: ${producer.errored}`))
+    producer.panic(() => test.push('producer panicked'))
 
-const consumer = destructible.ephemeral('consumer')
-consumer.destruct(() => {
-    test.push(`consumer errored: ${consumer.errored}`)
-    consumer.ephemeral('shutdown', async () => {
-        await drain.promise
+    const consumer = destructible.ephemeral('consumer')
+    consumer.destruct(() => {
+        test.push(`consumer errored: ${consumer.errored}`)
+        consumer.ephemeral('shutdown', async () => {
+            await drain.promise
+        })
     })
-})
-consumer.panic(() => {
-    test.push('consumer panicked')
-    drain.resolve()
-})
-consumer.destroy()
+    consumer.panic(() => {
+        test.push('consumer panicked')
+        drain.resolve()
+    })
+    consumer.destroy()
 
-producer.durable('rejected', async () => {
-    throw new Error('reject')
-    drain.resolve()
-})
+    producer.durable('rejected', async () => {
+        throw new Error('reject')
+        drain.resolve()
+    })
 
-try {
-    await destructible.promise
-} catch (error) {
-    okay(test, [
-        'consumer errored: false', 'consumer panicked', 'producer errored: true'
-    ], 'panic')
+    try {
+        await destructible.promise
+    } catch (error) {
+        okay(test, [
+            'consumer errored: false', 'consumer panicked', 'producer errored: true'
+        ], 'panic')
+    }
 }
 ```
 
@@ -240,24 +265,63 @@ raises an exception. Because the sibling shutdown completely, it's panic handler
 is not called.
 
 ```javascript
-const destructible = new Destructible('destructible')
+//{ "name": "test", "unblock": true }
+{
+    const destructible = new Destructible('destructible')
 
-const panic = []
+    const panic = []
 
-const child = destructible.durable('child')
-child.panic(() => panic.push('child panicked'))
+    const child = destructible.durable('child')
+    child.panic(() => panic.push('child panicked'))
 
-const sibling = destructible.ephemeral('sibling')
-sibling.panic(() => panic.push('sibling panicked'))
-sibling.destroy()
+    const sibling = destructible.ephemeral('sibling')
+    sibling.panic(() => panic.push('sibling panicked'))
+    sibling.destroy()
 
-await sibling.promise
+    await sibling.promise
 
-child.durable('rejected', async () => { throw new Error('reject') })
+    child.durable('rejected', async () => { throw new Error('reject') })
 
-try {
-    await destructible.promise
-} catch (error) {
-    okay(panic, [], 'no panic')
+    try {
+        await destructible.promise
+    } catch (error) {
+        okay(panic, [], 'no panic')
+    }
 }
 ```
+
+After destruction service might be waiting for another service to drain but that
+drain notification might never arrive be
+
+You can use the errored property to determine if an operation should be
+performed or skipped during. If you have a work queue, once errored you
+may decide to skip the work in the queue and let the queue empty quickly.
+You may have shutdown ephemerals strands that you won't perform on error
+exit.
+
+In our database example, we might write some state information to disk
+so that the next time the program runs it can resume quickly. If the
+database is in a bad state we probably don't want to write the state
+information because we can't trust it.
+
+**TODO** Code exmaple.
+
+At times we might want to isolate the error property in our tree, so that
+a particular sub-tree will not be marked as errored if the error occured
+in a branch outside the sub-tree.
+
+In our database example, we might have an error originating outside the
+strands that compose the database. The database itself is in a fine state
+and can perform an orderly shutdown, so it may as well attempt to do so.
+
+**TODO** Code exmaple.
+
+If we've isolated a sub-tree, there may be times when a service in that
+sub-tree is doing work in an unknown strand. Our database may do its
+writes in a work queue that is managed by a queue service. If the
+database write fails and it throws an exception, it will get caught by
+the queue service strand and shut it down with an error, but we need to
+keep the queue running so other services besides the database can clean
+up. We'd rather have the destructible associated with database service
+report the exception instead of the destructible associated with the
+queue service.

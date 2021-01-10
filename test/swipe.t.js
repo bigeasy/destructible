@@ -17,7 +17,7 @@
 // Our unit test begins here.
 
 //
-require('proof')(57, async okay => {
+require('proof')(50, async okay => {
     // In your program this would be
     //
     // ```javascript
@@ -761,106 +761,6 @@ require('proof')(57, async okay => {
             okay(error.errors.length, 1, 'error funneled')
         }
     }
-    //
-
-    // Destructible assumes that your application will perform any error
-    // handling in a catch block close to the source of the error. There is no
-    // additional `try`/`catch` mechanism build into Destructible. If a
-    // `Promise` rejects Destructible will begin shutdown.
-
-    // There is however an error notification mechanism so that your services
-    // can detect the failure of other services so that they don't attempt to
-    // perform an orderly shutdown when the services they depend upon are in an
-    // unstable state. If you have a database service fails a single write for
-    // some reason, it should probably not perform its ordinary database
-    // shutdown procedure when stacks are unwinding and the program is headed
-    // for oblivion. It would be better to perform a recovery procedure after
-    // the system administrator investigates the fault and restarts the program.
-
-    // You can determine if a Destructible exited with an error using the
-    // `errored` property. This is a synchronous property that will return
-    // `false` until the Destructible destructs, then it will return return
-    // `true` if the Destruction was due to an error.
-
-    // This property exists on all the Destructibles in the destructible tree.
-    // If any fail then all destructibles will have their errored property set,
-    // to the `errored` property is really a property of the destructible tree,
-    // not of any individual destructible itself.
-
-    //
-    {
-        const destructible = new Destructible('top')
-
-        const outside = destructible.durable('outside')
-        const group = destructible.durable('group', { isolated: true })
-        const sibling = group.durable('sibling')
-        group.durable('errored', async () => { throw new Error('error') })
-        try {
-            await destructible.promise
-        } catch (error) {
-            okay(destructible.errored, 'root errored')
-            okay(sibling.errored, 'sibling errored')
-            okay(outside.errored, 'outside errored')
-        }
-    }
-    {
-        const destructible = new Destructible('top')
-
-        const outside = destructible.durable('outside')
-        const group = destructible.durable('group', { isolated: true })
-        const sibling = group.durable('sibling')
-        outside.durable('errored', async () => { throw new Error('error') })
-        try {
-            await destructible.promise
-        } catch (error) {
-            okay(destructible.errored, 'root errored')
-            okay(!group.errored, 'group errored')
-            okay(!group.sibling, 'sibling errored')
-            okay(outside.errored, 'outside errored')
-        }
-    }
-    //
-
-    // You can use the errored property to determine if an operation should be
-    // performed or skipped during. If you have a work queue, once errored you
-    // may decide to skip the work in the queue and let the queue empty quickly.
-    // You may have shutdown ephemerals strands that you won't perform on error
-    // exit.
-
-    // In our database example, we might write some state information to disk
-    // so that the next time the program runs it can resume quickly. If the
-    // database is in a bad state we probably don't want to write the state
-    // information because we can't trust it.
-
-    //
-    {
-    }
-    //
-
-    // At times we might want to isolate the error property in our tree, so that
-    // a particular sub-tree will not be marked as errored if the error occured
-    // in a branch outside the sub-tree.
-
-    // In our database example, we might have an error originating outside the
-    // strands that compose the database. The database itself is in a fine state
-    // and can perform an orderly shutdown, so it may as well attempt to do so.
-
-    //
-    {
-    }
-    //
-
-    // If we've isolated a sub-tree, there may be times when a service in that
-    // sub-tree is doing work in an unknown strand. Our database may do its
-    // writes in a work queue that is managed by a queue service. If the
-    // database write fails and it throws an exception, it will get caught by
-    // the queue service strand and shut it down with an error, but we need to
-    // keep the queue running so other services besides the database can clean
-    // up. We'd rather have the destructible associated with database service
-    // report the exception instead of the destructible associated with the
-    // queue service.
-
-    //
     return
     {
         async function work () {
