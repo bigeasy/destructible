@@ -414,6 +414,9 @@ class Destructible {
     async _shutdown () {
         if (this._ephemeral) {
             const scram = { timeout: null, resolve: null }
+            // We got officially scrammed. We set progress to false on the off
+            // chance that it is somehow true so we don't continue to wait.
+            // Defensive programming.
             this._scrams.push(() => {
                 this._progress[0] = false
                 clearTimeout(scram.timeout)
@@ -422,18 +425,25 @@ class Destructible {
             this._progress[0] = true
             while (! this._waiting.empty && this._progress[0]) {
                 this._progress[0] = false
+                // **TODO** Use Future.
                 await new Promise(resolve => {
                     scram.resolve = resolve
                     scram.timeout = setTimeout(resolve, this._timeout)
                 })
+                if (! this._ephemeral) {
+                    this._scrams.pop()
+                    return await this._shutdown()
+                }
             }
             this._scram()
         } else {
             await new Promise(resolve => this._scrams.push(resolve))
         }
 
-        // Wait for any scrammable promises. Reducing the list is
-        // performed on the resolution side.
+        // Wait for any scrammable promises. Reducing the list is performed on
+        // the resolution side. They will all return now because they have all
+        // been scrammed. Use to be synchrnonous when error-first callback, but
+        // we now have to await the micro-stask queue.
         while (!this._scrammable.empty) {
             await this._scrammable.peek().promise
         }
@@ -774,25 +784,36 @@ class Destructible {
                 destructible._isolation = this._isolation
             }
 
+            destructible._ephemeral = method == 'ephemeral' // || method == 'exceptional'
+
             destructible._countdown = countdown
             destructible.deferrable = deferrable
 
             destructible._trace = trace
 
-            destructible._progress = this._progress
+            if (destructible._ephemeral) {
+                destructible._progress = [ true ]
+            }
 
             // **TODO** Here it is. Entirely unused. Maybe a tree report?
             destructible._child = this._children.push(destructible)
 
             // Destroy the child destructible when we are destroyed.
             const destruct = this.destruct(() => {
+                // **TODO** This is also new and probably all we need to do for
+                // progress isolation. If an ephemeral has destructed, it stops
+                // at the ephemeral boundary and starts its own scram timer. If
+                // destruction comes up, we do not cancel the ephemeral scram timer,
+                // assuming that it is doing a fine job and that this behavior is no
+                // different from normal operation. We could cancel it though, by
+                // registering a destructible that wakes up the scram timer and
+                // having it see that it is no longer ephemeral.
                 destructible._ephemeral = false
+                destructible._progress = this._progress
                 if (destructible._countdown == 0) {
                     destructible.destroy()
                 }
             })
-
-            destructible._ephemeral = method == 'ephemeral'
 
             // Propagate destruction on error. Recall that we need to send this
             // message up though our alternate route, we can't wait on the
@@ -833,8 +854,6 @@ class Destructible {
 
             // An error array, so that we only have to set it once, or an array
             // of errored references, those being arrays.
-
-            // If a child is er
 
             //
             destructible.destruct(() => {
