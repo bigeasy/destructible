@@ -188,7 +188,8 @@ class Destructible {
             },
             instance: {
                 value: Symbol('INSTANCE'),
-                enumberable: false
+                enumberable: false,
+                configurable: true
             }
         })
 
@@ -352,7 +353,6 @@ class Destructible {
 
     operational (additional = true) {
         if (this.destroyed && additional) {
-            console.log(Object.getOwnPropertyNames(this._properties))
             throw new Destructible.Error('DESTROYED', this._properties)
         }
     }
@@ -788,6 +788,8 @@ class Destructible {
             Destructible.Error.assert(Number.isInteger(countdown) && countdown >= 0, 'INVALID_COUNTDOWN', { _countdown: countdown })
 
             const destructible = new Destructible(this._timeout, id)
+
+            Object.defineProperty(destructible._properties, 'instance', Object.getOwnPropertyDescriptor(this._properties, 'instance'))
 
             // **TODO** This is new, ephemerals launched after error are
             // isolated.
