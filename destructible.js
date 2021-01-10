@@ -176,9 +176,21 @@ class Destructible {
 
         checkTrace(this._trace)
 
+        this._instance = Symbol('INSTANCE')
+
         this._timeout = typeof vargs[0] == 'number' ? vargs.shift() : 1000
 
         this._ephemeral = true
+
+        this._properties = Object.defineProperties({}, {
+            $trace: {
+                value: this._trace,
+            },
+            instance: {
+                value: Symbol('INSTANCE'),
+                enumberable: false
+            }
+        })
 
         this.id = vargs.shift()
 
@@ -317,18 +329,16 @@ class Destructible {
         }
         if (! this._waiting.empty || this._countdown != 0) {
             this._promise.reject(new Destructible.Error('SCRAMMED', this._errors, {
-                $trace: this._trace,
                 id: this.id,
                 countdown: this._countdown,
                 waiting: this._waiting.slice()
-            }))
+            }, this._properties))
         } else if (this._errors.length != 0) {
             this._promise.reject(new Destructible.Error('ERRORED', this._errors, {
-                $trace: this._trace,
                 id: this.id,
                 countdown: this._countdown,
                 waiting: this._waiting.slice()
-            }))
+            }, this._properties))
         } else {
             this._promise.resolve()
         }
@@ -342,7 +352,8 @@ class Destructible {
 
     operational (additional = true) {
         if (this.destroyed && additional) {
-            throw new Destructible.Error('DESTROYED', { $trace: this._trace })
+            console.log(Object.getOwnPropertyNames(this._properties))
+            throw new Destructible.Error('DESTROYED', this._properties)
         }
     }
 
@@ -496,7 +507,7 @@ class Destructible {
                 try {
                     this._destructors.shift().call()
                 } catch (error) {
-                    this._errors.push(new Destructible.Error('DESTROY', [ error ], { $trace: this._trace }))
+                    this._errors.push(new Destructible.Error('DESTROY', [ error ], this._properties))
                 }
             }
             this._destructing = false
@@ -669,7 +680,7 @@ class Destructible {
             }
             this.destroy()
             if (wait.value.method == 'exceptional') {
-                throw new Destructible.Error('EXCEPTIONAL', { $trace }, [ error ])
+                throw new Destructible.Error('EXCEPTIONAL', this._properties)
             }
         } finally {
             switch (wait.value.method) {
@@ -895,7 +906,7 @@ class Destructible {
 
             return destructible
         } else {
-            throw new Destructible.Error('INVALID_ARGUMENT')
+            throw new Destructible.Error('INVALID_ARGUMENT', this._properties)
         }
     }
 
@@ -988,6 +999,59 @@ class Destructible {
         return this._await('exceptional', vargs)
     }
 
+    _vargs (vargs) {
+        const $trace = typeof vargs[0] == 'function' ? vargs.shift() : null
+        const id = vargs.shift()
+        const f = vargs.pop()
+        return { $trace, id, f, errored: vargs }
+    }
+    //
+    copacetic (...vargs) {
+        if (! this.errored) {
+            return this.destructive.apply(this, vargs)
+        }
+        const { errored } = this._vargs(vargs)
+        if (errored.length == 1) {
+            return errored[0]
+        }
+    }
+
+    async _destructive ($trace, promise, id, errored) {
+        try {
+            return await promise
+        } catch (error) {
+            this._isolation.errored = true
+            this._errors.push(new Destructible.Error({ $trace, $stack: 0 }, [ error ], 'ERRORED', { id: id }))
+            this.destroy()
+            if (errored.length == 0) {
+                throw new Destructible.Error('DESTROYED', this._properties)
+            }
+            return errored[0]
+        }
+    }
+
+    destructive (...vargs) {
+        const { $trace, id, f, errored } = this._vargs(vargs)
+        try {
+            let result = f
+            if (typeof result == 'function') {
+                result = result()
+            }
+            if (typeof result.then == 'function') {
+                return this._destructive($trace, result, id, errored)
+            }
+            return result
+        } catch (error) {
+            this._isolation.errored = true
+            this._errors.push(new Destructible.Error({ $trace, $stack: 0 }, [ error ], 'ERRORED', { id: id }))
+            this.destroy()
+            if (errored.length == 0) {
+                throw new Destructible.Error('DESTROYED', this._properties)
+            }
+            return errored[0]
+        }
+    }
+
     // Used to address the configuration problem I keep encountering. The
     // problem is that we're trying to setup a bunch of sub-destructibles, but
     // we encounter an error that means we have to stop before setup is
@@ -1024,82 +1088,17 @@ class Destructible {
     // and prefixes and sprintf to report errors.
 
     //
-    static destroyed (error) {
-        if (!(error.symbol == Destructible.Error.DESTROYED || error.symbol == Destructible.Error.EXCEPTIONAL)) {
-            throw error
-        }
-    }
-
-    static async rescue (f) {
-        try {
-            return await (typeof f == 'function' ? f() : f)
-        } catch (error) {
-            Destructible.destroyed(error)
-        }
-    }
-    _vargs (vargs) {
-        const $trace = typeof vargs[0] == 'function' ? vargs.shift() : null
-        const id = vargs.shift()
-        const f = vargs.pop()
-        return { $trace, id, f, errored: vargs }
-    }
-    //
-    copacetic (...vargs) {
-        if (! this.errored) {
-            return this.destructive.apply(this, vargs)
-        }
-        const { errored } = this._vargs(vargs)
-        if (errored.length == 1) {
-            return errored[0]
-        }
-    }
-
-    async _destructive ($trace, promise, id, errored) {
-        try {
-            return await promise
-        } catch (error) {
-            this._isolation.errored = true
-            this._errors.push(new Destructible.Error({ $trace, $stack: 0 }, [ error ], 'ERRORED', { id: id }))
-            this.destroy()
-            if (errored.length == 0) {
-                throw new Destructible.Error({ $trace }, 'DESTROYED')
-            }
-            return errored[0]
-        }
-    }
-
-    destructive (...vargs) {
-        const { $trace, id, f, errored } = this._vargs(vargs)
-        try {
-            let result = f
-            if (typeof result == 'function') {
-                result = result()
-            }
-            if (typeof result.then == 'function') {
-                return this._destructive($trace, result, id, errored)
-            }
-            return result
-        } catch (error) {
-            this._isolation.errored = true
-            this._errors.push(new Destructible.Error({ $trace, $stack: 0 }, [ error ], 'ERRORED', { id: id }))
-            this.destroy()
-            if (errored.length == 0) {
-                throw new Destructible.Error({ $trace }, 'DESTROYED')
-            }
-            return errored[0]
-        }
-    }
-
-    //
-
-    // `Destructible.rescue()` won
-    //
-    // **TODO** Wrapping causes some sort of race, I forget which.
-    //
-    //
     rescue (...vargs) {
-        this.ephemerals++
-        return this._await('exceptional', vargs.concat(Destructible.rescue(vargs.pop())))
+        const f = vargs.pop()
+        return (async () => {
+            try {
+                return await (typeof f == 'function' ? f() : f)
+            } catch (error) {
+                if (error.instance !== this._properties.instance) {
+                    throw error
+                }
+            }
+        }) ()
     }
 }
 

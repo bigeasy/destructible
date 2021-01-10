@@ -1,4 +1,4 @@
-require('proof')(45, async (okay) => {
+require('proof')(43, async (okay) => {
     const rescue = require('rescue')
     const Destructible = require('..')
     {
@@ -214,44 +214,6 @@ require('proof')(45, async (okay) => {
     }
     {
         const destructible = new Destructible('attempt')
-        await Destructible.rescue(Promise.resolve(true))
-    }
-    {
-        const destructible = new Destructible('attempt')
-        Destructible.rescue(async function () {
-            await destructible.ephemeral('name', async function () {
-                throw new Error('error')
-            })
-            await new Promise(resolve => setImmediate(resolve))
-            await destructible.ephemeral('name', async function () {
-            })
-        })
-        try {
-            await destructible.promise
-        } catch (error) {
-            const caught = rescue(error, [ 'error' ]).errors.shift()
-            okay(caught.message, 'error', 'intialization halted by a shutdown')
-        }
-    }
-    {
-        const destructible = new Destructible('attempt')
-        Destructible.rescue(async function () {
-            try {
-                await destructible.ephemeral('name', async function () {
-                    throw new Error('error')
-                })
-            } catch (error) {
-                console.log(error)
-            }
-        })
-        try {
-            await destructible.promise
-        } catch (error) {
-            console.log(error.stack)
-        }
-    }
-    {
-        const destructible = new Destructible('attempt')
         const promise = destructible.rescue('setup', async function () {
             return 1
         })
@@ -262,6 +224,19 @@ require('proof')(45, async (okay) => {
             console.log(error.stack)
         }
         okay(await promise, 1, 'instance rescue')
+    }
+    {
+        const destructible = new Destructible('attempt')
+        await destructible.rescue(async function () {
+            destructible.destroy()
+            destructible.durable('failure', async () => {})
+        })
+        destructible.destroy()
+        try {
+            await destructible.promise
+        } catch (error) {
+            console.log(error.stack)
+        }
     }
     {
         const destructible = new Destructible(250, 'progress')
@@ -314,15 +289,6 @@ require('proof')(45, async (okay) => {
         child.decrement()
         okay(child.destroyed, 'child destroyed')
         await destructible.promise
-    }
-    {
-        const test = []
-        try {
-            Destructible.destroyed(new Error('error'))
-        } catch (error) {
-            test.push(error.message)
-        }
-        okay(test, [ 'error' ], 'unrescuable')
     }
     {
         const test = []
