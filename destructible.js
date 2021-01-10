@@ -443,11 +443,18 @@ class Destructible {
     }
     //
 
-    // This is our internal destroy. **TODO** How does it differ from our
-    // external destroy.
+    // `destructible.destroy()` &mdash; Destroy the `Destructible` and
+    // ultimately destroy every `Destructible` in the tree rooted by the upper
+    // most ephemeral `Destructible` or the root Destructible if no ephemeral
+    // `Destructible` exists.
+    //
+    // Actually, that's an error if the destructible is durable.
+    //
+    // We return `this` so we can call `destroy()` and await on `promise` or
+    // `done` in one line.
 
     //
-    _destroy () {
+    destroy () {
         // If we've not yet been destroyed, let's start the shutdown.
         if (!this.destroyed) {
             //
@@ -495,6 +502,9 @@ class Destructible {
                 this._shutdown()
             }
        }
+
+       // Allow for a bit of method chaining.
+       return this
     }
     //
 
@@ -549,28 +559,11 @@ class Destructible {
         Destructible.Error.assert(this.deferrable, 'NOT_DEFERRABLE', { id: this.id })
         if (this._countdown == 0) {
         } else if (--this._countdown == 0) {
-            this._destroy()
+            this.destroy()
         }
         return this
     }
 
-    // `destructible.destroy()` &mdash; Destroy the `Destructible` and
-    // ultimately destroy every `Destructible` in the tree rooted by the upper
-    // most ephemeral `Destructible` or the root Destructible if no ephemeral
-    // `Destructible` exists.
-    //
-    // We kept this wrapper function because we do not want to return the
-    // promise that is returned by `_destroy()`.
-    //
-    //  We return `this` so we can call `destroy()` and await on `destructed` or
-    //  `rejected` in one line.
-
-    //
-    destroy () {
-        // this._countdown = 0
-        this._destroy()
-        return this
-    }
 
     // We keep this as an array of functions, as opposed to an array of
     // children, because we push a scram timer canceller or forever waiter onto
@@ -590,11 +583,11 @@ class Destructible {
         // parent is destroyed — the parent can write to services in the child
         // that would attempt to create a new `ephemeral` and error.
         //
-        // Now that `_destroy` is synchronous, when we call it, it will call
+        // Now that `destroy` is synchronous, when we call it, it will call
         // destroy on all children and it will synchronously build a scram chain
         // so that the next call to run our scrams will propagate scrams.
         if (!this.destroyed) {
-            this._destroy()
+            this.destroy()
         }
         while (!this._scrams.empty) {
             this._scrams.shift()()
@@ -664,7 +657,7 @@ class Destructible {
             } else {
                 this._errors.push(Destructible.Error.create({ $trace, $stack: 0 }, [ 'ERRORED', [ error ], wait.value ]))
             }
-            this._destroy()
+            this.destroy()
             if (wait.value.method == 'exceptional') {
                 throw new Destructible.Error('EXCEPTIONAL', { $trace }, [ error ])
             }
@@ -673,7 +666,7 @@ class Destructible {
             case 'terminal': {
                     this.durables--
                     this._countdown = 0
-                    this._destroy()
+                    this.destroy()
                 }
                 break
             case 'durable': {
@@ -681,7 +674,7 @@ class Destructible {
                     if (! this.destroyed) {
                         this._isolation.errored = true
                         this._errors.push(Destructible.Error.create({ $trace, $stack: 0 }, [ 'DURABLE', wait.value ]))
-                        this._destroy()
+                        this.destroy()
                     }
                 }
                 break
@@ -848,7 +841,7 @@ class Destructible {
                 this.clear(destruct)
                 if (! destructible._ephemeral || destructible._isolation.errored) {
                     this._isolation.errored = this._isolation.errored || destructible._isolation.errored
-                    this._destroy()
+                    this.destroy()
                 }
             })
 
@@ -1048,7 +1041,7 @@ class Destructible {
         } catch (error) {
             this._isolation.errored = true
             this._errors.push(new Destructible.Error({ $trace, $stack: 0 }, [ error ], 'ERRORED', { id: id }))
-            this._destroy()
+            this.destroy()
             if (errored.length == 0) {
                 throw new Destructible.Error({ $trace }, 'DESTROYED')
             }
@@ -1070,7 +1063,7 @@ class Destructible {
         } catch (error) {
             this._isolation.errored = true
             this._errors.push(new Destructible.Error({ $trace, $stack: 0 }, [ error ], 'ERRORED', { id: id }))
-            this._destroy()
+            this.destroy()
             if (errored.length == 0) {
                 throw new Destructible.Error({ $trace }, 'DESTROYED')
             }
