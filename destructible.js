@@ -10,6 +10,9 @@ const Future = require('perhaps')
 // A linked-list to track promises, scrams.
 const List = require('./list')
 
+// Return the first non-`null`-like value.
+const coalesce = require('extant')
+
 // `Destructible` is a utility for managing concurrent operations in
 // `async`/`await` style JavaScript programs. The fundimental concept of
 // `Destructible` is the "strand." A strand conceptually a thread, but it does
@@ -651,7 +654,7 @@ class Destructible {
     // because it would just mean two extra `if` statements when we already
     // know.
 
-    async _awaitPromise (operation, wait, properties) {
+    async _awaitPromise (operation, errored, wait, properties) {
         try {
             try {
                 return await operation
@@ -673,6 +676,7 @@ class Destructible {
                 this._errors.push(new Destructible.Error(properties, { $stack: 0 }, 'ERRORED', [ error ], wait.value))
             }
             this.destroy()
+            return errored
         } finally {
             switch (wait.value.method) {
             case 'durable': {
@@ -726,7 +730,7 @@ class Destructible {
         const scrammable = new Future
         const node = this._scrammable.push(scrammable)
         try {
-            await this._awaitPromise(destructible.promise, wait)
+            await this._awaitPromise(destructible.promise, null, wait, {})
         } finally {
             // TODO Convince yourself that it doens't matter if you call a
             // scrammable before you call `_complete`.
@@ -760,7 +764,7 @@ class Destructible {
         const wait = this._waiting.push({ method, id: options.id })
         // Ephemeral destructible children can set a scram timeout.
         if (typeof vargs[0] == 'function') {
-            return this._awaitPromise(vargs.shift()(), wait, { $trace: options.$trace })
+            return this._awaitPromise(vargs.shift()(), coalesce(vargs.shift()), wait, { $trace: options.$trace })
         } else if (vargs.length == 0) {
             const deferrable = options.countdown != null
             const countdown = deferrable ? options.countdown : 0
@@ -885,7 +889,7 @@ class Destructible {
 
             return destructible
         } else {
-            return this._awaitPromise(vargs.shift(), wait, { $trace: options.$trace })
+            return this._awaitPromise(vargs.shift(), coalesce(vargs.shift()), wait, { $trace: options.$trace })
         }
     }
 
