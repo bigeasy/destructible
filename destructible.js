@@ -418,31 +418,31 @@ class Destructible {
     //
     async _shutdown () {
         if (this._ephemeral) {
-            const scram = { timeout: null, resolve: null }
+            assert(! this._waiting.empty)
+            let future, timeout = null
             // We got officially scrammed. We set progress to false on the off
             // chance that it is somehow true so we don't continue to wait.
             // Defensive programming.
             this._scrams.push(() => {
                 this._progress[0] = false
-                clearTimeout(scram.timeout)
-                scram.resolve()
+                clearTimeout(timeout)
+                future.resolve()
             })
             this._progress[0] = true
             while (! this._waiting.empty && this._progress[0]) {
-                this._progress[0] = false
-                // **TODO** Use Future.
-                await new Promise(resolve => {
-                    scram.resolve = resolve
-                    scram.timeout = setTimeout(resolve, this._timeout)
-                })
                 if (! this._ephemeral) {
-                    this._scrams.pop()
-                    return await this._shutdown()
+                    return this._shutdown()
                 }
+                this._progress[0] = false
+                future = new Future
+                timeout = setTimeout(() => future.resolve(), this._timeout)
+                await future.promise
             }
             this._scram()
         } else {
-            await new Promise(resolve => this._scrams.push(resolve))
+            const future = new Future
+            this._scrams.push(() => future.resolve())
+            await future.promise
         }
 
         // Wait for any scrammable promises. Reducing the list is performed on
