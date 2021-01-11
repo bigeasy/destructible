@@ -1,12 +1,14 @@
-require('proof')(44, async (okay) => {
+require('proof')(45, async (okay) => {
     const rescue = require('rescue')
     const Destructible = require('..')
     const Future = require('perhaps')
     {
         const destructible = new Destructible('main')
+        const done = destructible.done
         destructible.destroy()
+        await done
         await destructible.promise
-        await destructible.done
+        okay(destructible.done, null, 'done returns null once resolved')
         const test = []
         try {
             destructible.cause
