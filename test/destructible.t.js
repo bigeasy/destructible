@@ -1,4 +1,4 @@
-require('proof')(43, async (okay) => {
+require('proof')(44, async (okay) => {
     const rescue = require('rescue')
     const Destructible = require('..')
     const Future = require('perhaps')
@@ -178,12 +178,15 @@ require('proof')(43, async (okay) => {
             return 1
         })
         destructible.destroy()
-        try {
-            await destructible.promise
-        } catch (error) {
-            console.log(error.stack)
-        }
-        okay(await promise, 1, 'instance rescue')
+        await destructible.promise
+        okay(await promise, 1, 'rescue function')
+    }
+    {
+        const destructible = new Destructible('attempt')
+        const promise = destructible.rescue('setup', Promise.resolve(1))
+        destructible.destroy()
+        await destructible.promise
+        okay(await promise, 1, 'rescue promise')
     }
     {
         const destructible = new Destructible('attempt')
