@@ -750,20 +750,23 @@ class Destructible {
             if (destructible._ephemeral) {
                 destructible._progress = [ true ]
             }
+            //
 
-            // Destroy the child destructible when we are destroyed. If we are
-            // destroyed the child will... Okay, new TODO.
+            // Destroy the child destructible when we are destroyed. Becasue
+            // this destructible is destroyed, it or an ancestor will run a
+            // shutdown timer and the child will defer to that shutdown timer.
+            //
+            // Even if the child is deferrable, it when it destructs, it is not
+            // going to run its own shutdown timer.
+            //
+            // We do not destroy deferrables. We do destroy them if their error
+            // isolation group is in an errored state.
+            //
+            // This is the from the root up destructor path. Note that it runs
+            // synchronously as does the down from the leaf destructor path so
+            // there are no race conditions.
 
-            // If an ephemeral has destructed, it stops at the ephemeral
-            // boundary and starts its own scram timer. If destruction comes up,
-            // we do not cancel the ephemeral scram timer, assuming that it is
-            // doing a fine job and that this behavior is no different from
-            // normal operation. We could cancel it though, by registering a
-            // destructible that wakes up the scram timer and having it see that
-            // it is no longer ephemeral.
-
-            // **TODO** Shouldn't we defer changing ephemeral state for
-            // deferrables?
+            //
             const destruct = this.destruct(() => {
                 destructible._ephemeral = false
                 destructible._progress = this._progress
@@ -771,15 +774,34 @@ class Destructible {
                     destructible.destroy()
                 }
             })
+            //
 
+            // If we encounter an error after destruction we want to be sure to
+            // destroy the sub-destructible if it is not isolated.
+
+            //
             const panic = this.panic(() => {
                 if (! destructible.destroyed && destructible._isolation.errored) {
                     destructible.destroy()
                 }
             })
-
             destructible._cleanup.push(() => this.clear(panic))
+            //
 
+            // Clear the up-from-the-root destructor. If the sub-destructible is
+            // durable or errored we propagate the destruction.
+
+            // If the sub-destructible is ephemeral we register a new destructor
+            // that will tell the ephemeral to surrender its scram timer and
+            // allow the parent ephemeral to oversee the scram. When the timer
+            // wakes it will check ephemeral before it checks progress.
+
+            // **TODO** Is there a progress/ephemeral race? Can we set
+            // destructible while at the same time calling scram for the last
+            // time so that the destructible goes into wait-on-parent-scram when
+            // the parent has already exited? (Doubtful. Tired.)
+
+            //
             destructible.destruct(() => {
                 this.clear(destruct)
                 if (destructible._ephemeral && ! destructible._isolation.errored) {
