@@ -765,7 +765,7 @@ class Destructible {
                 // **TODO** Seems like we should skip countdown if errored, though.
                 destructible._ephemeral = false
                 destructible._progress = this._progress
-                if (destructible._countdown == 0) {
+                if (destructible._countdown == 0 || destructible._isolation.errored) {
                     destructible.destroy()
                 }
             })
