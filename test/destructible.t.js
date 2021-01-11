@@ -286,7 +286,7 @@ require('proof')(44, async (okay) => {
         const destructible = new Destructible(25, 'main')
         const child = destructible.ephemeral('child')
         let stop = false
-        child.durable('future', async () => {
+        child.durable(20, 'work', async () => {
             while (! stop) {
                 child.progress()
                 await new Promise(resolve => setTimeout(resolve, 10))
