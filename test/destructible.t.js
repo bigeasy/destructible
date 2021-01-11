@@ -412,4 +412,19 @@ require('proof')(45, async (okay) => {
             okay(error.errors.length, 1, 'async destructive returned funneled')
         }
     }
+    {
+        const destructible = new Destructible('destructible')
+        const child = destructible.durable('child')
+        child.destruct(() => {
+            console.log('calling')
+            child.ephemeral('thrown', async () => { throw new Error('reject') })
+        })
+        const deferrable = destructible.durable({ countdown: 1 }, 'deferrable')
+        destructible.destroy()
+        try {
+            await destructible.promise
+        } catch (error) {
+            console.log(error.stack)
+        }
+    }
 })

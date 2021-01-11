@@ -219,6 +219,8 @@ class Destructible {
 
         this._scrammable = new List
 
+        this._cleanup = []
+
         this._errors = []
         //
 
@@ -327,6 +329,9 @@ class Destructible {
         }
         if (this._child != null) {
             List.unlink(this._child)
+        }
+        while (this._cleanup.length != 0) {
+            this._cleanup.shift()()
         }
         if (! this._waiting.empty || this._countdown != 0) {
             this._promise.reject(new Destructible.Error('SCRAMMED', this._errors, {
@@ -628,8 +633,9 @@ class Destructible {
             this._isolation.errored = true
             // **TODO** Okay, here we go. New, new stuff.
             while (this._isolation.panic.length != 0) {
-                for (const panic of this._isolation.panic.shift()) {
-                    panic()
+                const panic = this._isolation.panic.shift()
+                while (! panic.empty) {
+                    panic.shift()()
                 }
             }
             if (error instanceof Destructible.Error) {
@@ -773,6 +779,14 @@ class Destructible {
                 }
             })
 
+            const panic = this.panic(() => {
+                if (! destructible.destroyed && destructible._isolation.errored) {
+                    destructible.destroy()
+                }
+            })
+
+            destructible._cleanup.push(() => this.clear(panic))
+
             // Propagate destruction on error. Recall that we need to send this
             // message up though our alternate route, we can't wait on the
             // promise of a sub-destructible to complete and propagate the
@@ -817,11 +831,12 @@ class Destructible {
             destructible.destruct(() => {
                 this.clear(destruct)
                 if (destructible._ephemeral && ! destructible._isolation.errored) {
-                    this.destruct(() => {
+                    const destruct = this.destruct(() => {
                         destructible._ephemeral = false
                         destructible._progress = this._progress
                         destructible._timer.resolve()
                     })
+                    destructible._cleanup.push(() => this.clear(destruct))
                 } else {
                     this._isolation.errored = this._isolation.errored || destructible._isolation.errored
                     this.destroy()
