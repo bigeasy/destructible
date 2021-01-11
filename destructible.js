@@ -207,10 +207,6 @@ class Destructible {
 
         this._waiting = new List
 
-        this._children = new List
-
-        this._child = null
-
         this._drain = Future.resolve()
 
         this._countdown = 0
@@ -326,9 +322,6 @@ class Destructible {
     _return () {
         while (! this._panic.empty) {
             this._panic.shift()
-        }
-        if (this._child != null) {
-            List.unlink(this._child)
         }
         while (this._cleanup.length != 0) {
             this._cleanup.shift()()
@@ -708,16 +701,6 @@ class Destructible {
         }
     }
 
-    // To implement scrammable, it seemed that we want to make the last argument
-    // the scram function instead of a destructor, which is never all that
-    // pleasant to look at anyway, but then we need to have a major version bump
-    // because it breaks the interface in a way that is hard to see.
-    //
-    // The scramability of a `Promise` is a property of the promise, while the
-    // destructibility is more a property of the desctructible. The
-    // implementation as it stands points in this direction and I'm not going
-    // back to rethink it all. Software as Plinko.
-    //
     _await (method, vargs) {
         if (!(this._destructing && method == 'ephemeral')) {
             this.operational()
@@ -730,48 +713,58 @@ class Destructible {
         }
         assert(typeof options.id == 'string')
         const wait = this._waiting.push({ method, id: options.id })
-        // Ephemeral destructible children can set a scram timeout.
+        //
+
+        // If a function, invoke it it and await the result as a promise, if no
+        // arguments it is a sub-destructible, treat anything else as a promise,
+        // it will get wrapped by `async` if it is not a promise already.
+
+        //
         if (typeof vargs[0] == 'function') {
             return this._awaitPromise(vargs.shift()(), coalesce(vargs.shift()), wait, { $trace: options.$trace })
         } else if (vargs.length == 0) {
+            // Construct our destructible with the options, then poke into it to
+            // make it a sub-destructible.
+            const destructible = new Destructible(options, options.id)
+
+            // If the caller provided a countdown, we are a deferred
+            // destructible.
             const deferrable = options.countdown != null
             const countdown = deferrable ? options.countdown : 0
             Destructible.Error.assert(Number.isInteger(countdown) && countdown >= 0, 'INVALID_COUNTDOWN', { _countdown: countdown })
+            destructible._countdown = countdown
+            destructible.deferrable = deferrable
 
-            const destructible = new Destructible(options, options.id)
-
+            // Inherit the instance symbol, common to the entire destructible
+            // tree.
             Object.defineProperty(destructible._properties, 'instance', Object.getOwnPropertyDescriptor(this._properties, 'instance'))
 
-            // **TODO** This is new, ephemerals launched after error are
-            // isolated.
+            // Set error isolation. Sub-destructibles created during `destruct`
+            // are error isolated.
             if (! options.isolated && ! this._isolation.errored) {
                 destructible._isolation = this._isolation
             }
 
+            // Are we ephemeral? If so we get our own progress marker.
             destructible._ephemeral = method == 'ephemeral'
-
-            destructible._countdown = countdown
-            destructible.deferrable = deferrable
-
             if (destructible._ephemeral) {
                 destructible._progress = [ true ]
             }
 
-            // **TODO** Here it is. Entirely unused. Maybe a tree report?
-            destructible._child = this._children.push(destructible)
+            // Destroy the child destructible when we are destroyed. If we are
+            // destroyed the child will... Okay, new TODO.
 
-            // Destroy the child destructible when we are destroyed.
+            // If an ephemeral has destructed, it stops at the ephemeral
+            // boundary and starts its own scram timer. If destruction comes up,
+            // we do not cancel the ephemeral scram timer, assuming that it is
+            // doing a fine job and that this behavior is no different from
+            // normal operation. We could cancel it though, by registering a
+            // destructible that wakes up the scram timer and having it see that
+            // it is no longer ephemeral.
+
+            // **TODO** Shouldn't we defer changing ephemeral state for
+            // deferrables?
             const destruct = this.destruct(() => {
-                // **TODO** This is also new and probably all we need to do for
-                // progress isolation. If an ephemeral has destructed, it stops
-                // at the ephemeral boundary and starts its own scram timer. If
-                // destruction comes up, we do not cancel the ephemeral scram timer,
-                // assuming that it is doing a fine job and that this behavior is no
-                // different from normal operation. We could cancel it though, by
-                // registering a destructible that wakes up the scram timer and
-                // having it see that it is no longer ephemeral.
-
-                // **TODO** Seems like we should skip countdown if errored, though.
                 destructible._ephemeral = false
                 destructible._progress = this._progress
                 if (destructible._countdown == 0 || destructible._isolation.errored) {
@@ -787,47 +780,6 @@ class Destructible {
 
             destructible._cleanup.push(() => this.clear(panic))
 
-            // Propagate destruction on error. Recall that we need to send this
-            // message up though our alternate route, we can't wait on the
-            // promise of a sub-destructible to complete and propagate the
-            // returned error. Why do we have scram if we can rely on that
-            // return? We need a separate `_errored` boolean, we can't just check
-            // `errors.length` because of scram, and because we have some
-            // objects that only shutdown from a user function (Conduit,
-            // Turnstile, Fracture) so they're going to need to be scrammed, we
-            // kind of want them to be scrammed, or else the user has to think
-            // hard about the difference between ordered shutdown and abnormal
-            // shutdown.
-
-            // **TODO** Above comments are hard to parse now. Adding this to say
-            // that we now are developing a new rule about propagating shutdown
-            // upwards. It would appear that when we shutdown an ephemeral that
-            // shutdown does not propagate. When we shutdown a durable it does.
-            // If durable, an exception is raised when the parent processes the
-            // resolve.
-
-            // Turnstile uses `destroy` to indicate that it has encountered an
-            // error. If you build destructible with a durable that error will
-            // always cause an exception to be raised. It will be explicit when
-            // Turnstile's shutdown strand throws an exception with gathered
-            // errors nested. We can add an option to turnstile to allow errors
-            // to get funneled off to logs. We want to do this because we are
-            // realizing that there are alternatives to handling errors, logging
-            // them as they occur, or gathering them and reporting them in the
-            // stack trace. The approach depends on the application. Turnstile
-            // could have a queue of thousands of writes and the disk is full,
-            // every one will produce an error and the stack trace will be
-            // useless. We have to build stack trace reduction into Interrupt.
-            // Alternatively, Turnstile can log errors. This is easier to reason
-            // about when we have a single Turnstile per application.
-
-            // Anyway, we now have rules about destruction. It does propagate,
-            // but it's not entirely harmless.
-
-            // An error array, so that we only have to set it once, or an array
-            // of errored references, those being arrays.
-
-            //
             destructible.destruct(() => {
                 this.clear(destruct)
                 if (destructible._ephemeral && ! destructible._isolation.errored) {
