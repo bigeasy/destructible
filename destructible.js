@@ -10,16 +10,6 @@ const Future = require('perhaps')
 // A linked-list to track promises, scrams.
 const List = require('./list')
 
-// **TODO** What is this doing here? Shouldn't it be in Interrupt?
-function checkTrace (trace) {
-    if (trace != null) {
-        Destructible.Error.assert(trace.length == 1, 'INVALID_TRACER')
-        let called = false
-        trace(() => called = true)
-        Destructible.Error.assert(called, 'TRACER_DID_NOT_INVOKE')
-    }
-}
-
 // `Destructible` is a utility for managing concurrent operations in
 // `async`/`await` style JavaScript programs. The fundimental concept of
 // `Destructible` is the "strand." A strand conceptually a thread, but it does
@@ -173,8 +163,6 @@ class Destructible {
     //
     constructor (...vargs) {
         this._trace = typeof vargs[0] == 'function' ? vargs.shift() : null
-
-        checkTrace(this._trace)
 
         this._instance = Symbol('INSTANCE')
 
@@ -757,7 +745,6 @@ class Destructible {
             this.operational()
         }
         const trace = typeof vargs[0] == 'function' ? vargs.shift() : null
-        checkTrace(trace)
         const id = vargs.shift()
         const wait = this._waiting.push({ method, id })
         // Ephemeral destructible children can set a scram timeout.
