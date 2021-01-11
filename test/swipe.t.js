@@ -17,7 +17,7 @@
 // Our unit test begins here.
 
 //
-require('proof')(50, async okay => {
+require('proof')(49, async okay => {
     // In your program this would be
     //
     // ```javascript
@@ -165,15 +165,6 @@ require('proof')(50, async okay => {
     // nothing at all.
 
     // Any other type will raise an exception.
-    {
-        const destructible = new Destructible('example')
-
-        try {
-            destructible.durable('terrible', 'completely unexpected type')
-        } catch (error) {
-            okay(error.code, 'INVALID_ARGUMENT', 'invalid argument to create a durable strand')
-        }
-    }
     //
 
     // # Staged Shutdown
@@ -302,7 +293,7 @@ require('proof')(50, async okay => {
         const destructible = new Destructible('root')
         okay(destructible.deferrable, 'root is always a counted destructible')
 
-        const countdown = destructible.durable('countdown', { countdown: 1 })
+        const countdown = destructible.durable({ countdown: 1 }, 'countdown')
         okay(countdown.countdown, 1, 'initial countdown')
         okay(countdown.deferrable, 'is a counted destructible')
 
@@ -439,7 +430,7 @@ require('proof')(50, async okay => {
     //
     {
         const parent = new Destructible('parent')
-        const child = parent.durable('child', { countdown: 1 })
+        const child = parent.durable({ countdown: 1 }, 'child')
 
         okay(!parent.isDestroyedIfDestroyed(child), 'parent is not destroyed by child destruction due to deferrable boundary')
         okay(!child.isDestroyedIfDestroyed(parent), 'child is not destroyed by parent destruction due to deferrable boundary')
@@ -480,7 +471,7 @@ require('proof')(50, async okay => {
         const second = destructible.durable('second')
         const third = second.durable('third')
 
-        const deferrable = first.durable('deferrable', { countdown: 1 })
+        const deferrable = first.durable({ countdown: 1 }, 'deferrable')
         const fourth = deferrable.durable('fourth')
 
         okay(first.isDestroyedIfDestroyed(third), 'will shutdown at the same time')
@@ -587,7 +578,7 @@ require('proof')(50, async okay => {
             this._notify = () => {}
             this._queue = []
             this.destructible = destructible
-            this.deferrable = destructible.durable('deferrable', { countdown: 1 })
+            this.deferrable = destructible.durable({ countdown: 1 }, 'deferrable')
             this.deferrable.durable('queue', async () => {
                 for (;;) {
                     if (this.terminated) {

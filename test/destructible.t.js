@@ -1,4 +1,4 @@
-require('proof')(41, async (okay) => {
+require('proof')(42, async (okay) => {
     const rescue = require('rescue')
     const Destructible = require('..')
     {
@@ -6,11 +6,13 @@ require('proof')(41, async (okay) => {
         destructible.destroy()
         await destructible.promise
         await destructible.done
+        const test = []
         try {
             destructible.cause
         } catch (error) {
-            okay('cause throws an error')
+            test.push(true)
         }
+        okay(test, [ true ], 'cause throws an error')
     }
     {
         const destructible = new Destructible('main')
@@ -45,8 +47,8 @@ require('proof')(41, async (okay) => {
             return object
         }
         const results = get({
-            one: destructible.durable([ 'path', 1 ], one),
-            two: destructible.durable([ 'path', 2 ], two),
+            one: destructible.durable('one', one),
+            two: destructible.durable('two', two),
         })
         await new Promise(resolve => setTimeout(resolve, 50))
         destructible.destroy()
@@ -197,15 +199,18 @@ require('proof')(41, async (okay) => {
     }
     {
         const destructible = new Destructible('attempt')
+        const test = []
         try {
             await destructible.rescue('setup', async function () {
                 throw new Error('hello')
             })
         } catch (error) {
+            test.push(true)
             okay(destructible.destroyed, 'auto destroyed')
             okay(error.message, 'hello', 'rescue rethrew non-destructible error')
             await destructible.promise
         }
+        okay(test, [ true ], 'exception was thrown')
     }
     {
         const destructible = new Destructible(250, 'progress')
@@ -251,7 +256,7 @@ require('proof')(41, async (okay) => {
     }
     {
         const destructible = new Destructible('main')
-        const child = destructible.durable('child', { countdown: 0 })
+        const child = destructible.durable({ countdown: 0 }, 'child')
         child.increment()
         destructible.destroy()
         okay(destructible.destroyed, 'parent destroyed')
@@ -263,14 +268,15 @@ require('proof')(41, async (okay) => {
     {
         const test = []
         const destructible = new Destructible(50, 'main')
-        const child = destructible.ephemeral('child', { countdown: 2 })
+        const child = destructible.ephemeral({ countdown: 2 }, 'child')
         destructible.destroy()
         try {
             await destructible.promise
         } catch (error) {
             rescue(error, [{ code: 'SCRAMMED' }])
-            okay('delayed child scrammed')
+            test.push(true)
         }
+        okay(test, [ true ], 'delayed child scrammed')
     }
     {
         const destructible = new Destructible('main')

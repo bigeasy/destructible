@@ -162,13 +162,15 @@ class Destructible {
 
     //
     constructor (...vargs) {
-        this._trace = typeof vargs[0] == 'function' ? vargs.shift() : null
+        const $trace = typeof vargs[0] == 'function' ? vargs.shift() : null
 
-        this._instance = Symbol('INSTANCE')
+        const timeout = typeof vargs[0] == 'number' ? vargs.shift() : 1000
 
-        this._timeout = typeof vargs[0] == 'number' ? vargs.shift() : 1000
+        const options = {
+            $trace, timeout, ...(typeof vargs[0] == 'object' ? vargs.shift() : {})
+        }
 
-        this._ephemeral = true
+        this._timeout = options.timeout
 
         this._properties = Object.defineProperties({}, {
             $trace: {
@@ -184,6 +186,10 @@ class Destructible {
         this.id = vargs.shift()
 
         this.destroyed = false
+
+        this._ephemeral = true
+
+        this._instance = Symbol('INSTANCE')
 
         this._promise = new Future
 
@@ -645,7 +651,7 @@ class Destructible {
     // because it would just mean two extra `if` statements when we already
     // know.
 
-    async _awaitPromise (operation, wait, $trace = null) {
+    async _awaitPromise (operation, wait, properties) {
         try {
             try {
                 return await operation
@@ -664,7 +670,7 @@ class Destructible {
             if (error instanceof Destructible.Error) {
                 this._errors.push(error)
             } else {
-                this._errors.push(Destructible.Error.create({ $trace, $stack: 0 }, [ 'ERRORED', [ error ], wait.value ]))
+                this._errors.push(new Destructible.Error(properties, { $stack: 0 }, 'ERRORED', [ error ], wait.value))
             }
             this.destroy()
         } finally {
@@ -673,7 +679,7 @@ class Destructible {
                     this.durables--
                     if (! this.destroyed) {
                         this._isolation.errored = true
-                        this._errors.push(Destructible.Error.create({ $trace, $stack: 0 }, [ 'DURABLE', wait.value ]))
+                        this._errors.push(new Destructible.Error(properties, { $stack: 0 }, 'DURABLE', wait.value))
                         this.destroy()
                     }
                 }
@@ -744,28 +750,23 @@ class Destructible {
         if (!(this._destructing && method == 'ephemeral')) {
             this.operational()
         }
-        const trace = typeof vargs[0] == 'function' ? vargs.shift() : null
-        const id = vargs.shift()
-        const wait = this._waiting.push({ method, id })
+        const $trace = typeof vargs[0] == 'function' ? vargs.shift() : null
+        const options = {
+            $trace,
+            ...(typeof vargs[0] == 'object' ? vargs.shift() : {}),
+            id: vargs.shift()
+        }
+        assert(typeof options.id == 'string')
+        const wait = this._waiting.push({ method, id: options.id })
         // Ephemeral destructible children can set a scram timeout.
         if (typeof vargs[0] == 'function') {
-            //const promise = async function () { return await vargs.shift()() } ()
-            return this._awaitPromise(vargs.shift()(), wait, trace)
-        } else if (vargs.length != 0 && typeof vargs[0].then == 'function') {
-            return this._awaitPromise(vargs.shift(), wait, trace)
-        } else if (vargs.length == 0 || typeof vargs[0] == 'object') {
-            const options = vargs.shift() || {}
-            // Ephemeral sub-destructibles can have their own timeout and scram
-            // timer, durable sub-destructibles are scrammed by their root.
-            //assert(typeof vargs[0] != 'number')
-            // Create the child destructible.
-            //assert(typeof this._timeout == 'number' && this._timeout != Infinity)
-
+            return this._awaitPromise(vargs.shift()(), wait, { $trace: options.$trace })
+        } else if (vargs.length == 0) {
             const deferrable = options.countdown != null
             const countdown = deferrable ? options.countdown : 0
             Destructible.Error.assert(Number.isInteger(countdown) && countdown >= 0, 'INVALID_COUNTDOWN', { _countdown: countdown })
 
-            const destructible = new Destructible(this._timeout, id)
+            const destructible = new Destructible(options)
 
             Object.defineProperty(destructible._properties, 'instance', Object.getOwnPropertyDescriptor(this._properties, 'instance'))
 
@@ -779,8 +780,6 @@ class Destructible {
 
             destructible._countdown = countdown
             destructible.deferrable = deferrable
-
-            destructible._trace = trace
 
             if (destructible._ephemeral) {
                 destructible._progress = [ true ]
@@ -886,7 +885,7 @@ class Destructible {
 
             return destructible
         } else {
-            throw new Destructible.Error('INVALID_ARGUMENT', this._properties)
+            return this._awaitPromise(vargs.shift(), wait, { $trace: options.$trace })
         }
     }
 

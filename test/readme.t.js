@@ -107,7 +107,7 @@ require('proof')(18, async okay => {
         const destructible = new Destructible('top')
 
         const outside = destructible.durable('outside')
-        const group = destructible.durable('group', { isolated: true })
+        const group = destructible.durable({ isolated: true }, 'group')
         const sibling = group.durable('sibling')
         outside.durable('errored', async () => { throw new Error('error') })
         try {
@@ -127,7 +127,7 @@ require('proof')(18, async okay => {
         const destructible = new Destructible('top')
 
         const outside = destructible.durable('outside')
-        const group = destructible.durable('group', { isolated: true })
+        const group = destructible.durable({ isolated: true }, 'group')
         const sibling = group.durable('sibling')
         group.durable('errored', async () => { throw new Error('error') })
         try {
