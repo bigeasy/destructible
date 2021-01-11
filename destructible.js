@@ -712,9 +712,8 @@ class Destructible {
         if (!(this._destructing && method == 'ephemeral')) {
             this.operational()
         }
-        const $trace = typeof vargs[0] == 'function' ? vargs.shift() : null
         const options = {
-            $trace,
+            $trace: typeof vargs[0] == 'function' ? vargs.shift() : null,
             timeout: typeof vargs[0] == 'number' ? vargs.shift() : this._timeout,
             ...(typeof vargs[0] == 'object' ? vargs.shift() : {}),
             id: vargs.shift()
