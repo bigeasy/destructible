@@ -430,12 +430,12 @@ class Destructible {
     // `done` in one line.
 
     //
-    destroy () {
+    _destroy () {
         // If we've not yet been destroyed, let's start the shutdown.
         if (!this.destroyed) {
             //
             this.destroyed = true
-            //
+
 
             // Add our panic list to the isolation panic list, but only if we
             // are not destructing in an error state. We only run `panic` if
@@ -478,10 +478,14 @@ class Destructible {
                 this._shutdown()
             }
        }
-
-       // Allow for a bit of method chaining.
-       return this
     }
+
+    destroy () {
+        this._countdown = 0
+        this._destroy()
+        return this
+    }
+
     //
 
     // **TODO** For documentation, this is a new convention. Drain returns a
@@ -535,7 +539,7 @@ class Destructible {
         Destructible.Error.assert(this.deferrable, 'NOT_DEFERRABLE', { id: this.id })
         if (this._countdown == 0) {
         } else if (--this._countdown == 0) {
-            this.destroy()
+            this._destroy()
         }
         return this
     }
@@ -562,10 +566,10 @@ class Destructible {
         // Now that `destroy` is synchronous, when we call it, it will call
         // destroy on all children and it will synchronously build a scram chain
         // so that the next call to run our scrams will propagate scrams.
-        if (!this.destroyed) {
-            this.destroy()
+        if (! this.destroyed) {
+            this._destroy()
         }
-        while (!this._scrams.empty) {
+        while (! this._scrams.empty) {
             this._scrams.shift()()
         }
     }

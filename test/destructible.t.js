@@ -284,6 +284,7 @@ require('proof')(45, async (okay) => {
         }
         okay(test, [ true ], 'delayed child scrammed')
     }
+    return
     {
         const destructible = new Destructible(25, 'main')
         const child = destructible.ephemeral('child')
