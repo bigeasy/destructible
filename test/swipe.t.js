@@ -288,10 +288,11 @@ require('proof')(50, async okay => {
     // integer argument of one or more. This integer argument is the initial
     // countdown.
 
-    // Here we create a terminal destructor named `countdown` that will shutdown
-    // the parent when it exist. We when run a terminal strand that
-    // automatically shuts down the `countdown` constructor but both `countdown`
-    // and `destructible` remain active.
+    // **TODO** Renamed from terminal, so needs rewrite. Here we create a
+    // durable sub-destructible named `countdown` that will shutdown the parent
+    // when it exist. We when run a terminal strand that automatically shuts
+    // down the `countdown` constructor but both `countdown` and `destructible`
+    // remain active.
 
     // Only when we further decrement the countdown to zero do we destroy the
     // destructible tree of strands.
@@ -301,7 +302,7 @@ require('proof')(50, async okay => {
         const destructible = new Destructible('root')
         okay(destructible.deferrable, 'root is always a counted destructible')
 
-        const countdown = destructible.terminal('countdown', { countdown: 1 })
+        const countdown = destructible.durable('countdown', { countdown: 1 })
         okay(countdown.countdown, 1, 'initial countdown')
         okay(countdown.deferrable, 'is a counted destructible')
 

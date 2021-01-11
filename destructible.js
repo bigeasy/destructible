@@ -684,12 +684,6 @@ class Destructible {
             }
         } finally {
             switch (wait.value.method) {
-            case 'terminal': {
-                    this.durables--
-                    this._countdown = 0
-                    this.destroy()
-                }
-                break
             case 'durable': {
                     this.durables--
                     if (! this.destroyed) {
@@ -916,37 +910,6 @@ class Destructible {
         this._progress[0] = true
     }
 
-    // Launch an operation that lasts the lifetime of the `Destructible`. When
-    // the promise resolves or rejects we perform an orderly shutdown of the
-    // `Destructible`.
-    //
-    // The `id` identifies the strand. It can be any JSON serializable object.
-    // It is displayed in the stack trace on error. When creating a sub-group
-    // the `id` available as a property of the returned `Destructible`. The `id`
-    // is not required by `durable` to be unique. It is for your reference.
-    //
-    // Use this for strands that must run for the lifetime of `Promise` group
-    // whose early except without or without an exception would be exceptional.
-    //
-    // **TODO** Maybe instead of having `durable` trigger a shutdown, maybe it
-    // should raise an exception if it exits early? Then would I still need
-    // `durable` under another name? And would there be more than one in any
-    // `Promise` group? And what is that name? `expendable`?
-    //
-    // The names are just getting silly now, but so long as they are
-    // consistently silly I don't mind.
-    //
-    // **TODO** How is this any different from just calling
-    // `destructible.destroy()` at the end of the strand?
-    //
-    // **TODO** Dubious.
-
-    //
-    terminal (...vargs) {
-        this.durables++
-        return this._await('terminal', vargs)
-    }
-
     // At some point I'm going to rename this to `durable` and what is currently
     // `durable` will become known as `terminal`. I want a `durable` that will
     // raise an exception if it returns before destruction.
@@ -1097,6 +1060,7 @@ class Destructible {
                 return await (typeof f == 'function' ? f() : f)
             } catch (error) {
                 if (error.instance !== this._properties.instance) {
+                    this.destroy()
                     throw error
                 }
             }
