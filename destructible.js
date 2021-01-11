@@ -187,6 +187,7 @@ class Destructible {
         })
 
         this.id = vargs.shift()
+        assert(this.id)
 
         this.destroyed = false
 
@@ -229,7 +230,7 @@ class Destructible {
         // panic.
 
         //
-        this._progress = []
+        this._progress = [ true ]
 
         this._isolation = { errored: false, panic: [] }
 
@@ -238,6 +239,8 @@ class Destructible {
         this._destructors = new List
 
         this._scrams = new List
+
+        this._timer = Future.resolve()
 
         this._panic = new List
 
@@ -353,93 +356,48 @@ class Destructible {
             throw new Destructible.Error('DESTROYED', this._properties)
         }
     }
+    //
 
-    // When this was an error-first callback library, scram was synchronous and
-    // the chain of scrams implemented as callbacks stored in a Signal object,
-    // which we can just imagine is an array of callbacks all waiting for a
-    // common response. Here we'd add ourselves to the end of our own array of
-    // callbacks knowing that all our children will get the scram before we do.
-    // When a child reports a scrammed exception on a waiting callback, the
-    // parent of that child get that exception as a resolution of the child
-    // &mdash; instead of reporting the child as waiting, it will report an
-    // error, the cause of that error will be the child's scram exception.
-    //
-    // Now that we're using Promises we can't just fire scram and expect all
-    // children to either raise scram exception or propagate a scram exception
-    // because the destroy operations waiting on the child's resolution will not
-    // execute until the next tick. Now we need to wake from our scram timer or
-    // else wake from waiting on the expired message to and then wait again for
-    // the parents of our grand children to respond to the resolution of their
-    // children's promises.
-    //
-    // For a moment there, we where using the event-loop order to resolve this.
-    // Because the order is next tick, promises, immediate, if we wait on a
-    // promise we're just going to have everyone hop in a queue and hop out
-    // again in the same order before resolving their promises. When we wait on
-    // immediate we create a new queue where we run in the same order, so that
-    // our greatest grand child will resolve its promise, then its parent will
-    // run later. In the mean time, the child's promise will invoke the destroy
-    // logic because promises precede immediates.
-    //
-    // And then there was a need to have more than one immediate after to the
-    // root timer. I wasn't certain if two did the trick or if the number of
-    // immediates needed was dependent on the depth of the sub-destructible
-    // tree. I didn't take bother to take the time to reason about it. The
-    // event-loop trickery was too opaque and I'd already resolved to make the
-    // wait for scrammable promises explicit.
-    //
-    // Now when we create a sub-destructible, because we know that the promise
-    // we'll await is scrammable, we add it to a list of scrammable promises. We
-    // await any promises in the list while there are promises in the list.
+    // If we are ephemeral, and the root is always ephemeral, we run a timer and
+    // check for any progress that occurred while we where asleep. Applications
+    // call `destructible.progress()` that sets a boolean. The boolean is shared
+    // by reference by all the destructibles in an error isolation group.
 
-    // If we are the root or ephemeral, set a scram timer. Otherwise wait for
-    // the scram timer of our parent root or ephemeral.
-    //
-    // `Infinity` means that this is either a root destructible or an ephemeral
-    // child. An ephemeral child is a sub-destructible that does not last the
-    // lifetime of the parent, therefore when it shuts down, it ought to set its
-    // own scram timer and scram itself if it does not shutdown in a reasonable
-    // amount of time.
-    //
-    // At the time of writing this comment, we've just added the `progress()`
-    // function to indicate that we're making progress on shutdown.
-    //
-    // Prior to this, the reasoning was that the ephemerals would always run
-    // their own timers, and it would be up to the user to determine how long it
-    // should take to shut down, then to somehow account for a plethora of
-    // epehermals in an application like a server, where you may have an
-    // ephemeral per socket connection and thousands of sockets. A socket should
-    // take a second to shut down during normal operation, to send a final
-    // handshake of some sort, and if you have thousands of sockets then the
-    // root destructible should account for the shutdown of each socket, hmm...
-    // is five minutes enough? Where's my calculator?
-    //
-    // With the `progress()` function a timeout is based on progress, or not if
-    // you never call `progress()`. Each socket will call progress as it
-    // performs the steps in its handshake indicating that it making progress.
+    // If we are not ephemeral we add the resolve side of a promise to our list
+    // of scrams and await the resolution of the promise.
+
+    // When we are done we loop loop through our list of scrammables awaiting
+    // their resolution. They are all going to resolve because either they
+    // finished normally or they've just been scrammed.
+
+    // We also have a case where we are ephemeral sub-destructible but our
+    // parent has destructed. When this happens our ephemeral state changes to
+    // false and our timer is resolved, so we check our ephemeral state and if
+    // it is no longer ephemeral we return a call to shutdown that will perform
+    // the non-ephemeral wait.
 
     //
     async _shutdown () {
         if (this._ephemeral) {
             assert(! this._waiting.empty)
-            let future, timeout = null
+            let timeout = null
             // We got officially scrammed. We set progress to false on the off
             // chance that it is somehow true so we don't continue to wait.
             // Defensive programming.
             this._scrams.push(() => {
                 this._progress[0] = false
                 clearTimeout(timeout)
-                future.resolve()
+                this._timer.resolve()
             })
             this._progress[0] = true
             while (! this._waiting.empty && this._progress[0]) {
+                this._progress[0] = false
+                this._timer = new Future
+                timeout = setTimeout(() => this._timer.resolve(), this._timeout)
+                await this._timer.promise
                 if (! this._ephemeral) {
                     return this._shutdown()
                 }
-                this._progress[0] = false
-                future = new Future
-                timeout = setTimeout(() => future.resolve(), this._timeout)
-                await future.promise
             }
             this._scram()
         } else {
@@ -757,6 +715,7 @@ class Destructible {
         const $trace = typeof vargs[0] == 'function' ? vargs.shift() : null
         const options = {
             $trace,
+            timeout: typeof vargs[0] == 'number' ? vargs.shift() : this._timeout,
             ...(typeof vargs[0] == 'object' ? vargs.shift() : {}),
             id: vargs.shift()
         }
@@ -770,7 +729,7 @@ class Destructible {
             const countdown = deferrable ? options.countdown : 0
             Destructible.Error.assert(Number.isInteger(countdown) && countdown >= 0, 'INVALID_COUNTDOWN', { _countdown: countdown })
 
-            const destructible = new Destructible(options)
+            const destructible = new Destructible(options, options.id)
 
             Object.defineProperty(destructible._properties, 'instance', Object.getOwnPropertyDescriptor(this._properties, 'instance'))
 
@@ -802,6 +761,8 @@ class Destructible {
                 // different from normal operation. We could cancel it though, by
                 // registering a destructible that wakes up the scram timer and
                 // having it see that it is no longer ephemeral.
+
+                // **TODO** Seems like we should skip countdown if errored, though.
                 destructible._ephemeral = false
                 destructible._progress = this._progress
                 if (destructible._countdown == 0) {
@@ -852,7 +813,13 @@ class Destructible {
             //
             destructible.destruct(() => {
                 this.clear(destruct)
-                if (! destructible._ephemeral || destructible._isolation.errored) {
+                if (destructible._ephemeral && ! destructible._isolation.errored) {
+                    this.destruct(() => {
+                        destructible._ephemeral = false
+                        destructible._progress = this._progress
+                        destructible._timer.resolve()
+                    })
+                } else {
                     this._isolation.errored = this._isolation.errored || destructible._isolation.errored
                     this.destroy()
                 }

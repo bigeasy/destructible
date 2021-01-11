@@ -1,6 +1,7 @@
-require('proof')(42, async (okay) => {
+require('proof')(43, async (okay) => {
     const rescue = require('rescue')
     const Destructible = require('..')
+    const Future = require('perhaps')
     {
         const destructible = new Destructible('main')
         destructible.destroy()
@@ -277,6 +278,24 @@ require('proof')(42, async (okay) => {
             test.push(true)
         }
         okay(test, [ true ], 'delayed child scrammed')
+    }
+    {
+        const destructible = new Destructible(25, 'main')
+        const child = destructible.ephemeral('child')
+        let stop = false
+        child.durable('future', async () => {
+            while (! stop) {
+                child.progress()
+                await new Promise(resolve => setTimeout(resolve, 10))
+            }
+        })
+        child.destroy()
+        await new Promise(resolve => setTimeout(resolve, 50))
+        destructible.destroy()
+        await new Promise(resolve => setTimeout(resolve, 50))
+        stop = true
+        await destructible.promise
+        okay('ephemeral timer takeover')
     }
     {
         const destructible = new Destructible('main')
