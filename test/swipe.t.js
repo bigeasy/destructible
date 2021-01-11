@@ -313,7 +313,7 @@ require('proof')(50, async okay => {
         okay(!countdown.destroyed, 'countdown not destroyed')
         okay(destructible.destroyed, 'destructible is destroyed')
 
-        const ran = await countdown.exceptional('run', async () => 1)
+        const ran = await countdown.ephemeral('run', async () => 1)
 
         okay(ran, 1, 'can still run new strands on countdown')
 

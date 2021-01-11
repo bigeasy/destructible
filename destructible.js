@@ -679,9 +679,6 @@ class Destructible {
                 this._errors.push(Destructible.Error.create({ $trace, $stack: 0 }, [ 'ERRORED', [ error ], wait.value ]))
             }
             this.destroy()
-            if (wait.value.method == 'exceptional') {
-                throw new Destructible.Error('EXCEPTIONAL', this._properties)
-            }
         } finally {
             switch (wait.value.method) {
             case 'durable': {
@@ -756,7 +753,7 @@ class Destructible {
     // back to rethink it all. Software as Plinko.
     //
     _await (method, vargs) {
-        if (!(this._destructing && (method == 'ephemeral' || method == 'exceptional'))) {
+        if (!(this._destructing && method == 'ephemeral')) {
             this.operational()
         }
         const trace = typeof vargs[0] == 'function' ? vargs.shift() : null
@@ -791,7 +788,7 @@ class Destructible {
                 destructible._isolation = this._isolation
             }
 
-            destructible._ephemeral = method == 'ephemeral' // || method == 'exceptional'
+            destructible._ephemeral = method == 'ephemeral'
 
             destructible._countdown = countdown
             destructible.deferrable = deferrable
@@ -836,10 +833,10 @@ class Destructible {
 
             // **TODO** Above comments are hard to parse now. Adding this to say
             // that we now are developing a new rule about propagating shutdown
-            // upwards. It would appear that when we shutdown an ephemeral or
-            // exceptional that shutdown does not propagate. When we shutdown a
-            // durable or terminal it does. If durable, an exception is raised
-            // when the parent processes the resolve.
+            // upwards. It would appear that when we shutdown an ephemeral that
+            // shutdown does not propagate. When we shutdown a durable it does.
+            // If durable, an exception is raised when the parent processes the
+            // resolve.
 
             // Turnstile uses `destroy` to indicate that it has encountered an
             // error. If you build destructible with a durable that error will
@@ -910,11 +907,6 @@ class Destructible {
         this._progress[0] = true
     }
 
-    // At some point I'm going to rename this to `durable` and what is currently
-    // `durable` will become known as `terminal`. I want a `durable` that will
-    // raise an exception if it returns before destruction.
-
-    //
     durable (...vargs) {
         this.durables++
         return this._await('durable', vargs)
@@ -944,24 +936,6 @@ class Destructible {
     ephemeral (...vargs) {
         this.ephemerals++
         return this._await('ephemeral', vargs)
-    }
-
-    // `async exceptional(id, [ Promise ])` &mdash; Start an `ephemeral` strand,
-    // a strand that does not last the lifetime of the `Destructible`. Return
-    // the reoslved value of the strand's `Promise`. Unlike `ephemeral`, if the
-    // `Promise` rejects, a `Destructible.Error` exception is raised with a
-    // `code` of `'destroyed'`. The excpetion of the `Promise` rejection is
-    // reported in the elaborate stack trace in the `Destrucible.rejected`
-    // property.
-    //
-    // This is used to initialization perform tasks that must complete
-
-    // **TODO** Dubious.
-
-    //
-    exceptional (...vargs) {
-        this.ephemerals++
-        return this._await('exceptional', vargs)
     }
 
     _vargs (vargs) {

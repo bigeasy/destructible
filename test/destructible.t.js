@@ -1,4 +1,4 @@
-require('proof')(42, async (okay) => {
+require('proof')(41, async (okay) => {
     const rescue = require('rescue')
     const Destructible = require('..')
     {
@@ -168,23 +168,6 @@ require('proof')(42, async (okay) => {
         const result = await destructible.ephemeral('f', async () => 1)
         okay(result, 1, 'function')
         await destructible.destroy().promise
-    }
-    {
-        const destructible = new Destructible('attempt')
-        try {
-            await destructible.exceptional('name', async function () {
-                throw new Error('error')
-            })
-        } catch (error) {
-            console.log(error)
-            okay(error instanceof Destructible.Error, 'attempt did init error')
-            console.log(error.stack)
-        }
-        try {
-            await destructible.promise
-        } catch (error) {
-            console.log(error.stack)
-        }
     }
     {
         const destructible = new Destructible('attempt')
