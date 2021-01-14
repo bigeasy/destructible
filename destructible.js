@@ -189,6 +189,8 @@ class Destructible {
         this.id = vargs.shift()
         assert(this.id)
 
+        this.path = [ this.id ]
+
         this.destroyed = false
 
         this._ephemeral = true
@@ -726,6 +728,8 @@ class Destructible {
             // Construct our destructible with the options, then poke into it to
             // make it a sub-destructible.
             const destructible = new Destructible(options, options.id)
+
+            destructible.path = this.path.concat(options.id)
 
             // If the caller provided a countdown, we are a deferred
             // destructible.
