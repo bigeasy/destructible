@@ -12,117 +12,6 @@ const List = require('./list')
 
 // Return the first non-`null`-like value.
 const coalesce = require('extant')
-
-// `Destructible` is a utility for managing concurrent operations in
-// `async`/`await` style JavaScript programs. The fundimental concept of
-// `Destructible` is the "strand." A strand conceptually a thread, but it does
-// not run as a light-weight process. It is defined as an independent
-// `async`/`await` call stack.
-//
-// The typical example of a minimal `async`/`await` program is as follows.
-//
-// ```javascript
-// async function main () {
-//     const fs = require('fs').promises
-//     console.log(await fs.readFile(__filename, 'utf8'))
-// }
-//
-// main()
-// ```
-//
-// `await` can only be called within an `async` function, so we create an
-// `async` function named `main`. We then call it without `await` and relying on
-// the default unhandled exception handler to report any exceptions. The `main`
-// function here represents a single strand in a JavaScript program.
-//
-// But what if we wait to do to things at once? Imagine an `async`/`await` based
-// server using `await` to pull buffers off of a socket, with a loop for each
-// socket. Each of those loops represents an `async`/`await` call stack. They
-// can each raise and propagate an exception. Each of those loops is a strand.
-//
-// `Destructible` simplifis this sort of multi-loop/multi-stack/multi-strand
-// programming so that it looks a lot like multi-threaded programming.
-//
-// _`Destructible` in practice appears to be awaiting `async` functions, but in
-// reality and often in practice it is really awaiting `Promise`s. For the rest
-// of this document we will talk about `Promise`s and not `async` functions but
-// they are synonymous. I just don't want you to think that you must wrap a
-// `Promise` you need to resolve in a function call._
-//
-// `Destructible` awaits multiple concurrent JavaScript `Promise`s grouped
-// together as a `Promise` group. Additionally, `Destructible` registers
-// destructor functions of your design that will cancel the `Promise`s it is
-// awaiting. `Destructible` will allow you to stop all the awaited `Promise`s at
-// once and return.
-//
-// Unlike `Promise.all`, `Destructible` will ensure that all the promises return
-// when any `Promise` rejects and that all exceptions are reported instead of
-// just the first one to reject. Reporting all execeptions is important because
-// the first exception may only be the proixmate cause of failure.
-//
-// When you cancel a `Destructible` it will fire all the destructor functions
-// you registered to cancel all the `Promises`s you registered. Cancellation is
-// defined by you, the user. Perhaps you have to abort a socket connection or
-// cancel a timer. `Destructible` helps you organize all your shutdown
-// procedures and ensure that they run in order. It also helps you order the
-// shutdown of strands, so that background strands that need to continue to run
-// during shutdown shutdown after forground strands finish.
-//
-// And by background and foreground I do mean any number of layers of such
-// dependencies, not just the two. Your server may depend on a database that
-// depends on a memory cache and you can shut them down one, two, three.
-//
-// _**TODO** Above is a tidy and a rewrite that is consume what comes below.
-// What is above could be moved to the `README.md`._
-//
-// Cancellation can also occur automatically when a `Promise` in the group
-// resolves. This is done by registering the `Promise` as a durable `Promise`,
-// meaning that it should run for the duration of the `Promise` group. If it
-// resolve it means that the `Promise` group has finished it's task and all the
-// other `Promises` should resolve shortly.
-//
-// You await the resolution of the collected `Promise`s in a `Destructible` by
-// awaiting the resolution of the `Destructible.promise` property which itself a
-// `Promise`. If one or more of the the awaited promises rejects,
-// `Destructible.promise` will reject with an `Error` that collects the
-// rejections as causes and reports them in a nested heirarchy with their stack
-// traces so you can see all the errors that interrupted your application, not
-// just the first one raised.
-//
-// You can group your `Promise`s by a specific application task &mdash; like
-// reading and writing to an open socket &mdash; by creating
-// sub-`Destructible`s. You can then cancel a sub-`Destructible` without
-// cancelling it's parent.
-//
-// It creates a dependency tree for destructors. A root `Destructible` instance
-// can be used to create sub-`Destructible` instances that will destruct when
-// the root destructs. sub-`Destructible` instances can create further
-// sub-`Destructible` instances and so on.
-//
-// `async` functions are monitored by passing their `Promise`s to either
-// `Destructible.durable()` if the end of the function should indicate the end
-// of the program or `Destructible.ephemeral()` if the end of the function
-// should not indicate the end of the program. `Destructible.ephemeral()` acts
-// as a boundary. Any sub-`Destructible`s that are durable will trigger the
-// destruction of the sub-tree that is rooted at the first ancestor that is
-// ephemeral or at the top most `Destructible` if none exist.
-//
-// For example, you can use an ephemeral `Destructible` to monitor an open
-// socket and shut down all `async` functions that are participating in the
-// processing of that socket. An `async` function may return because it has
-// reached the end-of-stream while reading the socket and then trigger the
-// shutdown of the writing end of the socket and any other functions
-// participating in the processing of the socket input. It will not shutdown any
-// other ephemeral trees processing other sockets.
-//
-// However, in this example, if you destroy the root `Destructible` it will
-// trigger the shutdown of all sub-`Destructible`s thereby destroying all the
-// ephemeral sub-`Destructible`s that are processing sockets.
-//
-// To cancel your `async` functions you register destructors using the
-// `Destructible.destruct()` function. Destructors are run when you call
-// `Destructible.destroy()`.
-
 //
 class Destructible {
     static Error = Interrupt.create('Destructible.Error', {
@@ -285,9 +174,11 @@ class Destructible {
         } while (iterator != null && ! boundary)
         return false
     }
+    //
 
-    // `destructible.destruct(f)` &mdash; Register a destructor `f` that will be
-    // called when this `Destructible` is destroyed.
+    // Not going to call the function if already destroyed/errored. Doesn't seem
+    // to be the case that we're registering destructors after starup, nor
+    // registering panic after startup except maybe in a destructor.
 
     //
     destruct (f) {
@@ -297,13 +188,15 @@ class Destructible {
     panic (f) {
         return this._panic.push(f)
     }
-
-    // `destructible.destruct(f)` &mdash; Remove the registered destructor `f`
-    // from the list of destructors to call when this `Destructible` is
-    // destroyed.
     //
-    // TODO Maybe return cleared function? Now that you're iterating over a
-    // list, how do you do this?
+
+    // Used to return the cleared function but had no use for that in practice
+    // and then added the list of handles argument which made the return
+    // polymorphic so forget it. We're using lists becase we may have thousands
+    // of handles to clear, do we want thousands of functions returned?
+
+    // But we're not doing this really. We may create thousands of
+    // sub-destructibles someday, but not thousands of destructors/panics.
 
     //
     clear (handle) {
@@ -943,6 +836,7 @@ class Destructible {
             return errored[0]
         }
     }
+    //
 
     // Used to address the configuration problem I keep encountering. The
     // problem is that we're trying to setup a bunch of sub-destructibles, but

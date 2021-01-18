@@ -28,6 +28,141 @@
 require('proof')(18, async okay => {
     const Destructible = require('..')
 
+    // Destructible is a utility for managing the construction and destruction of
+    // concurrent paths of execution implicit in `async`/`await` style JavaScript
+    // programs.
+    //
+    // `async`/`await` lets you wait for results from other threads in your program
+    // messages from your operating system. It also allows you to jump from one code
+    // path to another other within your program. When we're jumping around from one
+    // code path to another within our program we're doing co-operative multi-tasking.
+    //
+    // As you're well aware, if you have an endless synchronous loop in your JavaScript
+    // program, your JavaScript interpreter will not pause the loop to let another part
+    // of your program run. That's because your JavaScript code runs in a single
+    // thread. When you return from an `async` function or `yield` from a generator
+    // you're allowing the path of execution in your program that was `await`ing that
+    // function or generator to resume its path of execution.
+    //
+    // In other co-operative multi-tasking platforms these co-operative paths of
+    // execution are called [fibers](https://stackoverflow.com/a/796255). Threads use
+    // pre-emptive scheduling, whereas fibers use co-operative scheduling.
+    //
+    // In Destructible we call these co-operative paths of execution strands. We do
+    // this so as not to confuse the reader who reads some part of our documentation,
+    // goes off to Google, and comes back with questions about green threads,
+    // coroutines or the many other fiber related concepts that are not directly
+    // applicable to Destructible.
+    //
+    // A **strand** is defined by the `async`/`await` call stack created when you call
+    // an `async` function without using `await` to get the result before proceeding.
+    //
+    // Here is a minimal JavaScript program that will create a single strand in its
+    // lifetime.
+
+    {
+        const fs = require('fs').promises
+
+        async function main () {
+            console.log('file size', (await fs.stat(__filename)).size)
+        }
+
+        main()
+    }
+
+    // When Node.js runs our program, it creates a wrapper function around the entirety
+    // of our program. This is not a strand according to the Destructible definition
+    // because it is not an `async` function.
+    //
+    // Because it is not an `async` function we cannot `await main()` because you can
+    // only use `await` within an `async` function. Therefore, when we call `main()` we
+    // create a strand.
+    //
+    // If `main` where to raise an exception we would then get an
+    // `'unhandledRejection'` error in Node.js. We can handle the rejection ourselves
+    // using `Promise.catch()` but that does not change the number of strands in the
+    // program according to the Destructible definition of strand.
+
+    {
+        const fs = require('fs').promises
+
+        async function main () {
+            console.log('file size', (await fs.stat(__filename)).size)
+        }
+
+        main().catch(error => console.log(error.message))
+    }
+
+    // We will no longer have an `'unhandledRejection'` exception because we handle it
+    // ourselves.
+    //
+    // Here is a program that creates two strands that co-operate to solve a problem,
+    // that problem being converting a base 10 number to another base.
+
+    {
+        const fs = require('fs').promises
+        const path = require('path')
+
+        class Queue {
+            constructor () {
+                this._promise = new Promise(resolve => this._notify = resolve)
+                this._queue = []
+            }
+
+            push (value) {
+                this._queue.push(value)
+                this._notify()
+            }
+
+            async shift (value) {
+                for (;;) {
+                    if (this._queue.length == 0) {
+                        await this._promise
+                        this._promise = new Promise(resolve => this._notify = resolve)
+                        continue
+                    }
+                    return this._queue.shift()
+                }
+            }
+        }
+
+        async function list (queue, directory, root = true) {
+            const dir = await fs.readdir(directory)
+            for (const file of await fs.readdir(directory)) {
+                const filename = path.join(directory, file)
+                const stat = await fs.stat(filename)
+                if (stat.isDirectory()) {
+                    await list(queue, filename, false)
+                } else {
+                    queue.push(stat)
+                }
+            }
+            if (root) {
+                queue.push(null)
+            }
+        }
+
+        async function sum (queue) {
+            let sum = 0
+            for (;;) {
+                const stat = await queue.shift()
+                if (stat == null) {
+                    break
+                }
+                sum += stat.size
+            }
+            return sum
+        }
+
+        const queue = new Queue
+
+        list(queue, __dirname)
+        sum(queue).then(sum => console.log('sum', sum))
+    }
+
+    // **TODO** Left off here. Probably need to stress that this example program is in
+    // fact a toy, would easily implemented as a single strand with a generator.
+    //
     // Basic destructible usage.
 
     {
@@ -54,15 +189,14 @@ require('proof')(18, async okay => {
     // `try`/`catch` or what-have-you. If a strand rejects, the Destructible will be
     // destroyed and destruction will begin.
     //
-    // There is however an error notification mechanism so that your services can
-    // detect when the failure of other services so that they don't attempt to perform
-    // an orderly shutdown when the services they depend upon are in an unstable state.
+    // There is however an error notification mechanism so that a service can detect
+    // the failure of other services so that it doesn't attempt to perform an orderly
+    // shutdown when the services it depends upon are in an unstable state.
     //
-    // If you have a database service fails a single write for some reason, it should
-    // probably not perform its ordinary database shutdown procedure when stacks are
-    // unwinding and the program is headed for oblivion. It would be better to perform
-    // a recovery procedure after the system administrator investigates the fault and
-    // restarts the program.
+    // If you have an embedded database service and it fails to write because the disk
+    // is full, it should probably not attempt to perform its orderly database shutdown
+    // procedure. It would be better to perform a recovery procedure after the system
+    // administrator makes some space on disk and restarts the program.
     //
     // You can determine if a Destructible exited with an error using the `errored`
     // property. This is a synchronous property that will return `false` until the
