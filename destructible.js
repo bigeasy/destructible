@@ -13,7 +13,22 @@ const List = require('./list')
 // Return the first non-`null`-like value.
 const coalesce = require('extant')
 //
+
+// Destructible is a class and instances form a destructible tree. The tree is
+// not explicit, there is no list of children. There is a parent pointer. It is
+// only used by the `isDestroyedIfDestroyed` function.
+
+// The children are referenced using the `destruct` list and the `panic` list.
+// There a list of waiting sub-destructibles, but it is a list of destructible
+// ids only for reporting in the exception.
+
+//
 class Destructible {
+    //
+
+    // **TODO** Organize and prune this list.
+
+    //
     static Error = Interrupt.create('Destructible.Error', {
         INVALID_TRACER: 'tracer must be a function that takes a single argument',
         INVALID_ARGUMENT: `
@@ -38,19 +53,15 @@ class Destructible {
         SCRAMMED: 'strand failed to exit or make progress',
         DURABLE: 'early exit from a strand expected to last for entire life of destructible'
     })
+    //
 
-    // `new Destructible([ scram ], id)` constructs a new `Destructible` to act
-    // as the root of a tree of parallel concurrent strands.
-    //
-    // The `Destructible` will scram after the given `scram` timeout or the
-    // default `1000` milliseconds if not given. A scram is an exception raised
-    // when one or more strands fails to resolve or make progress before the
-    // given timeout.
-    //
-    // The `id` can be any JSON serializable object. It is displayed in the
-    // `Destructible` in the stack trace on error. It is also available through
-    // the `id` property of the `Destructible`. The `id` is not required by
-    // `Destructible` to be unique. It is for your reference.
+    // Constructor arguments are still in flux. Not sure that the timeout should
+    // be implicit. Wondering if splat functions are technically megaporhic in
+    // Google V8. Probably doesn't matter though, as Destructibles are created
+    // in frequently and portend an `async` call which is going to be the
+    // bottleneck. Benchmarking shows that the overhead of creating a
+    // destructible for a an `async` call to an `'fs'` function is vanishingly
+    // small.
 
     //
     constructor (...vargs) {
@@ -64,6 +75,20 @@ class Destructible {
 
         this._timeout = options.timeout
 
+        this.id = vargs.shift()
+        assert(typeof this.id == 'string')
+
+        this.path = [ this.id ]
+
+        this.destroyed = false
+
+        this._ephemeral = true
+
+        // **TODO** Where am I really using this? Starting to feel that I should
+        // just use Interrupt to filter specific errors, i.e.
+        // Destructible.DESTROYED, rather than try to filter then when raised.
+        //
+        // Any futher reflections on `rescue`, see `rescue`.
         this._properties = Object.defineProperties({}, {
             $trace: {
                 value: this._trace,
@@ -74,17 +99,6 @@ class Destructible {
                 configurable: true
             }
         })
-
-        this.id = vargs.shift()
-        assert(this.id)
-
-        this.path = [ this.id ]
-
-        this.destroyed = false
-
-        this._ephemeral = true
-
-        this._instance = Symbol('INSTANCE')
 
         this._promise = new Future
 
@@ -98,42 +112,35 @@ class Destructible {
 
         this._waiting = new List
 
-        this._drain = Future.resolve()
-
         this._countdown = 0
 
         this.deferrable = true
 
         this._scrammable = new List
 
-        this._cleanup = []
-
         this._errors = []
-        //
 
-        // **TODO** Progress also needs an isolation treatment. Imagine you have
-        // a server with thousands of sockets opening and closing quickly. You
-        // have ephemeral sub-trees for each socket. One socket isn't shutting
-        // down, but the progress reports form all the other sockets are keeping
-        // it from scramming. Should be easy to implement by cribbing from
-        // panic.
-
-        //
+        // Progress is isolated by ephemeral until the parent of the ephemeral
+        // destructs.
         this._progress = [ true ]
 
+        // Error isolation is specified in a sub-destructible constuctor.
         this._isolation = { errored: false, panic: [] }
 
+        // Used to flag whether an ephemeral can be created after construction.
         this._destructing = false
 
         this._destructors = new List
+
+        this._panic = new List
 
         this._scrams = new List
 
         this._timer = Future.resolve()
 
-        this._panic = new List
+        this._drain = Future.resolve()
 
-        this._results = {}
+        this._cleanup = []
     }
 
     get promise () {
@@ -178,13 +185,37 @@ class Destructible {
 
     // Not going to call the function if already destroyed/errored. Doesn't seem
     // to be the case that we're registering destructors after starup, nor
-    // registering panic after startup except maybe in a destructor.
+    // registering panic after startup except maybe in a destructor. Oh, you're
+    // kidding me? The list of sub-destructibles is held by the list of
+    // destructors. Way to go, champ.
 
     //
     destruct (f) {
         return this._destructors.push(f)
     }
+    //
 
+    // Panic always runs when an isolation has errored. It is used to cancel any
+    // queued work and to cancel an ephemeral launched by shutdown.
+
+    // Relatively certian that it is simple enough for an isolation. When you
+    // destruct, if your isolation is errored, you work the panic list to empty
+    // in `destruct` after calling, otherwise you push the panic list onto the
+    // list of panic lists for the isolation. If there are any further errors
+    // the catch block awaiting that promise will run the list of panic lists to
+    // empty. This occurs when we destruct normally and then someone
+    // subsequently errors while shutting down, easy to imagine.
+
+    // Across isolations is where I'm stuck at the moment, just because I can't
+    // get wound up about this.
+
+    // Because I feel okay about isolation panic handling, I can use destruct
+    // and panic to implement propagation.
+
+    // Isolation means we don't panic down from the parent but we do panic up to
+    // the parent. Already we don't errored down, but we do errored up.
+
+    //
     panic (f) {
         return this._panic.push(f)
     }
@@ -328,19 +359,6 @@ class Destructible {
         if (!this.destroyed) {
             //
             this.destroyed = true
-
-
-            // Add our panic list to the isolation panic list, but only if we
-            // are not destructing in an error state. We only run `panic` if
-            // `destruct` is not already called in an `errored` state.
-
-            // Any ephemeral created after destruction will be isolated, it will
-            // only enter the errored state if an error occurs in that sub-tree.
-
-            //
-            if (! this._isolation.errored) {
-                this._isolation.panic.push(this._panic)
-            }
             //
 
             // Run our destructors. They are synchronous. If they want to do
@@ -361,6 +379,21 @@ class Destructible {
             this._destructing = false
             //
 
+            // If we are errored, now is the time to panic. If not we add our
+            // panic list to the list of panic lists for the isolation.
+
+            // Any ephemeral created after destruction will be isolated, it will
+            // only enter the errored state if an error occurs in that sub-tree.
+
+            //
+            if (this._isolation.errored) {
+                while (! this._panic.empty) {
+                    this._panic.shift()()
+                }
+            } else {
+                this._isolation.panic.push(this._panic)
+            }
+            //
             // If we're complete, we can resolve the `Destructible.promise`,
             // otherwise we need to wait for the scram timer.
 
@@ -517,20 +550,24 @@ class Destructible {
                 List.unlink(wait)
             }
         } catch (error) {
-            const errored = this._isolation.errored
+            if (error instanceof Destructible.Error) {
+                this._errors.push(error)
+            } else {
+                this._errors.push(new Destructible.Error(properties, { $stack: 0 }, 'ERRORED', [ error ], wait.value))
+            }
+            //
             this._isolation.errored = true
-            // **TODO** Okay, here we go. New, new stuff.
+            // Isolation list of panic lists is populated at destruction, so
+            // this panics anything in our isolation that has already
+            // destructed.
             while (this._isolation.panic.length != 0) {
                 const panic = this._isolation.panic.shift()
                 while (! panic.empty) {
                     panic.shift()()
                 }
             }
-            if (error instanceof Destructible.Error) {
-                this._errors.push(error)
-            } else {
-                this._errors.push(new Destructible.Error(properties, { $stack: 0 }, 'ERRORED', [ error ], wait.value))
-            }
+            // This will send destruction and panic up to our ephemeral and it
+            // will send it down to everyone in our isolation.
             this.destroy()
             return errored
         } finally {
@@ -649,19 +686,38 @@ class Destructible {
             }
             //
 
+            // Parent down to leaf destructor path. Destructors run
+            // synchronously so all the associated state is set atomically.
+            //
             // Destroy the child destructible when we are destroyed. Becasue
             // this destructible is destroyed, it or an ancestor will run a
             // shutdown timer and the child will defer to that shutdown timer.
             //
-            // Even if the child is deferrable, it when it destructs, it is not
-            // going to run its own shutdown timer.
+            // Even if the child is deferrable, when it destructs it is not
+            // going to run its own shutdown timer so we tell it that it is no
+            // longer ephemeral. Truely, it's state has switched from ephemeral
+            // for durable because it will no longer be able to shutdown before
+            // the parent shuts down because the parent has already shutdown.
             //
-            // We do not destroy deferrables. We do destroy them if their error
-            // isolation group is in an errored state.
+            // We do not destroy deferrables with an outstanding countdown.
+            // Asking if the child's isolation is errored is akin to aksing if
+            // the child is a memember of the parent's isolation. Think about
+            // it.
             //
-            // This is the from the root up destructor path. Note that it runs
-            // synchronously as does the down from the leaf destructor path so
-            // there are no race conditions.
+            // **TODO** Wait? We are destructing. Destruction stops at
+            // deferrable boundaries not error isolation boundaries. The child
+            // is still destroyed, it is just not errored.
+            //
+            // Gotta think use case. Database service. Server service errors so
+            // all of them are panicing, shutting down as hard as possible, but
+            // the database service still can perform its orderly shutdown.
+            //
+            // But, if the boundary is both deferrable and isolated, we don't
+            // destroy it on panic.
+            //
+            // Ergo, if we do not destroy the child for any reason, we will
+            // destory the child if we panic and the child is a member of our
+            // isolation.
 
             //
             const destruct = this.destruct(() => {
@@ -669,24 +725,20 @@ class Destructible {
                 destructible._progress = this._progress
                 if (destructible._countdown == 0 || destructible._isolation.errored) {
                     destructible.destroy()
+                } else if (destructible._isolation === this._isolation) {
+                    const panic = this.panic(() => destructible.destroy())
+                    destructible._cleanup.push(() => this.clear(panic))
                 }
             })
             //
+
+            // Child up to parent destructor path.
 
             // If we encounter an error after destruction we want to be sure to
             // destroy the sub-destructible if it is not isolated.
 
-            //
-            const panic = this.panic(() => {
-                if (! destructible.destroyed && destructible._isolation.errored) {
-                    destructible.destroy()
-                }
-            })
-            destructible._cleanup.push(() => this.clear(panic))
-            //
-
-            // Clear the up-from-the-root destructor. If the sub-destructible is
-            // durable or errored we propagate the destruction.
+            // Clear the downward destructor. If the sub-destructible is durable
+            // or errored we propagate the destruction.
 
             // If the sub-destructible is ephemeral we register a new destructor
             // that will tell the ephemeral to surrender its scram timer and
@@ -698,6 +750,13 @@ class Destructible {
             // time so that the destructible goes into wait-on-parent-scram when
             // the parent has already exited? (Doubtful. Tired.)
 
+            // If the child is not in our isolation and it panics, we want to
+            // panic. Errors and panics propagate upward.
+
+            // If the child is not in our isolation we do not propagate our
+            // panic downward. If it is in our isolation it will share our
+            // panic.
+
             //
             destructible.destruct(() => {
                 this.clear(destruct)
@@ -708,6 +767,18 @@ class Destructible {
                         destructible._timer.resolve()
                     })
                     destructible._cleanup.push(() => this.clear(destruct))
+                    if (this._isolation !== destructible._isolation) {
+                        const panic = destructible.panic(() => {
+                            this._isolation.errored = true
+                            while (this._isolation.panic.length != 0) {
+                                const panic = this._isolation.panic.shift()
+                                while (! panic.empty) {
+                                    panic.shift()()
+                                }
+                            }
+                        })
+                        destructible._cleanup.push(() => this.clear(panic))
+                    }
                 } else {
                     this._isolation.errored = this._isolation.errored || destructible._isolation.errored
                     this.destroy()
@@ -791,6 +862,14 @@ class Destructible {
         return { $trace, id, f, errored: vargs }
     }
     //
+
+    // Starts to appear dubious when we always panic. If we always panic we can
+    // cancel our orderly shutdown in the panic, but I still see value in not
+    // performing actions at `destruct` if we are `errored` because there is
+    // value in not generating additional `DESTROYED` errors when you know
+    // that `errored` is likely and if so a `DESTROYED` is certian.
+
+    //
     copacetic (...vargs) {
         if (! this.errored) {
             return this.destructive.apply(this, vargs)
@@ -814,7 +893,15 @@ class Destructible {
             return errored[0]
         }
     }
+    //
 
+    // Naming these things is dubious and makes the code start to look to
+    // chatty. Do we really need the trace? Because if not we can get rid of the
+    // name. Also, I'm not really using this except with `copacetic`, so ever
+    // more dubious. Pay attention to your stack traces and if they really do
+    // look better in Node.js 14 you can lose the names and the `$trace`.
+
+    //
     destructive (...vargs) {
         const { $trace, id, f, errored } = this._vargs(vargs)
         try {
@@ -838,40 +925,54 @@ class Destructible {
     }
     //
 
-    // Used to address the configuration problem I keep encountering. The
-    // problem is that we're trying to setup a bunch of sub-destructibles, but
-    // we encounter an error that means we have to stop before setup is
-    // completed. We'd like to stop making progress on our setup, but we also
-    // want to report the error, and it would be nice if it was all wrapped up
-    // in `Destructible.rejected`. So, we run setup function in `attemptable`
-    // and we run the possibly abortive configuration step in `awaitable`.
+    // Addresses an ongoing conceptual problem. Originally encountered during
+    // initialization, but I seem to have forgotten and neglected to really
+    // detail those conditions. The crux was that something went wrong in the
+    // background and that was the real error, but the foreground needed to
+    // stop initializing, stop creating new sub-destructibles, so we threw the
+    // `DESTROYED` error. It probably bothered me that there was this additional
+    // error in addition to the real error, but that doesn't bother me any
+    // longer.
+
+    // The idea was that if the Destructible was destroyed during initialization
+    // there is probably a real error somewhere so you can ignore `DESTROYED`.
+    // Callers external to Destructible need `DESTROYED` so they will curl up
+    // and die, but our initializer just needs to eject.
+
+    // Now encountered during unit testing. I was using function for the body of
+    // the test and had a test fail mysterious with no error. The error was that
+    // my service was closing its Destructible prematurely. This is actually a
+    // common error while you're sorting out the destruction of your service.
+    // Swallowing that error is bewildering. Easy enough to call my unit tests
+    // with an `ephemeral`, though.
+
+    // Which makes this function appear dubious, but it still probably has a
+    // purpose. There is that case of the server with 10,000 sockets open
+    // furiously handling requests and when they handle a request they launch
+    // and `ephemeral`. A couple thousand fail at once because the database
+    // service has errored and initiated destruction. Now we have to find the
+    // real exception amid a sea of `DESTROYED` exceptions.
+
+    // Now consdiering having a static `Interrupt.prune()` which would remove
+    // prune branches where all the leaves match a particular pattern, but that
+    // would still run into the problem swallowing a `DESTROYED` error where the
+    // real problem is that there was a premature non-error shutdown.
+
+    // Haven't built a server with this version of Destructible, so won't know
+    // until I try, but I am now assuming that we either have a `recoverable`
+    // method that is an `ephemeral` that throws. We'd launch a `recoverable`
+    // and then log the exceptions individually. They would stream to an
+    // enterprise logging system where 10,000 error messages are supposed to go.
     //
-    // Actually a more general problem. With Destructible I tend to run
-    // background strands with work queues and the like. The work queue will
-    // report the real error, but somewhere someone is waiting and they need an
-    // exception to prevent progress. I don't want both exceptions reported. The
-    // caller should get an exception to indicate that the system is shutdown,
-    // but not the details of the shutdown, that would be reported through
-    // `Destructible.rejected`.
+    // Recoverable would still participate in destruction and scram. You'd have
+    // to wonder if a recoverable fails due to scram, does that get logged or
+    // does it get reported by the root? It it is a self-scram, logging seems to
+    // be obviously the responsibilty of whoever made it `recoverable`. If it is
+    // a root-scram it is less obviously the responsibility of whoever made it
+    // `recoverable`.
     //
-    // **UPDATE** Still an issue. It is a way of doing the upper must
-    // initialization where something in the background could throw an
-    // exception, but I don't know what I want to accomplish here. Does it
-    // bother me terribly to have both the source exception from a background
-    // strand and the foreground `Destructible.Error` exception? Because that is
-    // going to happen a lot, so maybe we want to filter exceptions? We could
-    // add a `prune` method and prune any exception whose root cause is
-    // `Destructible.Error` with a `code` of `'destroyed'`. This could be
-    // immutable, returning a new exception, so we can log the original
-    // exception, then log a pruned excpetion. Ideally we'd be able to do this
-    // after the fact.
-    //
-    // At times I see mass scrams, meaning I'm not shutting down correctly,
-    // which I imagine in a server with thousands of sockets that fail to close
-    // would be unreadable and possibly unreportable. This suggests a
-    // de-duplification prune that would remove exceptions that have the same
-    // `id` path and exception type and code. Give me an idea for using codes
-    // and prefixes and sprintf to report errors.
+    // So, `recoverable` is probably the solution and not `rescue`, and I have
+    // no use for `rescue` in the current database work that I'm doing.
 
     //
     rescue (...vargs) {

@@ -362,12 +362,13 @@ try {
     await destructible.promise
 } catch (error) {
     okay(test, [
-        'consumer errored: false', 'consumer panicked', 'producer errored: true'
+        'consumer errored: false', 'consumer panicked', 'producer errored: true', 'producer panicked'
     ], 'panic')
 }
 ```
 
-Panic handlers will not run if the destructible resolves or scrams.
+Panic handlers will not run if the destructible resolves or scrams. **TODO** No
+longer true. Updated test. Did not update README.
 
 In this example we wait for the sibling to shutdown completely before the child
 raises an exception. Because the sibling shutdown completely, it's panic handler
@@ -392,6 +393,6 @@ child.durable('rejected', async () => { throw new Error('reject') })
 try {
     await destructible.promise
 } catch (error) {
-    okay(panic, [], 'no panic')
+    okay(panic, [ 'child panicked' ], 'no panic')
 }
 ```
