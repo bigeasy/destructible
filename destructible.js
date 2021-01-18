@@ -923,6 +923,20 @@ class Destructible {
             return errored[0]
         }
     }
+
+    copacetic2 (f) {
+        if (! this.errored) {
+            const f = vargs.shift()
+            let result = f
+            if (typeof result == 'function') {
+                result = result()
+            }
+            if (typeof result.then == 'function') {
+                result = await result
+            }
+            return result
+        }
+    }
     //
 
     // Addresses an ongoing conceptual problem. Originally encountered during
