@@ -888,7 +888,7 @@ class Destructible {
             this._errors.push(new Destructible.Error({ $trace, $stack: 0 }, [ error ], 'ERRORED', { id: id }))
             this.destroy()
             if (errored.length == 0) {
-                throw new Destructible.Error('DESTROYED', this._properties)
+                throw error
             }
             return errored[0]
         }
@@ -915,10 +915,10 @@ class Destructible {
             return result
         } catch (error) {
             this._isolation.errored = true
-            this._errors.push(new Destructible.Error({ $trace, $stack: 0 }, [ error ], 'ERRORED', { id: id }))
+            this._errors.push(new Destructible.Error({ $trace, $stack: 0 }, [ error ], 'ERRORED', { id: id, hello: 'world' }))
             this.destroy()
             if (errored.length == 0) {
-                throw new Destructible.Error('DESTROYED', this._properties)
+                throw error
             }
             return errored[0]
         }

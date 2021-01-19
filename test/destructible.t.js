@@ -370,9 +370,9 @@ require('proof')(49, async (okay) => {
     {
         const destructible = new Destructible('destructive')
         try {
-            destructible.destructive($ => $(), 'sync', () => { throw new Error })
+            destructible.destructive($ => $(), 'sync', () => { throw new Error('thrown') })
         } catch (error) {
-            okay(error instanceof Destructible.Error, 'sync destructive throw')
+            okay(error.message, 'thrown', 'sync destructive throw')
         }
         try {
             await destructible.promise
