@@ -550,7 +550,7 @@ class Destructible {
                 List.unlink(wait)
             }
         } catch (error) {
-            if (error instanceof Destructible.Error) {
+            if (error instanceof Destructible.Error && error.symbol != Destructible.Error.DESTROYED) {
                 this._errors.push(error)
             } else {
                 this._errors.push(new Destructible.Error(properties, { $stack: 0 }, 'ERRORED', [ error ], wait.value))
