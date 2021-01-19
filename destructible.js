@@ -924,17 +924,12 @@ class Destructible {
         }
     }
 
-    copacetic2 (f) {
+    copacetic2 (f, ...vargs) {
         if (! this.errored) {
-            const f = vargs.shift()
-            let result = f
-            if (typeof result == 'function') {
-                result = result()
-            }
-            if (typeof result.then == 'function') {
-                result = await result
-            }
-            return result
+            return f()
+        }
+        if (vargs.length != 0) {
+            return vargs[0]
         }
     }
     //

@@ -1,4 +1,4 @@
-require('proof')(45, async (okay) => {
+require('proof')(49, async (okay) => {
     const rescue = require('rescue')
     const Destructible = require('..')
     const Future = require('perhaps')
@@ -425,6 +425,20 @@ require('proof')(45, async (okay) => {
             await destructible.promise
         } catch (error) {
             console.log(error.stack)
+        }
+    }
+    {
+        const destructible = new Destructible('destructible')
+        const result = await destructible.copacetic2(async () => 1)
+        okay(result, 1, 'copacetic async')
+        okay(destructible.copacetic2(() => 1), 1, 'copacetic sync')
+        destructible.durable('child', async () => { throw new Error })
+        await 1
+        okay(destructible.copacetic2(() => 1), undefined, 'copacetic errored no default')
+        okay(destructible.copacetic2(() => 1, 2), 2, 'copacetic errored with default')
+        try {
+            await destructible.promise
+        } catch (error) {
         }
     }
 })
