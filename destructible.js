@@ -915,7 +915,7 @@ class Destructible {
             return result
         } catch (error) {
             this._isolation.errored = true
-            this._errors.push(new Destructible.Error({ $trace, $stack: 0 }, [ error ], 'ERRORED', { id: id, hello: 'world' }))
+            this._errors.push(new Destructible.Error({ $trace, $stack: 0 }, [ error ], 'ERRORED', { id: id }))
             this.destroy()
             if (errored.length == 0) {
                 throw error
