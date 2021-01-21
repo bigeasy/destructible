@@ -1,4 +1,4 @@
-require('proof')(49, async (okay) => {
+require('proof')(50, async (okay) => {
     const rescue = require('rescue')
     const Destructible = require('..')
     const Future = require('perhaps')
@@ -338,7 +338,19 @@ require('proof')(49, async (okay) => {
         } catch (error) {
             test.push(error.errors[0].code)
         }
-        okay(test, [ 'DURABLE' ], 'exited too early')
+        okay(test, [ 'DURABLE' ], 'strand exited too early')
+    }
+    {
+        const destructible = new Destructible('redurable')
+        destructible.durable('early exit').destroy()
+        const test = []
+        try {
+            await destructible.promise
+        } catch (error) {
+            console.log(error.stack)
+            test.push(error.errors[0].code)
+        }
+        okay(test, [ 'DURABLE' ], 'sub-destructible exited too early')
     }
     {
         const destructible = new Destructible('redurable')

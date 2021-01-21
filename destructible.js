@@ -140,6 +140,8 @@ class Destructible {
 
         this._drain = Future.resolve()
 
+        this._tracer = coalesce(options.tracer, { push: () => {} })
+
         this._cleanup = []
     }
 
@@ -277,7 +279,7 @@ class Destructible {
 
     operational (additional = true) {
         if (this.destroyed && additional) {
-            throw new Destructible.Error('DESTROYED', this._properties)
+            throw new Destructible.Error('DESTROYED', this._properties, { path: this.path })
         }
     }
     //
@@ -407,6 +409,7 @@ class Destructible {
     }
 
     destroy () {
+        this._tracer.push({ method: 'destroy', errored: this._isolation.errored, path: this.path  })
         this._countdown = 0
         this._destroy()
         return this
@@ -458,10 +461,22 @@ class Destructible {
     //
     increment () {
         Destructible.Error.assert(this.deferrable, 'NOT_DEFERRABLE', { id: this.id })
+        this._tracer.push({
+            method: 'increment',
+            errored: this._isolation.errored,
+            countdown: this._countdown,
+            path: this.path
+        })
         this._countdown++
     }
 
     decrement () {
+        this._tracer.push({
+            method: 'decrement',
+            errored: this._isolation.errored,
+            countdown: this._countdown,
+            path: this.path
+        })
         Destructible.Error.assert(this.deferrable, 'NOT_DEFERRABLE', { id: this.id })
         if (this._countdown == 0) {
         } else if (--this._countdown == 0) {
@@ -568,7 +583,9 @@ class Destructible {
             }
             // This will send destruction and panic up to our ephemeral and it
             // will send it down to everyone in our isolation.
-            this.destroy()
+            this._tracer.push({ method: 'promise', errored: true, path: this.path })
+            this._countdown = 0
+            this._destroy()
             return errored
         } finally {
             switch (wait.value.method) {
@@ -576,8 +593,10 @@ class Destructible {
                     this.durables--
                     if (! this.destroyed) {
                         this._isolation.errored = true
-                        this._errors.push(new Destructible.Error(properties, { $stack: 0 }, 'DURABLE', wait.value))
-                        this.destroy()
+                        this._errors.push(new Destructible.Error(properties, 'DURABLE', wait.value))
+                        this._tracer.push({ method: 'durable', errored: true, path: this.path })
+                        this._countdown = 0
+                        this._destroy()
                     }
                 }
                 break
@@ -659,6 +678,8 @@ class Destructible {
             // make it a sub-destructible.
             const destructible = new Destructible(options, options.id)
 
+            destructible._tracer = this._tracer
+
             destructible.path = this.path.concat(options.id)
 
             // If the caller provided a countdown, we are a deferred
@@ -720,13 +741,27 @@ class Destructible {
             // isolation.
 
             //
-            const destruct = this.destruct(() => {
+            const downward = this.destruct(() => {
                 destructible._ephemeral = false
                 destructible._progress = this._progress
                 if (destructible._countdown == 0 || destructible._isolation.errored) {
-                    destructible.destroy()
+                    this._tracer.push({
+                        method: 'downward',
+                        errored: this._isolation.errored,
+                        path: destructible.path
+                    })
+                    destructible._countdown = 0
+                    destructible._destroy()
                 } else if (destructible._isolation === this._isolation) {
-                    const panic = this.panic(() => destructible.destroy())
+                    const panic = this.panic(() => {
+                        this._tracer.push({
+                            method: 'panic',
+                            errored: this._isolation.errored,
+                            path: destructible.path
+                        })
+                        destructible._countdown = 0
+                        destructible._destroy()
+                    })
                     destructible._cleanup.push(() => this.clear(panic))
                 }
             })
@@ -759,7 +794,7 @@ class Destructible {
 
             //
             destructible.destruct(() => {
-                this.clear(destruct)
+                this.clear(downward)
                 if (destructible._ephemeral && ! destructible._isolation.errored) {
                     const destruct = this.destruct(() => {
                         destructible._ephemeral = false
@@ -781,7 +816,19 @@ class Destructible {
                     }
                 } else {
                     this._isolation.errored = this._isolation.errored || destructible._isolation.errored
-                    this.destroy()
+                    if (! this.destroyed) {
+                        if (! destructible._ephemeral && ! destructible._isolation.errored) {
+                            this._isolation.errored = true
+                            this._errors.push(new Destructible.Error({ $trace: options.$trace }, 'DURABLE', wait.value))
+                        }
+                        this._tracer.push({
+                            method: 'upward',
+                            errored: this._isolation.errored,
+                            path: this.path
+                        })
+                        this._countdown = 0
+                        this._destroy()
+                    }
                 }
             })
 
@@ -886,7 +933,9 @@ class Destructible {
         } catch (error) {
             this._isolation.errored = true
             this._errors.push(new Destructible.Error({ $trace, $stack: 0 }, [ error ], 'ERRORED', { id: id }))
-            this.destroy()
+            this._tracer.push({ method: 'destructive', path: this.path })
+            this._countdown = 0
+            this._destroy()
             if (errored.length == 0) {
                 throw error
             }
@@ -916,7 +965,9 @@ class Destructible {
         } catch (error) {
             this._isolation.errored = true
             this._errors.push(new Destructible.Error({ $trace, $stack: 0 }, [ error ], 'ERRORED', { id: id }))
-            this.destroy()
+            this._tracer.push({ method: 'destructive', path: this.path })
+            this._countdown = 0
+            this._destroy()
             if (errored.length == 0) {
                 throw error
             }
@@ -991,7 +1042,10 @@ class Destructible {
                 return await (typeof f == 'function' ? f() : f)
             } catch (error) {
                 if (error.instance !== this._properties.instance) {
-                    this.destroy()
+                    // **TODO** Shouldn't we set `errored` here?
+                    this._tracer.push({ method: 'rescue', errored: this._isolation.errored, path: this.path })
+                    this._countdown = 0
+                    this._destroy()
                     throw error
                 }
             }
