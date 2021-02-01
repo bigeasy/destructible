@@ -2,7 +2,7 @@
 const assert = require('assert')
 
 // Exceptions that you can catch by type.
-const Interrupt = require('interrupt')
+const { Interrupt } = require('interrupt')
 
 // A Promise wrapper that captures `resolve` and `reject`.
 const Future = require('perhaps')
