@@ -11,7 +11,7 @@ const Future = require('perhaps')
 const List = require('./list')
 
 // Return the first non-`null`-like value.
-const coalesce = require('extant')
+const { coalesce } = require('extant')
 //
 
 // Destructible is a class and instances form a destructible tree. The tree is

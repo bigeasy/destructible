@@ -20,6 +20,7 @@
     },
     "dependencies":
     {
+                            "extant":                       "2.0.0-alpha.0",
                             "interrupt":                    "11.0.0-alpha.18",
                             "perhaps":                      "0.0.6"
     },
