@@ -321,7 +321,7 @@ class Destructible {
                 this._timer = new Future
                 timeout = setTimeout(() => this._timer.resolve(), this._timeout)
                 await this._timer.promise
-                if (! this._ephemeral) {
+                if (! this._waiting.empty && ! this._ephemeral) {
                     return this._shutdown()
                 }
             }
