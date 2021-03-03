@@ -424,7 +424,7 @@ require('proof')(49, async okay => {
     // destructible called by the process group, or the keeper of the
     // destructible. Maybe we clarify in a preamble.
 
-    // We use `Destructible.isDestroyedIfDestroyed(destructible)` to answer this
+    // We use `Destructible.isDestroyedIfDestroyedIsDubious(destructible)` to answer this
     // question.
 
     //
@@ -432,8 +432,8 @@ require('proof')(49, async okay => {
         const parent = new Destructible('parent')
         const child = parent.durable({ countdown: 1 }, 'child')
 
-        okay(!parent.isDestroyedIfDestroyed(child), 'parent is not destroyed by child destruction due to deferrable boundary')
-        okay(!child.isDestroyedIfDestroyed(parent), 'child is not destroyed by parent destruction due to deferrable boundary')
+        okay(!parent.isDestroyedIfDestroyedIsDubious(child), 'parent is not destroyed by child destruction due to deferrable boundary')
+        okay(!child.isDestroyedIfDestroyedIsDubious(parent), 'child is not destroyed by parent destruction due to deferrable boundary')
 
         parent.destroy()
         child.decrement()
@@ -474,17 +474,17 @@ require('proof')(49, async okay => {
         const deferrable = first.durable({ countdown: 1 }, 'deferrable')
         const fourth = deferrable.durable('fourth')
 
-        okay(first.isDestroyedIfDestroyed(third), 'will shutdown at the same time')
-        okay(!fourth.isDestroyedIfDestroyed(third), 'will not shutdown at the same time')
+        okay(first.isDestroyedIfDestroyedIsDubious(third), 'will shutdown at the same time')
+        okay(!fourth.isDestroyedIfDestroyedIsDubious(third), 'will not shutdown at the same time')
 
-        okay(deferrable.isDestroyedIfDestroyed(fourth), 'parent and child in same stage')
-        okay(fourth.isDestroyedIfDestroyed(deferrable), 'child and parent in same stage')
+        okay(deferrable.isDestroyedIfDestroyedIsDubious(fourth), 'parent and child in same stage')
+        okay(fourth.isDestroyedIfDestroyedIsDubious(deferrable), 'child and parent in same stage')
 
-        okay(!first.isDestroyedIfDestroyed(deferrable), 'parent and child not in same stage')
-        okay(!deferrable.isDestroyedIfDestroyed(first), 'child and parent not in same stage')
+        okay(!first.isDestroyedIfDestroyedIsDubious(deferrable), 'parent and child not in same stage')
+        okay(!deferrable.isDestroyedIfDestroyedIsDubious(first), 'child and parent not in same stage')
 
-        okay(deferrable.isDestroyedIfDestroyed(deferrable), 'counted in same stage as self')
-        okay(third.isDestroyedIfDestroyed(third), 'uncounted in same stage as self')
+        okay(deferrable.isDestroyedIfDestroyedIsDubious(deferrable), 'counted in same stage as self')
+        okay(third.isDestroyedIfDestroyedIsDubious(third), 'uncounted in same stage as self')
 
         destructible.destroy()
         deferrable.decrement()
@@ -537,8 +537,8 @@ require('proof')(49, async okay => {
         const parent = new Destructible('parent')
         const child = parent.ephemeral('child')
 
-        okay(!parent.isDestroyedIfDestroyed(child), 'durable and ephemeral siblings not in same stage')
-        okay(child.isDestroyedIfDestroyed(parent), 'ephemral and durable siblings not in same stage')
+        okay(!parent.isDestroyedIfDestroyedIsDubious(child), 'durable and ephemeral siblings not in same stage')
+        okay(child.isDestroyedIfDestroyedIsDubious(parent), 'ephemral and durable siblings not in same stage')
     }
 
     {
@@ -547,21 +547,21 @@ require('proof')(49, async okay => {
         const first = destructible.durable('first')
         const second = destructible.ephemeral('second')
 
-        okay(!first.isDestroyedIfDestroyed(second), 'durable sibling not in same stage as ephemeral sibling')
-        okay(second.isDestroyedIfDestroyed(first), 'ephemeral sibling in same stage as durable sibling')
+        okay(!first.isDestroyedIfDestroyedIsDubious(second), 'durable sibling not in same stage as ephemeral sibling')
+        okay(second.isDestroyedIfDestroyedIsDubious(first), 'ephemeral sibling in same stage as durable sibling')
 
-        okay(!destructible.isDestroyedIfDestroyed(second), 'child ephemeral not in same stage as parent')
-        okay(second.isDestroyedIfDestroyed(destructible), 'parent in same stage as child ephemeral')
+        okay(!destructible.isDestroyedIfDestroyedIsDubious(second), 'child ephemeral not in same stage as parent')
+        okay(second.isDestroyedIfDestroyedIsDubious(destructible), 'parent in same stage as child ephemeral')
 
         const third = destructible.durable('third')
-        okay(third.isDestroyedIfDestroyed(first), 'durable siblings in same stage')
+        okay(third.isDestroyedIfDestroyedIsDubious(first), 'durable siblings in same stage')
 
         const fourth = second.durable('fourth')
-        okay(second.isDestroyedIfDestroyed(fourth), 'durable child in same stage as ephemeral parent')
+        okay(second.isDestroyedIfDestroyedIsDubious(fourth), 'durable child in same stage as ephemeral parent')
 
         const fifth = second.ephemeral('fifth')
-        okay(!second.isDestroyedIfDestroyed(fifth), 'ephemeral child not in same stage as ephemeral parent')
-        okay(fifth.isDestroyedIfDestroyed(second), 'ephemeral parent in same stage as ephemeral child')
+        okay(!second.isDestroyedIfDestroyedIsDubious(fifth), 'ephemeral child not in same stage as ephemeral parent')
+        okay(fifth.isDestroyedIfDestroyedIsDubious(second), 'ephemeral parent in same stage as ephemeral child')
     }
     //
 
@@ -688,7 +688,7 @@ require('proof')(49, async okay => {
 
         const queue = new StagedShutdownQueue(destructible.durable($ => $(), 'queue'))
 
-        assert(destructible.isDestroyedIfDestroyed(queue.destructible))
+        assert(destructible.isDestroyedIfDestroyedIsDubious(queue.destructible))
 
         queue.deferrable.increment()
         destructible.destruct(() => {

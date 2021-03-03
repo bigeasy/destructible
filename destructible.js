@@ -164,7 +164,7 @@ class Destructible {
         return this._isolation.errored
     }
 
-    isDestroyedIfDestroyed (destructible) {
+    isDestroyedIfDestroyedIsDubious (destructible) {
         Destructible.Error.assert(destructible instanceof Destructible, 'NOT_A_DESTRUCTIBLE')
         const path = []
         let iterator = this, boundary
