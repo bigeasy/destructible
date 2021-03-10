@@ -2,6 +2,7 @@ require('proof')(50, async (okay) => {
     const rescue = require('rescue')
     const Destructible = require('..')
     const Future = require('perhaps')
+    const { Interrupt } = require('interrupt')
     {
         const destructible = new Destructible('main')
         const done = destructible.done
@@ -452,5 +453,10 @@ require('proof')(50, async (okay) => {
             await destructible.promise
         } catch (error) {
         }
+    }
+    {
+        Interrupt.audit = () => {}
+        const destructible = new Destructible($ => $(), 'traced')
+        await destructible.destroy().promise
     }
 })

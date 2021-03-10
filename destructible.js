@@ -51,7 +51,8 @@ class Destructible {
         EXCEPTIONAL: 'strand raised an exception',
         ERRORED: 'strand exited with exception',
         SCRAMMED: 'strand failed to exit or make progress',
-        DURABLE: 'early exit from a strand expected to last for entire life of destructible'
+        DURABLE: 'early exit from a strand expected to last for entire life of destructible',
+        INVLAID_CALL_TRACE: 'a call trace must invoke the given function'
     })
     //
 
@@ -71,6 +72,12 @@ class Destructible {
 
         const options = {
             $trace, timeout, ...(typeof vargs[0] == 'object' ? vargs.shift() : {})
+        }
+
+        if (Interrupt.auditing) {
+            let called = false
+            $trace(() => called = true)
+            Destructible.Error.assert(called, 'INVALID_CALL_TRACE')
         }
 
         this._timeout = options.timeout
