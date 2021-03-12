@@ -74,7 +74,7 @@ class Destructible {
             $trace, timeout, ...(typeof vargs[0] == 'object' ? vargs.shift() : {})
         }
 
-        if (Interrupt.auditing) {
+        if ($trace != null && Interrupt.auditing) {
             let called = false
             $trace(() => called = true)
             Destructible.Error.assert(called, 'INVALID_CALL_TRACE')
