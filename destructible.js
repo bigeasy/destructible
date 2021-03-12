@@ -2,7 +2,7 @@
 const assert = require('assert')
 
 // Exceptions that you can catch by type.
-const { Interrupt } = require('interrupt')
+const Interrupt = require('interrupt')
 
 // A Promise wrapper that captures `resolve` and `reject`.
 const Future = require('perhaps')
@@ -38,10 +38,6 @@ class Destructible {
             code: 'INVALID_ARGUMENT',
             message: 'the countdown must be an integer zero or greater, got: %(_countdown)d'
         },
-        TRACER_DID_NOT_INVOKE: {
-            code: 'INVALID_TRACER',
-            message: 'tracer did not call given function'
-        },
         NOT_A_DESTRUCTIBLE: {
             code: 'INVALID_ARGUMENT',
             message: 'argument must be an instance of Destructible'
@@ -51,8 +47,7 @@ class Destructible {
         EXCEPTIONAL: 'strand raised an exception',
         ERRORED: 'strand exited with exception',
         SCRAMMED: 'strand failed to exit or make progress',
-        DURABLE: 'early exit from a strand expected to last for entire life of destructible',
-        INVLAID_CALL_TRACE: 'a call trace must invoke the given function'
+        DURABLE: 'early exit from a strand expected to last for entire life of destructible'
     })
     //
 
@@ -74,10 +69,8 @@ class Destructible {
             $trace, timeout, ...(typeof vargs[0] == 'object' ? vargs.shift() : {})
         }
 
-        if ($trace != null && Interrupt.auditing) {
-            let called = false
-            $trace(() => called = true)
-            Destructible.Error.assert(called, 'INVALID_CALL_TRACE')
+        if ($trace != null) {
+            Interrupt.assertTracer($trace)
         }
 
         this._timeout = options.timeout
@@ -668,6 +661,9 @@ class Destructible {
             timeout: typeof vargs[0] == 'number' ? vargs.shift() : this._timeout,
             ...(typeof vargs[0] == 'object' ? vargs.shift() : {}),
             id: vargs.shift()
+        }
+        if (options.$trace != null) {
+            Interrupt.assertTracer(options.$trace)
         }
         assert(typeof options.id == 'string')
         const wait = this._waiting.push({ method, id: options.id })
