@@ -375,15 +375,15 @@ require('proof')(50, async (okay) => {
     }
     {
         const destructible = new Destructible('destructive')
-        okay(await destructible.destructive('sync', async () => 1), 1, 'destructive async')
-        okay(await destructible.destructive($ => $(), 'async', Promise.resolve(1)), 1, 'destructive promise')
-        okay(destructible.destructive($ => $(), 'sync', () => 1), 1, 'destructive sync')
+        okay(await destructible.__destructive('sync', async () => 1), 1, 'destructive async')
+        okay(await destructible.__destructive($ => $(), 'async', Promise.resolve(1)), 1, 'destructive promise')
+        okay(destructible.__destructive($ => $(), 'sync', () => 1), 1, 'destructive sync')
         await destructible.destroy().promise
     }
     {
         const destructible = new Destructible('destructive')
         try {
-            destructible.destructive($ => $(), 'sync', () => { throw new Error('thrown') })
+            destructible.__destructive($ => $(), 'sync', () => { throw new Error('thrown') })
         } catch (error) {
             okay(error.message, 'thrown', 'sync destructive throw')
         }
@@ -395,7 +395,7 @@ require('proof')(50, async (okay) => {
     }
     {
         const destructible = new Destructible('destructive')
-        okay(destructible.destructive($ => $(), 'sync', null, () => { throw new Error }), null, 'sync destructive returned')
+        okay(destructible.__destructive($ => $(), 'sync', null, () => { throw new Error }), null, 'sync destructive returned')
         try {
             await destructible.promise
         } catch (error) {
@@ -404,7 +404,7 @@ require('proof')(50, async (okay) => {
     }
     {
         const destructible = new Destructible('destructive')
-        okay(await destructible.destructive($ => $(), 'async', null, async () => { throw new Error }), null, 'async destructive returned')
+        okay(await destructible.__destructive($ => $(), 'async', null, async () => { throw new Error }), null, 'async destructive returned')
         try {
             await destructible.promise
         } catch (error) {
@@ -413,11 +413,11 @@ require('proof')(50, async (okay) => {
     }
     {
         const destructible = new Destructible('destructive')
-        okay(destructible.copacetic('copacetic', () => 1), 1, 'copacetic not errored')
+        okay(destructible.__copacetic('copacetic', () => 1), 1, 'copacetic not errored')
         await destructible.ephemeral('errored', async () => { throw new Error })
-        okay(destructible.copacetic('copacetic', null, () => 1), null, 'copacetic errored error return')
+        okay(destructible.__copacetic('copacetic', null, () => 1), null, 'copacetic errored error return')
         let ran = false
-        destructible.copacetic('copacetic', () => ran = true)
+        destructible.__copacetic('copacetic', () => ran = true)
         okay(! ran, 'copacetic errored no op')
         try {
             await destructible.promise
@@ -442,13 +442,13 @@ require('proof')(50, async (okay) => {
     }
     {
         const destructible = new Destructible('destructible')
-        const result = await destructible.copacetic2(async () => 1)
+        const result = await destructible.__copacetic2(async () => 1)
         okay(result, 1, 'copacetic async')
-        okay(destructible.copacetic2(() => 1), 1, 'copacetic sync')
+        okay(destructible.__copacetic2(() => 1), 1, 'copacetic sync')
         destructible.durable('child', async () => { throw new Error })
         await 1
-        okay(destructible.copacetic2(() => 1), undefined, 'copacetic errored no default')
-        okay(destructible.copacetic2(() => 1, 2), 2, 'copacetic errored with default')
+        okay(destructible.__copacetic2(() => 1), undefined, 'copacetic errored no default')
+        okay(destructible.__copacetic2(() => 1, 2), 2, 'copacetic errored with default')
         try {
             await destructible.promise
         } catch (error) {

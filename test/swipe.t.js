@@ -742,7 +742,7 @@ require('proof')(49, async okay => {
     {
         const destructible = new Destructible($ => $(), 'program')
         try {
-            await destructible.destructive($ => $(), 'errored', async () => { throw new Error('thrown') })
+            await destructible.__destructive($ => $(), 'errored', async () => { throw new Error('thrown') })
         } catch (error) {
             console.log(error.stack)
             okay(error.message, 'thrown', 'destructible error raised')
@@ -756,8 +756,8 @@ require('proof')(49, async okay => {
     return
     {
         async function work () {
-            return destructible.copacetic(this._work())
-            return destructible.destructive(this._work())
+            return destructible.__copacetic(this._work())
+            return destructible.__destructive(this._work())
         }
     }
 })

@@ -923,9 +923,9 @@ class Destructible {
     // that `errored` is likely and if so a `DESTROYED` is certian.
 
     //
-    copacetic (...vargs) {
+    __copacetic (...vargs) {
         if (! this.errored) {
-            return this.destructive.apply(this, vargs)
+            return this.__destructive.apply(this, vargs)
         }
         const { errored } = this._vargs(vargs)
         if (errored.length == 1) {
@@ -957,7 +957,7 @@ class Destructible {
     // look better in Node.js 14 you can lose the names and the `$trace`.
 
     //
-    destructive (...vargs) {
+    __destructive (...vargs) {
         const { $trace, id, f, errored } = this._vargs(vargs)
         try {
             let result = f
@@ -981,7 +981,7 @@ class Destructible {
         }
     }
 
-    copacetic2 (f, ...vargs) {
+    __copacetic2 (f, ...vargs) {
         if (! this.errored) {
             return f()
         }
