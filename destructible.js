@@ -12,6 +12,10 @@ const List = require('./list')
 
 // Return the first non-`null`-like value.
 const { coalesce } = require('extant')
+
+// Do nothing.
+const noop = require('nop')
+
 //
 
 // Destructible is a class and instances form a destructible tree. The tree is
@@ -548,6 +552,7 @@ class Destructible {
     // know.
 
     async _awaitPromise (operation, errored, wait, properties) {
+        const future = new Future
         try {
             try {
                 return await operation
@@ -576,10 +581,7 @@ class Destructible {
             this._tracer.push({ method: 'promise', errored: true, path: this.path })
             this._countdown = 0
             this._destroy()
-            if (errored == Destructible.Error.DESTROYED) {
-                this.operational()
-            }
-            return errored
+            this.operational()
         } finally {
             switch (wait.value.method) {
             case 'durable': {
@@ -635,7 +637,7 @@ class Destructible {
         const scrammable = new Future
         const node = this._scrammable.push(scrammable)
         try {
-            await this._awaitPromise(destructible.promise, null, wait, {})
+            await this._awaitPromise(destructible.promise, null, wait, {}).catch(noop)
         } finally {
             // TODO Convince yourself that it doens't matter if you call a
             // scrammable before you call `_complete`.
@@ -668,7 +670,7 @@ class Destructible {
 
         //
         if (typeof vargs[0] == 'function') {
-            return this._awaitPromise(vargs.shift()(), coalesce(vargs.shift()), wait, { $trace: options.$trace })
+            return new Future(this._awaitPromise(vargs.shift()(), coalesce(vargs.shift()), wait, { $trace: options.$trace }))
         } else if (vargs.length == 0) {
             // Construct our destructible with the options, then poke into it to
             // make it a sub-destructible.
@@ -859,7 +861,7 @@ class Destructible {
 
             return destructible
         } else {
-            return this._awaitPromise(vargs.shift(), coalesce(vargs.shift()), wait, { $trace: options.$trace })
+            return new Future(this._awaitPromise(vargs.shift(), coalesce(vargs.shift()), wait, { $trace: options.$trace }))
         }
     }
 
@@ -914,6 +916,7 @@ class Destructible {
 
     //
     __copacetic (...vargs) {
+        console.log('am not errored', ! this.errored)
         if (! this.errored) {
             return this.__destructive.apply(this, vargs)
         }

@@ -86,7 +86,7 @@ require('proof')(50, async (okay) => {
         const test = []
         const destructible = new Destructible($ => $(), 'main')
         destructible.durable($ => $(), 'error', async function () {
-            await new Promise(resolve => setTimeout(resolve, 0))
+            await null
             throw new Error('thrown')
         })
         try {
@@ -148,9 +148,7 @@ require('proof')(50, async (okay) => {
         sub.durable('unresolved', new Promise(resolve => _resolve = resolve))
         destructible.destroy()
         try {
-            console.log('here')
             await destructible.promise
-            console.log('there')
         } catch (error) {
             console.log(error.stack)
             test.push(error.errors[0].code)
@@ -415,7 +413,7 @@ require('proof')(50, async (okay) => {
     {
         const destructible = new Destructible('destructive')
         okay(destructible.__copacetic('copacetic', () => 1), 1, 'copacetic not errored')
-        await destructible.ephemeral('errored', async () => { throw new Error })
+        await destructible.ephemeral('errored', async () => { throw new Error }).promise.catch(noop)
         okay(destructible.__copacetic('copacetic', null, () => 1), null, 'copacetic errored error return')
         let ran = false
         destructible.__copacetic('copacetic', () => ran = true)
