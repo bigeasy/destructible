@@ -1,4 +1,4 @@
-require('proof')(33, async (okay) => {
+require('proof')(28, async (okay) => {
     const rescue = require('rescue')
     const Destructible = require('..')
     const Future = require('perhaps')
@@ -173,50 +173,6 @@ require('proof')(33, async (okay) => {
         const result = await destructible.ephemeral('f', async () => 1)
         okay(result, 1, 'function')
         await destructible.destroy().promise
-    }
-    {
-        const destructible = new Destructible('attempt')
-        const promise = destructible.rescue('setup', async function () {
-            return 1
-        })
-        destructible.destroy()
-        await destructible.promise
-        okay(await promise, 1, 'rescue function')
-    }
-    {
-        const destructible = new Destructible('attempt')
-        const promise = destructible.rescue('setup', Promise.resolve(1))
-        destructible.destroy()
-        await destructible.promise
-        okay(await promise, 1, 'rescue promise')
-    }
-    {
-        const destructible = new Destructible('attempt')
-        await destructible.rescue(async function () {
-            destructible.destroy()
-            destructible.durable('failure', async () => {})
-        })
-        destructible.destroy()
-        try {
-            await destructible.promise
-        } catch (error) {
-            console.log(error.stack)
-        }
-    }
-    {
-        const destructible = new Destructible('attempt')
-        const test = []
-        try {
-            await destructible.rescue('setup', async function () {
-                throw new Error('hello')
-            })
-        } catch (error) {
-            test.push(true)
-            okay(destructible.destroyed, 'auto destroyed')
-            okay(error.message, 'hello', 'rescue rethrew non-destructible error')
-            await destructible.promise
-        }
-        okay(test, [ true ], 'exception was thrown')
     }
     {
         const destructible = new Destructible(250, 'progress')
