@@ -586,6 +586,9 @@ class Destructible {
             this._tracer.push({ method: 'promise', errored: true, path: this.path })
             this._countdown = 0
             this._destroy()
+            if (errored == Destructible.Error.DESTROYED) {
+                this.operational()
+            }
             return errored
         } finally {
             switch (wait.value.method) {
