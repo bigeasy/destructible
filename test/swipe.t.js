@@ -17,7 +17,7 @@
 // Our unit test begins here.
 
 //
-require('proof')(49, async okay => {
+require('proof')(47, async okay => {
     // In your program this would be
     //
     // ```javascript
@@ -739,20 +739,6 @@ require('proof')(49, async okay => {
     // It will still destroy the destructible, of course.
 
     //
-    {
-        const destructible = new Destructible($ => $(), 'program')
-        try {
-            await destructible.__destructive($ => $(), 'errored', async () => { throw new Error('thrown') })
-        } catch (error) {
-            console.log(error.stack)
-            okay(error.message, 'thrown', 'destructible error raised')
-        }
-        try {
-            await destructible.promise
-        } catch (error) {
-            okay(error.errors.length, 1, 'error funneled')
-        }
-    }
     return
     {
         async function work () {

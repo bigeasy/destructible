@@ -551,7 +551,7 @@ class Destructible {
     // because it would just mean two extra `if` statements when we already
     // know.
 
-    async _awaitPromise (operation, errored, wait, properties) {
+    async _awaitPromise (operation, wait, properties) {
         const future = new Future
         try {
             try {
@@ -637,7 +637,7 @@ class Destructible {
         const scrammable = new Future
         const node = this._scrammable.push(scrammable)
         try {
-            await this._awaitPromise(destructible.promise, null, wait, {}).catch(noop)
+            await this._awaitPromise(destructible.promise, wait, {}).catch(noop)
         } finally {
             // TODO Convince yourself that it doens't matter if you call a
             // scrammable before you call `_complete`.
@@ -670,7 +670,7 @@ class Destructible {
 
         //
         if (typeof vargs[0] == 'function') {
-            return new Future(this._awaitPromise(vargs.shift()(), coalesce(vargs.shift()), wait, { $trace: options.$trace }))
+            return new Future(this._awaitPromise(vargs.shift()(), wait, { $trace: options.$trace }))
         } else if (vargs.length == 0) {
             // Construct our destructible with the options, then poke into it to
             // make it a sub-destructible.
@@ -861,7 +861,7 @@ class Destructible {
 
             return destructible
         } else {
-            return new Future(this._awaitPromise(vargs.shift(), coalesce(vargs.shift()), wait, { $trace: options.$trace }))
+            return new Future(this._awaitPromise(vargs.shift(), wait, { $trace: options.$trace }))
         }
     }
 
@@ -904,83 +904,7 @@ class Destructible {
         const $trace = typeof vargs[0] == 'function' ? vargs.shift() : null
         const id = vargs.shift()
         const f = vargs.pop()
-        return { $trace, id, f, errored: vargs }
-    }
-    //
-
-    // Starts to appear dubious when we always panic. If we always panic we can
-    // cancel our orderly shutdown in the panic, but I still see value in not
-    // performing actions at `destruct` if we are `errored` because there is
-    // value in not generating additional `DESTROYED` errors when you know
-    // that `errored` is likely and if so a `DESTROYED` is certian.
-
-    //
-    __copacetic (...vargs) {
-        console.log('am not errored', ! this.errored)
-        if (! this.errored) {
-            return this.__destructive.apply(this, vargs)
-        }
-        const { errored } = this._vargs(vargs)
-        if (errored.length == 1) {
-            return errored[0]
-        }
-    }
-
-    async _destructive ($trace, promise, id, errored) {
-        try {
-            return await promise
-        } catch (error) {
-            this._isolation.errored = true
-            this._errors.push(new Destructible.Error({ $trace, $stack: 0 }, [ error ], 'ERRORED', { id: id }))
-            this._tracer.push({ method: 'destructive', path: this.path })
-            this._countdown = 0
-            this._destroy()
-            if (errored.length == 0) {
-                throw error
-            }
-            return errored[0]
-        }
-    }
-    //
-
-    // Naming these things is dubious and makes the code start to look to
-    // chatty. Do we really need the trace? Because if not we can get rid of the
-    // name. Also, I'm not really using this except with `copacetic`, so ever
-    // more dubious. Pay attention to your stack traces and if they really do
-    // look better in Node.js 14 you can lose the names and the `$trace`.
-
-    //
-    __destructive (...vargs) {
-        const { $trace, id, f, errored } = this._vargs(vargs)
-        try {
-            let result = f
-            if (typeof result == 'function') {
-                result = result()
-            }
-            if (typeof result.then == 'function') {
-                return this._destructive($trace, result, id, errored)
-            }
-            return result
-        } catch (error) {
-            this._isolation.errored = true
-            this._errors.push(new Destructible.Error({ $trace, $stack: 0 }, [ error ], 'ERRORED', { id: id }))
-            this._tracer.push({ method: 'destructive', path: this.path })
-            this._countdown = 0
-            this._destroy()
-            if (errored.length == 0) {
-                throw error
-            }
-            return errored[0]
-        }
-    }
-
-    __copacetic2 (f, ...vargs) {
-        if (! this.errored) {
-            return f()
-        }
-        if (vargs.length != 0) {
-            return vargs[0]
-        }
+        return { $trace, id, f }
     }
     //
 
