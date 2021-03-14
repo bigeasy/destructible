@@ -3,13 +3,14 @@ require('proof')(50, async (okay) => {
     const Destructible = require('..')
     const Future = require('perhaps')
     const Interrupt = require('interrupt')
+    const noop = require('nop')
     {
         const destructible = new Destructible('main')
-        const done = destructible.done
+        const done = destructible.promise.catch(noop)
         destructible.destroy()
         await done
         await destructible.promise
-        okay(destructible.done, null, 'done returns null once resolved')
+        okay((await done) == null, 'done returns undefined')
         const test = []
         try {
             destructible.cause

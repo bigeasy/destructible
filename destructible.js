@@ -102,8 +102,6 @@ class Destructible {
 
         this._promise = new Future
 
-        this._done = new Future
-
         this._parent = null
 
         this.durables = 0
@@ -147,13 +145,6 @@ class Destructible {
 
     get promise () {
         return this._promise.promise
-    }
-
-    get done () {
-        if (! this._done.fulfilled) {
-            return this._done.promise
-        }
-        return null
     }
 
     get countdown () {
@@ -269,7 +260,6 @@ class Destructible {
         } else {
             this._promise.resolve()
         }
-        this._done.resolve()
     }
 
     // Temporary function to ensure noone is using the cause property.
