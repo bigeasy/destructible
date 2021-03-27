@@ -1,7 +1,7 @@
 require('proof')(28, async (okay) => {
     const rescue = require('rescue')
     const Destructible = require('..')
-    const Future = require('perhaps')
+    const { Future } = require('perhaps')
     const Interrupt = require('interrupt')
     const noop = require('nop')
     {

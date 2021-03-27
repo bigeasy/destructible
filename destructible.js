@@ -5,7 +5,7 @@ const assert = require('assert')
 const Interrupt = require('interrupt')
 
 // A Promise wrapper that captures `resolve` and `reject`.
-const Future = require('perhaps')
+const { Future } = require('perhaps')
 
 // A linked-list to track promises, scrams.
 const List = require('./list')
