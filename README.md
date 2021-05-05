@@ -213,7 +213,7 @@ Basic destructible usage.
 ## Destructing With Errors
 
 Destructible does not provide any sort of error recovery mechanism, it assumes
-that you will perform any error recovery in your appliction strands using
+that you will perform any error recovery in your application strands using
 `try`/`catch` or what-have-you. If a strand rejects, the Destructible will be
 destroyed and destruction will begin.
 
@@ -315,13 +315,13 @@ good idea. If I do so myself I'll come back and talk about the use case.
 
 The panic handler is supposed in indicate that an error occurred _after_
 shutdown, not before. The `panic()` handler will only be called after
-`destruct()` and only if the the destructible was not already `errored` when it
-was destructed.
+`destruct()` and only if the destructible was not already `errored` when it was
+destructed.
 
-In this example the shutdown of a consumer is expecting an a producer to signal
-it is done by releasing a `drain` latch. Before the producer can release the
-latch, however, it raises an exception. The consumer registered a panic handler
-that will release the latch itself so that the consumer shutdown will complete.
+In this example the shutdown of a consumer is expecting a producer to signal it
+is done by releasing a `drain` latch. Before the producer can release the latch,
+however, it raises an exception. The consumer registered a panic handler that
+will release the latch itself so that the consumer shutdown will complete.
 
 ```javascript
 const destructible = new Destructible('destructible')
