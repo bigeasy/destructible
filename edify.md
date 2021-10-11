@@ -16,8 +16,9 @@ Controlled demoltion of `async`/`await` applications.
 | Coverage:     | https://codecov.io/gh/bigeasy/destructible        |
 | License:      | MIT                                               |
 
+Destructible installs from NPM.
 
-```
+```text
 //{ "mode": "text" }
 npm install destructible
 ```
@@ -26,44 +27,49 @@ Destructible manages the concurrent asynchronous code paths in your application.
 At the very least, it provides the functionality of `Promise.allSettled()` but
 with dependencies, error handling and reporting, and cancellation.
 
+At the very most it is a framework for structured concurrency.
 
-This `README.md` is also a unit test using the Proof unit test framework. We'll
-use the Proof `okay` function to assert out statements in the readme. A Proof
-unit test generally looks like this.
+## Living `README.md`
+
+This `README.md` is also a unit test using the
+[Proof](https://github.com/bigeasy/proof) unit test framework. We'll use the
+Proof `okay` function to assert out statements in the readme. A Proof unit test
+generally looks like this.
 
 ```javascript
-//{ "code": { "tests": 18 }, "text": { "tests": 4  } }
+//{ "code": { "tests": 69 }, "text": { "tests": 4  } }
 require('proof')(%(tests)d, async okay => {
-    //{ "include": "testRequire" }
-    //{ "include": "test" }
-    okay('always okay')
-    okay(true, 'okay if true')
-    okay(1, 1, 'okay if equal')
-    okay({ value: 1 }, { value: 1 }, 'okay if deep strict equal')
+    //{ "include": "test", "mode": "code" }
+    //{ "include": "proof" }
 })
 ```
 
-You can run this unit test yourself.
+```javascript
+//{ "name": "proof", "mode": "text" }
+okay('always okay')
+okay(true, 'okay if true')
+okay(1, 1, 'okay if equal')
+okay({ value: 1 }, { value: 1 }, 'okay if deep strict equal')
+```
+
+You can run this unit test yourself to see the output from the various
+code sections of the readme.
 
 ```text
 //{ "mode": "text" }
 git clone git@github.com:bigeasy/destructible.git
 cd destructible
 npm install --no-package-lock --no-save
-make
 node test/readme.t.js
 ```
+
+## Overview
 
 The `'destructible'` module exports a single `Destructible` object.
 
 ```javascript
-//{ "name": "displayedRequire", "mode": "text" }
-const Destructible = require('destructible')
-```
-
-```javascript
-//{ "name": "testRequire", "mode": "code" }
-const Destructible = require('..')
+//{ "name": "test", "code": { "path": "'..'" }, "text": { "path": "'destructible'" } }
+const Destructible = require(%(path)s)
 ```
 
 Destructible is a utility for managing the construction and destruction of
@@ -213,7 +219,7 @@ fact a toy, would easily implemented as a single strand with a generator.
 Basic destructible usage.
 
 ```javascript
-//{ "name": "test" }
+//{ "name": "test", "unblock": true }
 {
     const destructible = new Destructible('example')
 

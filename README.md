@@ -16,7 +16,9 @@ Controlled demoltion of `async`/`await` applications.
 | Coverage:     | https://codecov.io/gh/bigeasy/destructible        |
 | License:      | MIT                                               |
 
-```
+Destructible installs from NPM.
+
+```text
 npm install destructible
 ```
 
@@ -24,10 +26,14 @@ Destructible manages the concurrent asynchronous code paths in your application.
 At the very least, it provides the functionality of `Promise.allSettled()` but
 with dependencies, error handling and reporting, and cancellation.
 
+At the very most it is a framework for structured concurrency.
 
-This `README.md` is also a unit test using the Proof unit test framework. We'll
-use the Proof `okay` function to assert out statements in the readme. A Proof
-unit test generally looks like this.
+## Living `README.md`
+
+This `README.md` is also a unit test using the
+[Proof](https://github.com/bigeasy/proof) unit test framework. We'll use the
+Proof `okay` function to assert out statements in the readme. A Proof unit test
+generally looks like this.
 
 ```javascript
 require('proof')(4, async okay => {
@@ -38,15 +44,17 @@ require('proof')(4, async okay => {
 })
 ```
 
-You can run this unit test yourself.
+You can run this unit test yourself to see the output from the various
+code sections of the readme.
 
 ```text
 git clone git@github.com:bigeasy/destructible.git
 cd destructible
 npm install --no-package-lock --no-save
-make
 node test/readme.t.js
 ```
+
+## Overview
 
 The `'destructible'` module exports a single `Destructible` object.
 
@@ -192,22 +200,20 @@ fact a toy, would easily implemented as a single strand with a generator.
 Basic destructible usage.
 
 ```javascript
-{
-    const destructible = new Destructible('example')
+const destructible = new Destructible('example')
 
-    const work = [ 1, 2, 3, 4 ].map(work => Promise.resolve(work))
+const work = [ 1, 2, 3, 4 ].map(work => Promise.resolve(work))
 
-    let sum = 0
-    destructible.ephemeral('loop', async () => {
-        while (work.length != 0) {
-            sum += await work.shift()
-        }
-    })
+let sum = 0
+destructible.ephemeral('loop', async () => {
+    while (work.length != 0) {
+        sum += await work.shift()
+    }
+})
 
-    await destructible.destroy().promise
+await destructible.destroy().promise
 
-    okay(sum, 10, 'basic destructible')
-}
+okay(sum, 10, 'basic destructible')
 ```
 
 ## Destructing With Errors
@@ -396,3 +402,39 @@ try {
     okay(panic, [ 'child panicked' ], 'no panic')
 }
 ```
+
+After destruction service might be waiting for another service to drain but that
+drain notification might never arrive be
+
+You can use the errored property to determine if an operation should be
+performed or skipped during. If you have a work queue, once errored you
+may decide to skip the work in the queue and let the queue empty quickly.
+You may have shutdown ephemerals strands that you won't perform on error
+exit.
+
+In our database example, we might write some state information to disk
+so that the next time the program runs it can resume quickly. If the
+database is in a bad state we probably don't want to write the state
+information because we can't trust it.
+
+**TODO** Code exmaple.
+
+At times we might want to isolate the error property in our tree, so that
+a particular sub-tree will not be marked as errored if the error occured
+in a branch outside the sub-tree.
+
+In our database example, we might have an error originating outside the
+strands that compose the database. The database itself is in a fine state
+and can perform an orderly shutdown, so it may as well attempt to do so.
+
+**TODO** Code exmaple.
+
+If we've isolated a sub-tree, there may be times when a service in that
+sub-tree is doing work in an unknown strand. Our database may do its
+writes in a work queue that is managed by a queue service. If the
+database write fails and it throws an exception, it will get caught by
+the queue service strand and shut it down with an error, but we need to
+keep the queue running so other services besides the database can clean
+up. We'd rather have the destructible associated with database service
+report the exception instead of the destructible associated with the
+queue service.
