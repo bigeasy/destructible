@@ -31,7 +31,7 @@
 // Proof `okay` function to assert out statements in the readme. A Proof unit test
 // generally looks like this.
 
-require('proof')(69, async okay => {
+require('proof')(14, async okay => {
     // ## Overview
     //
     // The `'destructible'` module exports a single `Destructible` object.
